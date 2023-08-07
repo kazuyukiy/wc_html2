@@ -17,10 +17,8 @@ fn main() {
         pool.execute(|| {
             handle_connection(stream);
         });
-        // thread::spawn(|| {
-        //     handle_connection(stream);
-        // });
     }
+    println!("Shutting down.");
 }
 
 fn handle_connection(mut stream: TcpStream) {
