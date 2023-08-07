@@ -1,4 +1,4 @@
-// threadpool_sub
+// threadpool_sub made on github.com
 
 use std::{
     sync::{mpsc, Arc, Mutex},
