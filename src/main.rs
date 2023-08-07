@@ -4,12 +4,10 @@ use std::{
 };
 
 fn main() {
-    // println!("Hello, world!");
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        // println!("Connection established!");
         handle_connection(stream);
     }
 }
@@ -22,5 +20,7 @@ fn handle_connection(mut stream: TcpStream) {
         .take_while(|line| !line.is_empty())
         .collect();
 
-    println!("Request: {:#?}", http_request);
+    // println!("Request: {:#?}", http_request);
+    let response = "HttP/1.1 200 OK\r\n\r\n";
+    stream.write_all(response.as_bytes()).unwrap();
 }
