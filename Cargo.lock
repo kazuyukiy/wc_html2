@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "wc_html2"
+name = "wc_note"
 version = "0.1.0"
