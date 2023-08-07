@@ -1,11 +1,7 @@
-// threadpool_sub made on github.com
-
 use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
-
-// mod thread_pool;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -15,6 +11,13 @@ pub struct ThreadPool {
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
 impl ThreadPool {
+    /// create a new ThreadPool.
+    ///
+    /// The size is the number of threads in the pool.
+    ///
+    /// # Panics
+    ///
+    /// The `new` function will panic if the sizeis zero.
     pub fn new(size: usize) -> ThreadPool {
         assert!(0 < size);
         let (sender, reciever) = mpsc::channel();
@@ -56,7 +59,6 @@ struct Worker {
 }
 
 impl Worker {
-    // fn new(id: usize, reciever: mpsc::Receiver<Job>) -> Worker {
     fn new(id: usize, reciever: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let message = reciever.lock().unwrap().recv();
@@ -70,10 +72,6 @@ impl Worker {
                     break;
                 }
             }
-
-            // let job = reciever.lock().unwrap().recv().unwrap();
-            // println!("Worker {id} got a job; executing.");
-            // job();
         });
         Worker {
             id,
