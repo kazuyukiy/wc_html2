@@ -1,10 +1,8 @@
 use std::fs;
 use std::io::prelude::*;
+use std::io::Result;
 use std::net::TcpListener;
 use std::net::TcpStream;
-// use std::thread;
-// use std::time::Duration;
-//  use std::io::BufReader;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
@@ -23,7 +21,7 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let (status_line, contents) = match wc_note::wc::response(&mut stream) {
         Ok(contents) => ("HTTP/1.1 200 OK", contents),
-        Err(_) => ("HTTP/1.1 404 NOT FOUND", not_found_contents().unwrap()),
+        Err(_) => ("HTTP/1.1 404 NOT FOUND", contents_404().unwrap()),
     };
 
     let response = format!(
@@ -37,8 +35,9 @@ fn handle_connection(mut stream: TcpStream) {
     stream.flush().unwrap();
 }
 
-fn not_found_contents() -> Result<String, ()> {
-    Ok(String::new())
+fn contents_404() -> Result<String> {
+    fs::read_to_string("404.html")
+    // Ok(String::new())
 }
 
 // fn handle_connection_(mut stream: TcpStream) {
