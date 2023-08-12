@@ -20,6 +20,7 @@ fn main() {
 
 fn handle_connection(mut stream: TcpStream) {
     let (status_line, contents) = match wc_note::wc::response(&mut stream) {
+        // let (status_line, contents) = match wc_note::wc::response2(&mut stream) {
         Ok(contents) => ("HTTP/1.1 200 OK", contents),
         Err(_) => ("HTTP/1.1 404 NOT FOUND", contents_404().unwrap()),
     };
