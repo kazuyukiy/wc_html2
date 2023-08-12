@@ -1,70 +1,56 @@
-use std::fs;
-use std::io::prelude::*;
-use std::io::Result;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request, Response, Server};
+use std::convert::Infallible;
+use std::net::SocketAddr;
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let pool = wc_note::thread_pool::ThreadPool::new(4);
-
-    // for stream in listener.incoming().take(2) {
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        pool.execute(|| {
-            handle_connection(stream);
-        });
+async fn hello_world(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    match header(&req, "host") {
+        Ok(v) => println!("host: {}", v),
+        Err(_) => (),
     }
-    println!("Shutting down.");
+
+    if req.method() == hyper::Method::GET {
+        println!("method: GET");
+    }
+
+    if req.method() == hyper::Method::POST {
+        println!("method: POST");
+    }
+
+    Ok(Response::new("Hello, world".into()))
 }
 
-fn handle_connection(mut stream: TcpStream) {
-    let (status_line, contents) = match wc_note::wc::response(&mut stream) {
-        // let (status_line, contents) = match wc_note::wc::response2(&mut stream) {
-        Ok(contents) => ("HTTP/1.1 200 OK", contents),
-        Err(_) => ("HTTP/1.1 404 NOT FOUND", contents_404().unwrap()),
-    };
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pretty_env_logger::init();
 
-    let response = format!(
-        "{}\r\nContent-Length: {}\r\n\r\n{}",
-        status_line,
-        contents.len(),
-        contents
-    );
+    // for every connection, we must make a `Service` to handle all
+    // incomming HTTP request on said connection.
+    let make_svc = make_service_fn(|_conn| {
+        // This is the `Service` that will handle the connection.
+        // `service_fn` is a helper to convert a function that
+        // returns a Response into a `Service`.
+        async { Ok::<_, Infallible>(service_fn(hello_world)) }
+    });
 
-    stream.write_all(response.as_bytes()).unwrap();
-    stream.flush().unwrap();
+    let addr = SocketAddr::from(([127, 0, 0, 1], 7878));
+
+    let server = Server::bind(&addr).serve(make_svc);
+
+    println!("Listening on http:://{}", addr);
+
+    server.await?;
+
+    Ok(())
 }
 
-fn contents_404() -> Result<String> {
-    fs::read_to_string("404.html")
-    // Ok(String::new())
+fn header<'a>(req: &'a Request<Body>, key: &str) -> Result<&'a str, ()> {
+    let headers = req.headers();
+    match headers.get(key) {
+        Some(hv) => match hv.to_str() {
+            Ok(v) => Ok(v),
+            Err(_) => Err(()),
+        },
+        None => Err(()),
+    }
 }
-
-// fn handle_connection_(mut stream: TcpStream) {
-//     let mut buffer = [0; 1024];
-//     stream.read(&mut buffer).unwrap();
-
-//     let get = b"GET / HTTP/1.1\r\n";
-//     let sleep = b"GET /sleep HTTP/1.1\r\n";
-
-//     let (status_line, filename) = if buffer.starts_with(get) {
-//         ("HTTP/1.1 200 OK", "hello.html")
-//     } else if buffer.starts_with(sleep) {
-//         thread::sleep(Duration::from_secs(5));
-//         ("HTTP/1.1 200 OK", "hello.html")
-//     } else {
-//         ("HTTP/1.1 404 NOT FOUND", "404.html")
-//     };
-
-//     let contents = fs::read_to_string(filename).unwrap();
-//     let response = format!(
-//         "{}\r\nContent-Length: {}\r\n\r\n{}",
-//         status_line,
-//         contents.len(),
-//         contents
-//     );
-
-//     stream.write_all(response.as_bytes()).unwrap();
-//     stream.flush().unwrap();
-// }
