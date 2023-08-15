@@ -1,24 +1,7 @@
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, Server};
+use hyper::Server;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-
-async fn hello_world(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    match header(&req, "host") {
-        Ok(v) => println!("host: {}", v),
-        Err(_) => (),
-    }
-
-    if req.method() == hyper::Method::GET {
-        println!("method: GET");
-    }
-
-    if req.method() == hyper::Method::POST {
-        println!("method: POST");
-    }
-
-    Ok(Response::new("Hello, world".into()))
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -30,7 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // This is the `Service` that will handle the connection.
         // `service_fn` is a helper to convert a function that
         // returns a Response into a `Service`.
-        async { Ok::<_, Infallible>(service_fn(hello_world)) }
+        // async { Ok::<_, Infallible>(service_fn(wc_note::hello_world)) }
+        async { Ok::<_, Infallible>(service_fn(wc_note::handle)) }
     });
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 7878));
@@ -44,13 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-fn header<'a>(req: &'a Request<Body>, key: &str) -> Result<&'a str, ()> {
-    let headers = req.headers();
-    match headers.get(key) {
-        Some(hv) => match hv.to_str() {
-            Ok(v) => Ok(v),
-            Err(_) => Err(()),
-        },
-        None => Err(()),
-    }
-}
+// page data update
+// Web -- Server
+// file data to client
+// wasm make html form data
