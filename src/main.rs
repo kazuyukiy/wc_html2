@@ -17,8 +17,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // returns a Response into a `Service`.
         // async { Ok::<_, Infallible>(service_fn(wc_note::handle)) }
         async {
-            Ok::<_, Infallible>(service_fn(|req: Request<Body>| {
-                wc_note::handle(req, page_path)
+            Ok::<_, Infallible>(service_fn(|request: Request<Body>| {
+                wc_note::handle(request, page_path)
             }))
         }
     });
