@@ -1,90 +1,114 @@
-// use crate::page;
 use hyper::{Body, Request, Response};
 use std::convert::Infallible;
-mod page;
+pub mod page;
 
 // fn handle handles requests and return responses.
 //
 pub async fn handle(request: Request<Body>, page_path: &str) -> Result<Response<Body>, Infallible> {
-    // pub async fn handle(request: Request<Body>, page_path: &str) {
-    // ~/projects/wc/wc_html/src/page/mod.rs
-    // pub struct Page page.source
-
-    monitor_req_info(&request);
-
     // root page path + path requested
     let page_path = page_path.to_string() + request.uri().path();
     println!("page_path: {}", page_path);
 
-    let mut page = match page::Page::from(&page_path) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("{}: {:?}", page_path, e.kind());
-            return res_404();
+    let mut wc_handler = WcHandler::new(&request, &page_path);
+
+    monitor_req_info(&request);
+
+    wc_handler.handle()
+    // remove return and ;
+    // after all the rest after this line has beem moved to wc_handler.handle()
+    // return wc_handler.handle();
+    // Ok(Response::new("Hello, world".into()))
+}
+
+struct WcHandler<'a> {
+    request: &'a Request<Body>,
+    page_path: &'a str,
+    page: Option<page::Page>,
+    wc_request: Option<&'a str>,
+}
+
+impl<'a> WcHandler<'a> {
+    fn new(request: &'a Request<Body>, page_path: &'a str) -> WcHandler<'a> {
+        println!("page_path: {}", page_path);
+
+        WcHandler {
+            request,
+            page_path,
+            page: None,
+            wc_request: None,
         }
-    };
-
-    if request.method() == hyper::Method::GET {
-        return handle_get(&mut page);
     }
 
-    if request.method() == hyper::Method::POST {
-        return handle_post(&mut page, &request);
+    fn handle(&mut self) -> Result<Response<Body>, Infallible> {
+        match page::Page::from(self.page_path) {
+            Ok(page) => self.page.replace(page),
+            Err(e) => {
+                eprintln!("{}: {:?}", self.page_path, e.kind());
+                return res_404();
+            }
+        };
+
+        if self.request.method() == hyper::Method::GET {
+            return self.handle_get();
+        }
+
+        if self.request.method() == hyper::Method::POST {
+            return self.handle_post();
+        }
+        // temp
+        Ok(Response::new("Hello, world".into()))
     }
 
-    Ok(Response::new("Hello, world".into()))
-}
-
-fn handle_get(page: &mut page::Page) -> Result<Response<Body>, Infallible> {
-    match page.body() {
-        Ok(b) => return Ok(Response::new(b.into())),
-        Err(_) => return res_404(),
-    }
-}
-
-fn handle_post(
-    page: &mut page::Page,
-    request: &Request<Body>,
-) -> Result<Response<Body>, Infallible> {
-    // request
-    // headers
-
-    let wc_request = match request.headers().get("wc-request") {
-        Some(ov) => match ov.to_str() {
-            Ok(v) => v,
-            Err(_) => return post_err_response(""),
-        },
-        None => return post_err_response(""),
-    };
-
-    if wc_request == "json_save" {
-        return json_save(wc_request);
+    fn handle_get(&mut self) -> Result<Response<Body>, Infallible> {
+        match self.page.as_mut().unwrap().body() {
+            Ok(b) => return Ok(Response::new(b.into())),
+            Err(_) => return res_404(),
+        }
     }
 
-    // Ok(Response::new("handle_post".into()))
-    Ok(Response::new(
-        r#"{"res":"post_handle page_json_save"}"#.into(),
-    ))
-    // Ok(r#"{"res":"post_handle page_json_save"}"#.to_string().into_bytes())
-}
+    fn handle_post(&mut self) -> Result<Response<Body>, Infallible> {
+        // request
+        // headers
 
-fn post_err_response(wc_request: &str) -> Result<Response<Body>, Infallible> {
-    let msg = format!(
-        r#"{{"res":"post_handle wc-request not found: {}"}}"#,
-        wc_request
-    );
+        match self.request.headers().get("wc-request") {
+            Some(ov) => match ov.to_str() {
+                Ok(v) => self.wc_request.replace(v),
+                Err(_) => return self.post_err_response(),
+            },
+            None => return self.post_err_response(),
+        };
 
-    Ok(Response::new(msg.into()))
+        let wc_request = self.wc_request.as_ref().unwrap();
+
+        if wc_request == &"json_save" {
+            return self.json_save();
+        }
+
+        Ok(Response::new(
+            r#"{"res":"post_handle page_json_save"}"#.into(),
+        ))
+    }
+
+    fn post_err_response(&self) -> Result<Response<Body>, Infallible> {
+        let msg = format!(
+            r#"{{"res":"post_handle wc-request not found: {}"}}"#,
+            self.wc_request.as_ref().unwrap() // wc_request
+        );
+
+        Ok(Response::new(msg.into()))
+    }
+    fn json_save(&self) -> Result<Response<Body>, Infallible> {
+        let msg = format!(
+            r#"{{"res":"post_handle wc-request: {}"}}"#,
+            self.wc_request.as_ref().unwrap()
+        );
+
+        Ok(Response::new(msg.into()))
+    }
 }
 
 fn res_404() -> Result<Response<Body>, Infallible> {
     Ok(Response::new("Not found".into()))
-}
-
-fn json_save(wc_request: &str) -> Result<Response<Body>, Infallible> {
-    let msg = format!(r#"{{"res":"post_handle wc-request: {}"}}"#, wc_request);
-
-    Ok(Response::new(msg.into()))
 }
 
 fn monitor_req_info(request: &Request<Body>) {

@@ -18,4 +18,8 @@ impl Page {
         let mut buf = Vec::new();
         self.file.read_to_end(&mut buf).and(Ok(buf))
     }
+
+    // pub fn path(&self) -> std::path::PathBuf {
+    //     self.file.path()
+    // }
 }
