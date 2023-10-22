@@ -1,31 +1,24 @@
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Server};
-use std::convert::Infallible;
-use std::net::SocketAddr;
+use hyper::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    pretty_env_logger::init();
-
+    let addr = (([127, 0, 0, 1], 3000)).into();
     let page_path = "./pages";
 
     // for every connection, we must make a `Service` to handle all
     // incomming HTTP request on said connection.
-    let make_svc = make_service_fn(|_conn| {
+    let service = make_service_fn(|_| async {
         // This is the `Service` that will handle the connection.
         // `service_fn` is a helper to convert a function that
         // returns a Response into a `Service`.
-        // async { Ok::<_, Infallible>(service_fn(wc_note::handle)) }
-        async {
-            Ok::<_, Infallible>(service_fn(|request: Request<Body>| {
-                wc_note::handle(request, page_path)
-            }))
-        }
+        // Ok::<_, hyper::Error>(service_fn(|req| wc_note::handle(req, page_path)))
+
+        // wc_node::service()
+        Ok::<_, hyper::Error>(service_fn(|req| wc_note::service(req, page_path)))
     });
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 7878));
-
-    let server = Server::bind(&addr).serve(make_svc);
+    let server = Server::bind(&addr).serve(service);
 
     println!("Listening on http:://{}", addr);
 
