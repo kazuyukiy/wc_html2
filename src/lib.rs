@@ -1,117 +1,184 @@
-use hyper::{Body, Request, Response};
-use std::convert::Infallible;
+use hyper::body::HttpBody;
+use hyper::header::HeaderValue;
+use hyper::{Body, Method, Request, Response, StatusCode};
+
 pub mod page;
 
-// fn handle handles requests and return responses.
-//
-pub async fn handle(request: Request<Body>, page_path: &str) -> Result<Response<Body>, Infallible> {
-    // root page path + path requested
-    let page_path = page_path.to_string() + request.uri().path();
-    println!("page_path: {}", page_path);
+pub async fn service(
+    request: Request<Body>,
+    source_path: &str,
+) -> Result<Response<Body>, hyper::Error> {
+    let mut handler = WcHandler::from(request, source_path);
 
-    let mut wc_handler = WcHandler::new(&request, &page_path);
+    handler.handle().await
 
-    monitor_req_info(&request);
-
-    wc_handler.handle()
-    // remove return and ;
-    // after all the rest after this line has beem moved to wc_handler.handle()
-    // return wc_handler.handle();
     // Ok(Response::new("Hello, world".into()))
 }
 
 struct WcHandler<'a> {
-    request: &'a Request<Body>,
-    page_path: &'a str,
+    source_path: &'a str,
+    request: Request<Body>,
     page: Option<page::Page>,
-    wc_request: Option<&'a str>,
 }
 
 impl<'a> WcHandler<'a> {
-    fn new(request: &'a Request<Body>, page_path: &'a str) -> WcHandler<'a> {
-        println!("page_path: {}", page_path);
-
-        WcHandler {
-            request,
-            page_path,
+    fn from(request: Request<Body>, source_path: &'a str) -> WcHandler {
+        let wc_handler = WcHandler {
+            source_path,
+            request: request,
             page: None,
-            wc_request: None,
-        }
-    }
-
-    fn handle(&mut self) -> Result<Response<Body>, Infallible> {
-        match page::Page::from(self.page_path) {
-            Ok(page) => self.page.replace(page),
-            Err(e) => {
-                eprintln!("{}: {:?}", self.page_path, e.kind());
-                return res_404();
-            }
         };
 
-        if self.request.method() == hyper::Method::GET {
-            return self.handle_get();
+        wc_handler
+    }
+
+    fn wc_request(&self) -> Option<&HeaderValue> {
+        self.request.headers().get("wc-request")
+    }
+
+    fn body_size_over(&self) -> bool {
+        let upper = self.request.body().size_hint().upper().unwrap_or(u64::MAX);
+        if upper > 1024 * 64 {
+            return true;
+        }
+        false
+    }
+
+    // In case jason data, request_body would be like;
+    // "{\"data\":\"<span class=\\\"classNameA\\\">Q&A</span>\"}"
+    // whole data is closed by "".
+    // " is escaped to \" because whole data is closed by "".
+    // Because json data is closed by "", value inside "" is also escaped as \\\"
+    async fn request_body(&mut self) -> Result<String, hyper::Error> {
+        let request_body = hyper::body::to_bytes(self.request.body_mut()).await?;
+        let request_body = String::from_utf8_lossy(&request_body).into_owned();
+        Ok(request_body)
+    }
+
+    fn page(&mut self) -> Result<&mut page::Page, std::io::Error> {
+        if self.page.is_none() {
+            let page_path = self.source_path.to_string() + self.request.uri().path();
+
+            match page::Page::from_path(&page_path) {
+                Ok(page) => self.page.replace(page),
+                Err(e) => {
+                    eprintln!("not found: {}", page_path);
+                    return Err(e);
+                }
+            };
+        }
+        Ok(self.page.as_mut().unwrap())
+    }
+
+    async fn handle(&mut self) -> Result<Response<Body>, hyper::Error> {
+        if let Err(_) = self.page() {
+            return Ok(res_404());
         }
 
-        if self.request.method() == hyper::Method::POST {
-            return self.handle_post();
+        println!("{:?} {}", self.request.method(), self.request.uri().path());
+
+        // handle method cases
+        if self.request.method() == Method::POST {
+            return self.handle_post().await;
+        }
+
+        if self.request.method() == Method::GET {
+            return self.handle_get();
         }
         // temp
         Ok(Response::new("Hello, world".into()))
     }
 
-    fn handle_get(&mut self) -> Result<Response<Body>, Infallible> {
-        match self.page.as_mut().unwrap().body() {
-            Ok(b) => return Ok(Response::new(b.into())),
-            Err(_) => return res_404(),
+    fn handle_get(&mut self) -> Result<Response<Body>, hyper::Error> {
+        // println!("handle_get");
+
+        match self.page().unwrap().source() {
+            Ok(v) => return Ok(Response::new(v.to_vec().into())),
+            Err(_) => return Ok(res_404()),
         }
     }
 
-    fn handle_post(&mut self) -> Result<Response<Body>, Infallible> {
-        // request
-        // headers
-
-        match self.request.headers().get("wc-request") {
-            Some(ov) => match ov.to_str() {
-                Ok(v) => self.wc_request.replace(v),
-                Err(_) => return self.post_err_response(),
-            },
-            None => return self.post_err_response(),
+    async fn handle_post(&mut self) -> Result<Response<Body>, hyper::Error> {
+        let wc_request = match self.wc_request() {
+            Some(r) => r,
+            None => return Ok(Response::new("No wc_request found".into())),
         };
+        println!("wc_request: {:?}", wc_request);
 
-        let wc_request = self.wc_request.as_ref().unwrap();
-
-        if wc_request == &"json_save" {
-            return self.json_save();
+        if self.body_size_over() {
+            return Ok(res_body_too_big());
         }
 
+        if wc_request == "json_save" {
+            return self.json_save().await;
+        }
+
+        // temp
+        Ok(Response::new("Hello, world".into()))
+    }
+
+    async fn json_save(&mut self) -> Result<Response<Body>, hyper::Error> {
+        let request_body = self.request_body().await?;
+
+        // To use json value in HTML
+        // "value \" " : escape " by \"
+        // & => &amp;
+        // < > => &lt; &gt
+
+        let json_post = match json::parse(&request_body) {
+            Ok(page_json_parse) => page_json_parse,
+            Err(_) => {
+                return Ok(res_json_parse_failed());
+            }
+        };
+
+        match self.page().unwrap().json_post_save(json_post) {
+            Ok(_) => (),
+            Err(e) => {
+                eprintln!("err: {:?}", e);
+                return Ok(res_json_save_failed());
+            }
+        }
+
+        // new rev no must be send back
+        // or do not confirm rev matching
+
+        // ~/projects/wc/wc_html/src/wc_handler/mod.rs
         Ok(Response::new(
             r#"{"res":"post_handle page_json_save"}"#.into(),
         ))
     }
-
-    fn post_err_response(&self) -> Result<Response<Body>, Infallible> {
-        let msg = format!(
-            r#"{{"res":"post_handle wc-request not found: {}"}}"#,
-            self.wc_request.as_ref().unwrap() // wc_request
-        );
-
-        Ok(Response::new(msg.into()))
-    }
-    fn json_save(&self) -> Result<Response<Body>, Infallible> {
-        let msg = format!(
-            r#"{{"res":"post_handle wc-request: {}"}}"#,
-            self.wc_request.as_ref().unwrap()
-        );
-
-        Ok(Response::new(msg.into()))
-    }
 }
 
-fn res_404() -> Result<Response<Body>, Infallible> {
-    Ok(Response::new("Not found".into()))
+// ==============
+
+fn res_404() -> Response<Body> {
+    println!("res_404");
+
+    let mut not_found = Response::default();
+    *not_found.status_mut() = StatusCode::NOT_FOUND;
+    not_found
 }
 
-fn monitor_req_info(request: &Request<Body>) {
+fn res_body_too_big() -> Response<Body> {
+    let mut resp = Response::new(Body::from("Body too big"));
+    *resp.status_mut() = hyper::StatusCode::PAYLOAD_TOO_LARGE;
+    resp
+}
+
+fn res_json_parse_failed() -> Response<Body> {
+    let mut resp = Response::new(Body::from("Failed to parse to json"));
+    *resp.status_mut() = hyper::StatusCode::PARTIAL_CONTENT;
+    resp
+}
+
+fn res_json_save_failed() -> Response<Body> {
+    let mut resp = Response::new(Body::from("Failed to save json posted"));
+    *resp.status_mut() = hyper::StatusCode::NOT_MODIFIED;
+    resp
+}
+
+fn _monitor_req_info(request: &Request<Body>) {
     // path
     println!("== request infor");
     println!("path: {}", request.uri().path());
@@ -125,11 +192,12 @@ fn monitor_req_info(request: &Request<Body>) {
         }
     }
 
-    if request.method() == hyper::Method::GET {
-        println!("method: GET");
+    println!("method: {:?}", request.method());
+    if request.method() == Method::GET {
+        // println!("method: GET");
     }
-    if request.method() == hyper::Method::POST {
-        println!("method: POST");
+    if request.method() == Method::POST {
+        // println!("method: POST");
     }
 }
 
@@ -137,3 +205,7 @@ fn monitor_req_info(request: &Request<Body>) {
 // Web -- Server
 // file data to client
 // wasm make html form data
+
+// struct test {
+//     dom: RcDom,
+// }
