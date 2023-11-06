@@ -10,21 +10,19 @@ pub struct Page {
     path: String,
     source: Option<Vec<u8>>,
     dom: Option<RcDom>,
-    // this causes error, seems
-    //
     json: Option<json::JsonValue>,
-    // rev: Option<usize>,
-    // rev_uped: Option<usize>,
 }
 
 impl Page {
     pub fn from_path(path: &str) -> Result<Page, ()> {
         let path = String::from(path);
 
-        // page.source();
         let source = match fs::read(&path) {
             Ok(s) => Some(s),
-            Err(_) => None,
+            Err(e) => {
+                eprintln!("{:?}", e.kind());
+                None
+            }
         };
 
         let page = Page {
@@ -33,12 +31,6 @@ impl Page {
             dom: None,
             json: None,
         };
-
-        // if let Some(source) = page.source_utf8() {
-        //     let dom =
-        //         parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(source);
-        //     page.dom.replace(dom);
-        // }
 
         Ok(page)
     }
@@ -49,13 +41,25 @@ impl Page {
 
     fn source_utf8(&self) -> Option<String> {
         let vec = self.source()?.to_owned();
-        String::from_utf8(vec).ok()
+
+        match String::from_utf8(vec) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                eprintln!("Failed to convert file source to UTF8");
+                None
+            }
+        }
     }
 
-    pub fn dom_set(&mut self) {
+    // fn dom_set set dom data form self.source with &mut self
+    // once do this, you can call fn dom(), fn json() with &self (immutable)
+    fn dom_set(&mut self) {
         let source_utf8 = match self.source_utf8() {
             Some(v) => v,
-            None => return,
+            None => {
+                eprintln!("Failed to set dom");
+                return;
+            }
         };
 
         let dom = parse_document(markup5ever_rcdom::RcDom::default(), Default::default())
@@ -70,33 +74,26 @@ impl Page {
         }
     }
 
-    //     pub fn json_set(&mut self)
-
-    // pub fn json_set(&mut self) -> Result<(), &'static str> {
     pub fn json_set(&mut self) {
         let dom = match self.dom() {
             Some(v) => v,
             None => {
-                eprintln!("Failed to get dom");
-                return;
+                self.dom_set();
+                match self.dom() {
+                    Some(v) => v,
+                    None => return,
+                }
             }
         };
         let json = match page_utility::json_from_dom(dom) {
             Some(v) => v,
-            // None => return,
-            None => {
-                eprintln!("Failed to convertfrom dom to json");
-                return;
-            }
+            None => return,
         };
 
         self.json.replace(json);
-        // Ok(())
     }
 
     fn json(&self) -> Option<&json::JsonValue> {
-        // let dom = &self.dom()?;
-        // page_utility::json_from_dom(dom)
         self.json.as_ref()
     }
 
@@ -108,11 +105,8 @@ impl Page {
         re.is_match(&self.path)
     } // end of fn name_end_num
 
-    // pub fn json_post_save() {}
-
     // current rev
-    // fn rev(&mut self) -> Result<u32, std::io::Error> {
-    fn rev(&self) -> Option<u32> {
+    pub fn rev(&self) -> Option<u32> {
         self.json()?["data"]["page"]["rev"].as_u32()
     }
 
@@ -122,7 +116,6 @@ impl Page {
         Some(rev + 1)
     }
 
-    // fn path_rev(&mut self) -> Result<String, std::io::Error> {
     fn path_rev(&self) -> Option<String> {
         let rev = self.rev()?;
         // file_path + "." + rev
@@ -156,7 +149,9 @@ impl Page {
     pub fn page_save_rev(&mut self) -> Result<(), ()> {
         let path_rev = match self.path_rev() {
             Some(v) => v,
-            None => return Err(()),
+            None => {
+                return Err(());
+            }
         };
 
         let source = match self.source() {
@@ -200,7 +195,7 @@ impl Page {
         Ok(())
     }
 
-    pub fn json_post_save(&self, mut json_post: json::JsonValue) -> Result<(), ()> {
+    pub fn json_post_save(&mut self, mut json_post: json::JsonValue) -> Result<(), ()> {
         //
         // let rev_check = true;
         let rev_check = false;
@@ -218,17 +213,13 @@ impl Page {
         };
         json_post["data"]["page"]["rev"] = rev_uped.into();
 
-        // dbg
-        // println!("page.rs fn json_post_save rev_uped: {}", rev_uped);
-
         // get a new page from json_post
         let mut page_post = match page_utility::page_from_json(json_post, &self.path) {
             Ok(v) => v,
             Err(_) => return Err(()),
         };
 
-        // dbg
-        page_post.dom_set();
+        // to set page.dom, page.json
         page_post.json_set();
 
         if let Err(e) = page_post.page_save() {
@@ -241,5 +232,3 @@ impl Page {
         Ok(())
     }
 }
-
-// markup5ever

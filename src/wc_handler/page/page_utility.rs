@@ -22,24 +22,22 @@ pub fn span_json_node(page_dom: &RcDom) -> Handle {
     dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
 }
 
-// pub fn json_from_dom(dom: &RcDom) -> Result<json::JsonValue, std::io::Error> {
 pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     // span node containing json data in text
     let span = span_json_node(dom);
     let children = span.children.borrow();
     if children.len() == 0 {
-        // return Err(err_no_json_value());
+        eprintln!("Failed, json contents not found in the span element");
         return None;
     }
-    // children: `Ref<'_, Vec<Rc<Node>>>`
-
-    // children[0]
-    // `Rc<Node>`
 
     let contents = match &children[0].data {
         NodeData::Text { contents } => contents,
         // _ => return Err(err_no_json_value()),
-        _ => return None,
+        _ => {
+            eprintln!("Failed, json contents not found in the span element");
+            return None;
+        }
     };
 
     let json_str = contents.borrow().to_string();
@@ -47,14 +45,11 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     let json_value = match json::parse(&json_str) {
         Ok(page_json_parse) => page_json_parse,
         Err(e) => {
-            // let err = Error::new(ErrorKind::Other, "Can not parse json value");
-            // return Err(err);
             eprintln!("{:?}", e);
             return None;
         }
     };
 
-    // Ok(json_value)
     Some(json_value)
 }
 

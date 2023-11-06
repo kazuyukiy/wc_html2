@@ -1,6 +1,6 @@
-use std::io::Read;
+// use std::io::Read;
 use std::net::TcpStream;
-// mod http_request; // does not work
+mod http_request; // does not work
 mod page;
 
 // Initialization
@@ -14,29 +14,20 @@ pub fn system_ini() {
     // under construction
 }
 
-// pub fn response(stream: &mut TcpStream, page_root: String) -> Vec<u8> {
 pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
     // dbg
     // println!("wc_handler fn response cp");
 
-    // let mut stream_data = stream_read_to_end(stream);
-    let stream_data = stream_read(stream);
+    let http_request = http_request::HttpRequest::new(stream);
 
-    let mut headers = [httparse::EMPTY_HEADER; 64];
-    let mut request = httparse::Request::new(&mut headers);
-
-    let body_offset = match request.parse(&stream_data) {
-        Ok(s) => match s {
-            httparse::Status::Complete(l) => l,
-            httparse::Status::Partial => stream_data.len(),
-        },
-        Err(_) => stream_data.len(),
-    };
-
-    // let (method, _page_path, mut page) = match method_path_page(page_root, &request) {
-    let (method, mut page) = match method_page(page_root, &request) {
+    let mut page = match page(page_root, &http_request) {
         Ok(v) => v,
         Err(e) => return e,
+    };
+
+    let method = match http_request.method.as_ref() {
+        Some(v) => v,
+        None => return http_404(),
     };
 
     if method == "GET" {
@@ -44,204 +35,66 @@ pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
     }
 
     if method == "POST" {
-        // let body = stream_data[body_offset..stream_data.len()].to_vec();
-        let body = stream_data[body_offset..].to_vec();
-        return handle_post(&mut page, &request, body);
+        return handle_post(&mut page, &http_request);
     }
-
-    // let _body = stream_data[body_offset..].to_vec();
 
     // temp
     http_hello()
 }
 
-fn stream_read_to_end(stream: &mut TcpStream) -> Vec<u8> {
-    let mut stream_data: Vec<u8> = Vec::new();
-    // issue read_to_end() does not return result
-    let res = stream.read_to_end(&mut stream_data);
-
-    match res {
-        Ok(_) => (),
-        Err(e) => eprintln!("wc_handler fn stream_read_to_end Err: {:?}", e),
-    }
-
-    stream_data
-}
-
-fn stream_read(stream: &mut TcpStream) -> Vec<u8> {
-    // const MESSAGE_SIZE: usize = 5;
-    const MESSAGE_SIZE: usize = 1024;
-    let mut rx_bytes = [0u8; MESSAGE_SIZE];
-    let mut recieved: Vec<u8> = vec![];
-
-    loop {
-        match stream.read(&mut rx_bytes) {
-            Ok(bytes_read) => {
-                recieved.extend_from_slice(&rx_bytes[..bytes_read]);
-                if bytes_read < MESSAGE_SIZE {
-                    break;
-                }
-            }
-
-            Err(_) => {
-                break;
-            }
-        }
-    }
-
-    recieved
-}
-
-// fn method<'a>(request: &'a httparse::Request) -> Result<&'a str, Vec<u8>> {
-//     match request.method {
-//         Some(v) => Ok(v),
-//         None => Err(http_400()),
-//     }
-// }
-
-// fn path<'a>(request: &'a httparse::Request) -> Result<&'a str, Vec<u8>> {
-//     match request.path {
-//         Some(v) => Ok(v),
-//         None => Err(http_400()),
-//     }
-// }
-
-// fn page<'a>(page_root: &str, request: &'a httparse::Request) -> Result<page::Page, Vec<u8>> {
-//     let path = path(request)?;
-//     let method = method(request)?;
-
-//     let page_path = page_root.to_string() + path;
-
-//     // method, pass
-//     println!("{} {}", method, page_path);
-
-//     let page = match page::Page::from_path(&page_path) {
-//         Ok(v) => v,
-//         Err(_) => return Err(http_404()),
-//     };
-
-//     Ok(page)
-// }
-
-// fn method_path_page is a bit complicated, but code using this function becomes simpler
-// fn method(), fn page() make is simpler, but code colling those becomes bigger.
-// fn method_path_page<'a>(
-//     // page_root: String,
-//     page_root: &str,
-//     request: &'a httparse::Request,
-// ) -> Result<(&'a str, String, page::Page), Vec<u8>> {
-//     // println!("wc_handler fn method_path_page");
-
-//     // println!("wc_handler fn method_path_page {:?}", request.method);
-
-//     let method = match request.method {
-//         Some(v) => v,
-//         None => return Err(http_400()),
-//     };
-
-//     // println!("wc_handler fn method_path_page {}", method);
-
-//     // let page_path = match request.path {
-//     let path = match request.path {
-//         Some(v) => v,
-//         None => return Err(http_400()),
-//     };
-
-//     // let page_path = page_root.to_string() + page_path;
-//     let page_path = page_root.to_string() + path;
-
-//     // method, pass
-//     println!("{} {}", method, page_path);
-
-//     let page = match page::Page::from_path(&page_path) {
-//         Ok(v) => v,
-//         Err(_) => return Err(http_404()),
-//     };
-
-//     Ok((method, page_path, page))
-// }
-
-// fn method_page is a bit complicated, but code using this function becomes simpler
-// fn method(), fn page() make is simpler, but code colling those becomes bigger.
-fn method_page<'a>(
-    // page_root: String,
-    page_root: &str,
-    request: &'a httparse::Request,
-) -> Result<(&'a str, page::Page), Vec<u8>> {
-    // println!("wc_handler fn method_page");
-
-    // println!("wc_handler fn method_page {:?}", request.method);
-
-    let method = match request.method {
+fn page(page_root: &str, http_request: &http_request::HttpRequest) -> Result<page::Page, Vec<u8>> {
+    let path = match http_request.path.as_ref() {
         Some(v) => v,
-        None => return Err(http_400()),
+        None => return Err(http_404()),
     };
 
-    // println!("wc_handler fn method_page {}", method);
-
-    // let page_path = match request.path {
-    let path = match request.path {
-        Some(v) => v,
-        None => return Err(http_400()),
-    };
-
-    // let page_path = page_root.to_string() + page_path;
-    let page_path = page_root.to_string() + path;
-
-    // method, pass
-    println!("{} {}", method, page_path);
+    let page_path = page_root.to_string() + &path;
 
     let page = match page::Page::from_path(&page_path) {
         Ok(v) => v,
         Err(_) => return Err(http_404()),
     };
 
-    Ok((method, page))
+    Ok(page)
 }
 
 fn handle_get(page: &mut page::Page) -> Vec<u8> {
     match page.source() {
-        Some(v) => {
-            //
-            http_ok(v)
-        }
-        None => {
-            // dbg
-            // eprintln!("wc_handler.rs fn hadle_get err: {:?}", e);
-            // return http_404();
-            http_404()
-        }
+        Some(v) => http_ok(v),
+        None => http_404(),
     }
 }
 
-fn handle_post(page: &mut page::Page, request: &httparse::Request, body: Vec<u8>) -> Vec<u8> {
+fn handle_post(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
     // case backup file
     if page.name_end_num() {
         return http_400();
     }
 
-    let wc_request = match request.headers.iter().find(|&&h| h.name == "wc-request") {
-        Some(header) => header.value,
+    let wc_request = match http_request.wc_request.as_ref() {
+        Some(wc_request) => wc_request,
         None => return http_400(),
     };
 
+    page.json_set();
+    // page.rev() exists that means the file contains json data properly
+    // otherwise no further processes
+    if page.rev().is_none() {
+        return http_400();
+    }
+
     if wc_request == b"json_save" {
-        return handle_json_save(request, page, body);
+        return handle_json_save(page, http_request);
     }
 
     // temp
     http_404()
 }
 
-fn handle_json_save(_request: &httparse::Request, page: &mut page::Page, body: Vec<u8>) -> Vec<u8> {
-    // println!("wc_handler fn handle_json_save body: {:?}", body);
-
-    let body = match String::from_utf8(body) {
-        Ok(v) => v,
-        Err(_) => {
-            eprintln!("Failed to convert body to String");
-            return http_400();
-        }
+fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    let body = match http_request.body.as_ref() {
+        Some(v) => v,
+        None => return http_400(),
     };
 
     let json_post = match json::parse(&body) {
@@ -256,19 +109,9 @@ fn handle_json_save(_request: &httparse::Request, page: &mut page::Page, body: V
 }
 
 fn json_post_save(page: &mut page::Page, json_post: json::JsonValue) -> Vec<u8> {
-    // dbg
-    // println!("wc_handler.rs fn json_post_save");
-
-    page.dom_set();
-    page.json_set();
-    if let Err(_) = page.page_save_rev() {
-        eprintln!("");
-    }
+    let _ = page.page_save_rev();
 
     page.json_post_save(json_post);
-
-    // dbg
-    // println!("wc_handler.rs fn json_post_save done");
 
     // temp
     http_404()
