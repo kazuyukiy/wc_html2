@@ -109,12 +109,16 @@ fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequ
 }
 
 fn json_post_save(page: &mut page::Page, json_post: json::JsonValue) -> Vec<u8> {
+    // if page_post.page_save_rev() in fn json_post_save of page::Page was done
+    // in previous json_post_save(), it should return Err
     let _ = page.page_save_rev();
 
-    page.json_post_save(json_post);
+    let res_json = match page.json_post_save(json_post) {
+        Ok(_) => r#"{"res":"post_handle page_json_save"}"#,
+        Err(_) => r#"{"res":"failed to save page_json"}"#,
+    };
 
-    // temp
-    http_404()
+    http_ok(&res_json.as_bytes().to_vec())
 }
 
 fn http_hello() -> Vec<u8> {

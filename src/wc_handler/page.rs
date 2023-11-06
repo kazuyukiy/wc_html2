@@ -20,7 +20,7 @@ impl Page {
         let source = match fs::read(&path) {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("{:?}", e.kind());
+                eprintln!("Faile to create Page: {} {:?}", path, e.kind());
                 None
             }
         };
@@ -93,7 +93,13 @@ impl Page {
         self.json.replace(json);
     }
 
+    // to use fn json(), do fn json_set() previously
+    // self.json.as_ref().unwrap() may couse a panic
+    // if json_set() was not called
+    // the panic may let you know json_set() was not done
     fn json(&self) -> Option<&json::JsonValue> {
+        // comment, out wondering if do this
+        // self.json.as_ref().unwrap();
         self.json.as_ref()
     }
 
@@ -122,7 +128,8 @@ impl Page {
         Some(format!("{}.{}", &self.path, &rev))
     }
 
-    fn page_save(&mut self) -> Result<(), ()> {
+    // fn page_save(&mut self) -> Result<(), ()> {
+    fn page_save(&self) -> Result<(), ()> {
         // make a String to avoid error
         // &mut self will be used in self.source()
         // to avoid borrowing &mut self and &self in a time
@@ -154,6 +161,12 @@ impl Page {
             }
         };
 
+        // if path_rev already exits, no need to save it again
+        match fs::File::open(&path_rev) {
+            Ok(_) => return Err(()),
+            Err(_) => (),
+        }
+
         let source = match self.source() {
             Some(s) => s,
             None => return Err(()),
@@ -176,6 +189,12 @@ impl Page {
     // if json posted was updated from the current page,
     // the both of rev must match.
     fn json_post_rev_match(&self, json_post: &json::JsonValue) -> Result<(), ()> {
+        // let check_sw = true;
+        let check_sw = false;
+        if check_sw == false {
+            return Ok(());
+        }
+
         let rev = match self.rev() {
             Some(v) => v,
             None => return Err(()),
@@ -196,14 +215,9 @@ impl Page {
     }
 
     pub fn json_post_save(&mut self, mut json_post: json::JsonValue) -> Result<(), ()> {
-        //
-        // let rev_check = true;
-        let rev_check = false;
-        if rev_check {
-            // does not match rev number
-            if let Err(_) = self.json_post_rev_match(&json_post) {
-                return Err(());
-            }
+        // does not match rev number
+        if let Err(_) = self.json_post_rev_match(&json_post) {
+            return Err(());
         }
 
         // set new rev counted up from current rev
