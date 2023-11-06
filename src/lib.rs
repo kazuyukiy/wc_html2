@@ -3,11 +3,17 @@ use std::io::Write;
 use std::net::TcpListener;
 use std::net::TcpStream;
 
+mod js_css;
 mod thread_pool;
 mod wc_handler;
 
 // page_root
 pub fn wc_note(soket_add: &str, page_root: &str, capa: usize) -> Result<TcpListener> {
+    // Copy wc.js, wc.css to ./page/
+    // Do it only once when start main()
+    // if you change wc.js or wc.css, you may restart main() or copy it manulally
+    js_css::setup();
+
     wc_handler::system_ini();
 
     let listener = match TcpListener::bind(soket_add) {
