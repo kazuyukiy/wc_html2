@@ -83,11 +83,11 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
     }
 
     if wc_request == b"page_new" {
-        // url::Url have data of host, path, url
-        // but in case of GET, path is enought
-        if let Some(v) = http_request.url() {
-            page.url_set(v);
-        }
+        // // url::Url have data of host, path, url
+        // // but in case of GET, path is enought
+        // if let Some(v) = http_request.url() {
+        //     page.url_set(v);
+        // }
         return handle_page_new(&mut page, http_request);
     }
 
@@ -116,6 +116,18 @@ fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequ
 }
 
 fn handle_page_new(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    // set url here, because
+    // url::Url have data of host, path, url
+    // but in case of GET, path is enought,
+    // so do page.url_set(v) not at GET but here POST
+    match http_request.url() {
+        Some(v) => page.url_set(v),
+        None => return http_400(),
+    }
+    // if let Some(v) = http_request.url() {
+    //     page.url_set(v);
+    // }
+
     let json_post = match http_request.body_json() {
         Some(v) => v,
         None => return http_400(),
