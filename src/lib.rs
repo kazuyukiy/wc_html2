@@ -18,8 +18,13 @@ pub fn wc_note(soket_add: &str, page_root: &str, capa: usize) -> Result<TcpListe
 
     let listener = match TcpListener::bind(soket_add) {
         Ok(v) => v,
-        Err(e) => return Err(e),
+        Err(e) => {
+            eprintln!("Failed to bind: {:?}", e);
+            return Err(e);
+        }
     };
+
+    println!("bind {}", soket_add);
 
     let pool = thread_pool::ThreadPool::new(capa);
 

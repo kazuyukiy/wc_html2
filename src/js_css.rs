@@ -18,5 +18,5 @@ fn handle_dtype(dtype: &str) {
         _ => "",
     };
 
-    std::fs::write(&filename, &source);
+    let _ = std::fs::write(&filename, &source);
 }
