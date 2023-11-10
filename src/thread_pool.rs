@@ -81,7 +81,7 @@ impl Worker {
 
             match message {
                 Message::NewJob(job) => {
-                    println!("worker {} got a job: executing.", id);
+                    println!("  (worker {} got a job: executing.)", id);
 
                     job();
                 }

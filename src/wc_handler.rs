@@ -15,9 +15,6 @@ pub fn system_ini() {
 }
 
 pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
-    // dbg
-    // println!("wc_handler fn response cp");
-
     let http_request = http_request::HttpRequest::new(stream);
 
     let mut page = match page(page_root, &http_request) {
@@ -35,7 +32,7 @@ pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
     }
 
     if method == "POST" {
-        return handle_post(&mut page, &http_request);
+        return handle_post(page, &http_request);
     }
 
     // temp
@@ -48,9 +45,7 @@ fn page(page_root: &str, http_request: &http_request::HttpRequest) -> Result<pag
         None => return Err(http_404()),
     };
 
-    let page_path = page_root.to_string() + &path;
-
-    let page = match page::Page::from_path(&page_path) {
+    let page = match page::Page::open(page_root, path) {
         Ok(v) => v,
         Err(_) => return Err(http_404()),
     };
@@ -65,7 +60,7 @@ fn handle_get(page: &mut page::Page) -> Vec<u8> {
     }
 }
 
-fn handle_post(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
     // case backup file
     if page.name_end_num() {
         return http_400();
@@ -84,41 +79,61 @@ fn handle_post(page: &mut page::Page, http_request: &http_request::HttpRequest) 
     }
 
     if wc_request == b"json_save" {
-        return handle_json_save(page, http_request);
+        return handle_json_save(&mut page, http_request);
+    }
+
+    if wc_request == b"page_new" {
+        // url::Url have data of host, path, url
+        // but in case of GET, path is enought
+        if let Some(v) = http_request.url() {
+            page.url_set(v);
+        }
+        return handle_page_new(&mut page, http_request);
     }
 
     // temp
     http_404()
 }
 
+// overwite changed on `Page`
+// Page::new return err if already exists
+// replace current `Page` to updated `Page`, maybe easier than changing content and dom and json, so consume `Page` and replace to new `Page`.
+//
 fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
-    let body = match http_request.body.as_ref() {
+    let json_post = match http_request.body_json() {
         Some(v) => v,
         None => return http_400(),
     };
 
-    let json_post = match json::parse(&body) {
-        Ok(v) => v,
-        Err(_) => {
-            eprintln!("Failed to parse to json");
-            return http_400();
-        }
-    };
+    let _ = page.file_save_rev();
 
-    json_post_save(page, json_post)
-}
-
-fn json_post_save(page: &mut page::Page, json_post: json::JsonValue) -> Vec<u8> {
-    // if page_post.page_save_rev() in fn json_post_save of page::Page was done
-    // in previous json_post_save(), it should return Err
-    let _ = page.page_save_rev();
-
-    let res_json = match page.json_post_save(json_post) {
+    let res = match page.json_post_save(json_post) {
         Ok(_) => r#"{"res":"post_handle page_json_save"}"#,
         Err(_) => r#"{"res":"failed to save page_json"}"#,
     };
 
-    http_ok(&res_json.as_bytes().to_vec())
+    http_ok(&res.as_bytes().to_vec())
+}
+
+fn handle_page_new(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    let json_post = match http_request.body_json() {
+        Some(v) => v,
+        None => return http_400(),
+    };
+
+    let _res = match page.page_sub_new_save(json_post) {
+        Ok(v) => v,
+        Err(_) => {
+            let res = r#"{"res":"failed to create new page"}"#;
+            return http_ok(&res.as_bytes().to_vec());
+        }
+    };
+
+    // dbg comment out
+    // http_ok(&res.as_bytes().to_vec())
+
+    // temp
+    http_404()
 }
 
 fn http_hello() -> Vec<u8> {
@@ -151,4 +166,4 @@ fn http_400() -> Vec<u8> {
 
 fn http_404() -> Vec<u8> {
     http_err("404 Not Found.")
-} // end of fn http_404
+}
