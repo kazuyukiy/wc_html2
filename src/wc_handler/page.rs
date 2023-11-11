@@ -322,7 +322,7 @@ impl Page {
         self.url.replace(url);
     }
 
-    fn url(&self) -> Option<&url::Url> {
+    pub fn url(&self) -> Option<&url::Url> {
         self.url.as_ref()
     }
 
