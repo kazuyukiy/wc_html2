@@ -1,5 +1,6 @@
 // use std::io::Read;
 use std::net::TcpStream;
+// mod href_connector;
 mod http_request; // does not work
 mod page;
 
@@ -78,6 +79,15 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         return http_400();
     }
 
+    // set url here, because
+    // url::Url have data of host, path, url
+    // but in case of GET, path is enought,
+    // so do page.url_set(v) not at GET but here POST
+    match http_request.url() {
+        Some(v) => page.url_set(v),
+        None => return http_400(),
+    }
+
     if wc_request == b"json_save" {
         return handle_json_save(&mut page, http_request);
     }
@@ -89,6 +99,10 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         //     page.url_set(v);
         // }
         return handle_page_new(&mut page, http_request);
+    }
+
+    if wc_request == b"href" {
+        return handle_href(&page, http_request);
     }
 
     // temp
@@ -116,14 +130,17 @@ fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequ
 }
 
 fn handle_page_new(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    //
+
+    // move to fn handle_post()
     // set url here, because
     // url::Url have data of host, path, url
     // but in case of GET, path is enought,
     // so do page.url_set(v) not at GET but here POST
-    match http_request.url() {
-        Some(v) => page.url_set(v),
-        None => return http_400(),
-    }
+    // match http_request.url() {
+    //     Some(v) => page.url_set(v),
+    //     None => return http_400(),
+    // }
     // if let Some(v) = http_request.url() {
     //     page.url_set(v);
     // }
@@ -146,6 +163,52 @@ fn handle_page_new(page: &mut page::Page, http_request: &http_request::HttpReque
 
     // temp
     http_404()
+}
+
+/// json: {"href" : href}
+/// return {"dest":"href"}
+fn handle_href(page: &page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    // href_connector::href_destination(page);
+
+    handle_href_temp(&page, http_request)
+
+    // caller_url: the page's url
+    // let caller_url;
+    // http
+    // host: header - "Host"
+    // let url = format!("https://{}{}", &host, &self.path);
+    // path : request.path
+
+    // url_req: destination url
+    // req: json_post
+    // let url_req = req["href"].as_str().unwrap();
+
+    // let mut href_inspec = match href_inspec::HrefInspec::from(&caller_url, &url_req) {
+
+    // match href_inspec.href_req_handle() {
+
+    // temp
+    // http_404()
+}
+
+// Return href posted
+// This is temporary function just return href that was posted.
+fn handle_href_temp(page: &page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    let json_post = match http_request.body_json() {
+        Some(v) => v,
+        None => return http_400(),
+    };
+
+    let href_req = match json_post["href"].as_str() {
+        Some(v) => v,
+        None => return http_400(),
+    };
+
+    // {"dest":"href"}
+    let res = format!(r#"{{"dest":"{}"}}"#, href_req);
+    // Ok(_) => r#"{"dest":"href"}"#,
+
+    http_ok(&res.as_bytes().to_vec())
 }
 
 fn http_hello() -> Vec<u8> {
