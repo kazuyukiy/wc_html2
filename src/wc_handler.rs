@@ -102,6 +102,12 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
     }
 
     if wc_request == b"href" {
+        // memo
+        // wc/js
+        // hrefEventHandle(event) {
+        //     let data = {"href" : href};
+        //     let res = postData("href", data);
+
         return handle_href(&page, http_request);
     }
 
