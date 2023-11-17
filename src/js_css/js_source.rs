@@ -35,6 +35,7 @@ function bodyOnload () {
     page.eleDraw();
 
     page.menu().editorOpenListenerSet();
+    page.menu().hrefListenerAdd();
     
 } // end of function bodyOnload;
     
@@ -1983,11 +1984,10 @@ class Menu extends Blox {
 	// set eventListener to open editor
 	const that = this;
 
+	// context menu requested, or right click of a mouse.
 	this.elePageTop().addEventListener('contextmenu', function(event) {
 	    that.editorOpenListener.apply(that, [event]);
 	});
-	
-	this.hrefListenerAdd();
 	
     } // end of class Menu editorOpenListenerSet 
 
@@ -2080,7 +2080,9 @@ class Menu extends Blox {
 	    this.editorOpen(this);
 	    return;
 	}
-	
+
+	// this.editorOpen() do this.hrefListenerRemove()
+	// So do this.hrefListenerAdd() when this.editorClose()
 	this.hrefListenerAdd();
 	
 	this.menuVisibleSet();
@@ -2110,62 +2112,74 @@ class Menu extends Blox {
 	// espacialy avoid to move to another page without saveing editing
 	event.preventDefault();
 
-	let href = event.target.getAttribute("href");
+	if(this.moveToLocalPart(event)) { return; }
 
-	// href : #abc
-	// move to #abc .
-	
-	// #: Move to top of the page.
-	if(href == "#"){
-	    window.scrollTo(0, 0);
-	    return;
-	}
-
-	// Jump to local part.
-	if(href.match(/^#(.+)/)){
-	    location.href = href;
-	    // remove #
-	    // scrollHash(href.slice(1));
-	    return;
-	}
-
-	// Back
-	if(href == "javascript:history.back()"){
-	    // console.log("wc.js class Menu hrefEventHandle() href:" + href);
-	    // alert(href);
-	    javascript:history.back();
-	    return;
-	}
-
-	// Alert leaving the page that has some changes not saved.
+	// Alert leaving the page that has some changes not saved yet.
 	if(this.changed()){
 	    alert("Save or discard changes before move page!");
 	    return;
 	}
 
-	let data = {"href" : href};
-    
-	console.log("wc.js class Menu hrefEventHandle() post href:" + href);
-	let res = postData("href", data);
+	let href = event.target.getAttribute("href");
 	
+	// Back
+	if(href == "javascript:history.back()"){
+	    javascript:history.back();
+	    return;
+	}
+
+	// link to out of the page
+	let data = {"href" : href};
+	let res = postData("href", data);
 	res.then(data => {
-	    // alert("wc.js class Menu hrefEventHandle");
 	    if(data.dest){
 		location.href = data.dest;
 	    }
 	
 	});
 
-	event.preventDefault(); // prevent to move to href
+    } // end of class Menu hrefEventHandle
 
-    } // end of class Menu hrefEventHandle 
+    // Move to a local part if href is # and something,
+    // then return true.
+    // Otherwise href is to out of this page, then return false.
+    moveToLocalPart(event) {
+
+	let href = event.target.getAttribute("href");
+
+	// #: Move to top of local page.
+	if(href == "#"){
+	    window.scrollTo(0, 0);
+	    return true;
+	}
+
+	// Jump to local part.
+	// href : #abc
+	// move to element that id is abc .
+	if(href.match(/^#(.+)/)){
+	    location.href = href;
+	    // remove #
+	    // scrollHash(href.slice(1));
+	    return true;
+	}
+
+	// // Back
+	// if(href == "javascript:history.back()"){
+	//     javascript:history.back();
+	//     return true;
+	// }
+
+	// href dest not linke to this page.
+	return false;
+
+    }
     
     hrefEventListener() {
 	if(0 < arguments.length){ this.hrefEventListenerV = arguments[0]; }
 	return this.hrefEventListenerV;
     } // end of class Menu hrefEventListener 
 
-    // Set all a (anchor) elements with event listener calling
+    // Set all a (anchor) elements event listener calling
     // method hrefEventHandle of class Menu.
     //
     hrefListenerAdd() {
@@ -3356,6 +3370,12 @@ class IndexItemEditor extends Editor {
 	// abc.html to xyz.html
 	// abc.html to #subtitle0 // not allow, mut use delete
 	// abc.html to undefined // not allow, mut use delete
+
+	// plan href working with group top page
+	// page_json.data.href.href_edit
+	// new: page_json.data.href.href_edit.new = ["href2","href3"],
+	// update: page_json.data.href.href_edit.update = [["old_href2", "new_href2], []],
+	// delete: page_json.data.href.href_edit.delete = ["href2","href3"],
 
 	// const result = {};
 
