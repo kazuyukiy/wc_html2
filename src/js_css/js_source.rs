@@ -35,6 +35,7 @@ function bodyOnload () {
     page.eleDraw();
 
     page.menu().editorOpenListenerSet();
+    page.menu().hrefListenerAdd();
     
 } // end of function bodyOnload;
     
@@ -175,7 +176,8 @@ class Blox {
 	    this.parentBxV = arguments[0];
 	}
 
-	return this.parentBxV;n
+	// return this.parentBxV;n
+	return this.parentBxV;
     } // end of class Blox parentBx 
 
     // parent is a class instance just above this instalce
@@ -340,6 +342,10 @@ class Blox {
 
     querySelectorBx(ele, name) {
 	const selectors = this.bloxPrefixEscaped(name);
+
+	// dbg
+	// console.log("wc.js class Blox querySelectorBx selectors:" + selectors);
+	
 	return ele.querySelector("." + selectors);
     } // end of class Blox querySelectorBx 
     
@@ -350,6 +356,13 @@ class Blox {
     
     eleTargetChild() {} // end of class Blox eleTargetChild 
 
+    // To draw a node, git it as a parameter, eg: this.ele(ele_node);
+    // To get node that has been drawn, call this without parameter,
+    // eg : ele_node = this.ele();
+    // To delete node drawn, use undefined as a parameter
+    // eg: this.ele(undefined);
+    // if Blox.eleV has a node value, it was drawn,
+    // otherwise nothing drawn of this in the page.
     ele() {
 	// this.log("ele()");	
 
@@ -368,7 +381,8 @@ class Blox {
 	    delete this.eleV;
 	}
 
-	// nothing to draw
+	// Clear ele drawn
+	// An argument was given but it is undefined
 	if(! ele){
 	    // to avoid to draw its children
 	    // based on element that is under this.eleV deleted
@@ -443,6 +457,8 @@ class Blox {
 	this.bloxAddress(undefined);
 	// this.childrenEleClear();
 
+	// Method eleDrawInst is to be coded in class that extends Blox.
+	// Each of those classes have specific method.
 	this.eleDrawInst(...arguments);
 
 	// skip drawing editor if it is not set in menu.currentBlox()
@@ -479,8 +495,8 @@ class Blox {
     } // end of class Blox htmlPhReplace 
 
     // Convert html to ele nodes
-    // If there are plural element on top level,
-    // append those to one div element
+    // If there are plural elements on top layer,
+    // makes a one top dev element and append those to it
     // to make top level elemant always one .
     eleFromHtml() {
 	
@@ -1073,23 +1089,25 @@ class Editor extends Blox {
 	
     } // end of class Editor ele 
 
-    editorClick() {
-	// this.log("editorClick()");
-	const event = arguments[0];
-	const name = arguments[1];
+    // // this editorClick() was duplicated
+    // editorClick() {
+    // 	// this.log("editorClick()");
+    // 	const event = arguments[0];
+    // 	const name = arguments[1];
 
-	event.stopPropagation();
-	event.preventDefault();
+    // 	event.stopPropagation();
+    // 	event.preventDefault();
 	
-	// this.log("editorClick() name:" + name);
+    // 	// this.log("editorClick() name:" + name);
 
-	const fname = "editor"+name;
-	const fcode = new Function("return this."+fname+";");
-	const finst = fcode.apply(this);
-	if(finst == undefined){ return; }
-	finst.apply(this, [...arguments]);	
+    // 	const fname = "editor"+name;
+    // 	const fcode = new Function("return this."+fname+";");
+    // 	const finst = fcode.apply(this);
+    // 	if(finst == undefined){ return; }
+    // 	finst.apply(this, [...arguments]);	
 
-    } // end of class Editor editorClick 
+    // }
+    // end of class Editor editorClick 
 
     // setEvent(ele, menu) {
     setEvent(ele) {
@@ -1211,6 +1229,15 @@ class Editor extends Blox {
 	
     } // end of class Editor setErrMessage 
 
+    // Set action on buttons of ele given as a parameter adding event listener.
+    // menuItem is a list of keyword
+    // fname made from keywords, eg.
+    // in case of key word is "Enter",
+    // fneme `editorEnter` (editor + keyword "Enter")
+    // that can be found in html as follows.
+    // <input type="button" class="{BXPF=editorEnter}" value="Enter"> 
+    // When the button is clicked,
+    // method "editorEnter" of the class will be called.
     setEvent2() {
 	const ele = arguments[0];
 	for(const name of this.menuItem){
@@ -1223,10 +1250,11 @@ class Editor extends Blox {
 		    that.editorClick.apply(that, [event, name]);
 		} );
 	    }
-
 	}
     } // end of class Editor setEvent2 
 
+    // Action when an editor buttons was clicked.
+    // This event listener is set by method setEvent2().
     editorClick() {
 	// this.log("editorClick()");
 	const event = arguments[0];
@@ -1278,7 +1306,7 @@ class Editor extends Blox {
 	  </td>
 	</tr>
 <!--placeHolder-->
-`); // end of class IndexItemEditor htmlEditorTitleHref 
+`); // end of class Editor htmlEditorTitleHref
     
     htmlEditorInter = (`
 	<tr>
@@ -1446,7 +1474,6 @@ class Editor extends Blox {
     } // end of class Editor editorInsertOpen 
 
     editorInterOn() {
-
 	this.interListenerSet(this.parentBx());
 	this.currentStatus().editorInter = true;
 
@@ -1462,13 +1489,16 @@ class Editor extends Blox {
 	
     } // end of class Editor editorInterOff 
 
+    // Set an event listener on the whole page to select a target.
     interListenerSet() {
 	// this.log("interListenerSet()");
 
-	// on a mouse click, events "mouseup" and "click" happen
+	// on a mouse click, events "mouseup" and "click" happen indivisually.
 	// incase listing and handling "mouseup",
-	// it does not handle "click"
+	// "click" may happen as another event
+	// that is out of "mouseup" handling.
 	// and the event "click" might make page move to another page
+	// that can not be stoped by "mouseup" handling.
 	// so handle "click" at here to prevent to move to href page
 	// by event.preventDefault()
 
@@ -1500,6 +1530,7 @@ class Editor extends Blox {
 	return this.interListenerV;
     } // end of class Editor interListener 
 
+    // Procedure when a target element was selected.
     onInterReq(event, bloxFm) {
 	// this.log2("onInterReq()");
 
@@ -1527,9 +1558,9 @@ class Editor extends Blox {
 	}
 
 	if(this.currentStatus().editType == "insert"){
-//	    bloxFm.editor().editorClose(...arguments);
-	    bloxFm.editor().editorInsert(bloxTo);
 	    // do not editorClose because new editor for new item will be open 
+	    // bloxFm.editor().editorClose(...arguments);
+	    bloxFm.editor().editorInsert(bloxTo);
 	}
 
 	// // THIS make editor close in case of insertion
@@ -1719,7 +1750,15 @@ class Editor extends Blox {
     } // end of class Editor editorDelete 
     
 } // end of class Editor end 
-    
+
+// class Menu
+// class Navi
+// class Index : Index of Items
+// class Item : A page has topics and each topic is Item
+
+// Menu
+// class Menu
+// class MenuEditor
 class Menu extends Blox {
 
     elePageTop() {
@@ -1743,6 +1782,10 @@ class Menu extends Blox {
 	);
 	
 	this.ele(ele);
+
+	// Set value of menuGroupTop
+	// Do this after this.ele(ele) (draw it).
+	this.menuGroupTopViewSet();
 	
     } // end of class Menu eleDrawInst 
     
@@ -1758,11 +1801,12 @@ class Menu extends Blox {
 
 (
 	  <input type="button" value="Page Move" class="{BXPF=menuPageMoveReq}">
-	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference">
-	  <input type="button" value="page_json" class="{BXPF=menupage_json_open">
+	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference}">
+	  <input type="button" value="page_json" class="{BXPF=menupage_json_open}">
 
 
-	  <input type="button" value="Set Group Top" class="{BXPF=menugroup_top_set">
+	  <span class="{BXPF=menuGroupTopTitle}"></span>
+	  <input type="button" value="Group Top On" class="{BXPF=menuGroupTop}">
 )
 
 	</td>
@@ -1775,6 +1819,7 @@ class Menu extends Blox {
 	"menuExit"
 	,"menuSave"
 	,"menuPageMoveReq"
+	,"menuGroupTop"
 	// ,""
     ];
 
@@ -1782,11 +1827,24 @@ class Menu extends Blox {
 	const ele = arguments[0];
 
 	for(const fname of this.menuItem){
+	    // dbg
+	    // console.log("wc.js class Menu setEvent fname:" + fname);
+
+	    
 	    // let fname = "editor"+name;
 	    const eleSws = this.querySelectorAllBx(ele, fname);
+
+	    // dbg
+	    // console.log("wc.js class Menu setEvent eleSws.length:" + eleSws.length);
+	    
 	    if(eleSws.length == 0){ continue;}
+	    
 	    const that = this;
 	    for(const eleSw of eleSws){
+
+		// dbg
+		// console.log("wc.js class Menu setEvent eleSw:" + eleSw);
+		
 		eleSw.addEventListener('click', function(event){
 		    that.menuClick.apply(that, [event, fname]);
 		} );
@@ -1817,7 +1875,7 @@ class Menu extends Blox {
     } // end of class Menu menuExit
 
     menuSave() {
-	// this.log("menuSave()");
+	 // this.log("menuSave()");
 
 	if(! this.changed()){ return; }
 	if(this.currentBlox()){ return; }
@@ -1826,7 +1884,7 @@ class Menu extends Blox {
 
 	res.then(
 	    data => {
-		console.log("wc.jp function save res:" + data.res);
+		console.log("wc.js function save res:" + data.res);
 		if(data.res == "post_handle page_json_save"){}
 		else{
 		    alert(err + "\n Try to save again!");
@@ -1854,7 +1912,50 @@ class Menu extends Blox {
 	this.editor().currentStatus().editType = "pageMove";
 	alert("Close the current editor, then Page Momve menu is comming up!");
 	
-    } // end of class Menu menuPageMoveOpen 
+    } // end of class Menu menuPageMoveOpen
+
+    // Flip group_top value.
+    menuGroupTop() {
+	// this.log("menuGroupTop()");
+	
+	let page = this.parentBx();
+	let page_json = page.data();
+	let data_page = page_json.data.page;
+
+	// Set this page as a group top.
+	if(data_page.group_top){
+	    data_page.group_top = false;
+	}
+	// Set this page as NOT a group top.
+	else {
+	    data_page.group_top = true;
+	}
+
+	this.menuGroupTopViewSet();
+
+	this.changed(true);
+	this.menuVisibleSet();
+	
+    }
+
+    menuGroupTopViewSet () {
+	let page = this.parentBx();
+	let page_json = page.data();
+	let data_page = page_json.data.page;
+
+	let eleSpan = this.querySelectorBx(this.ele(), "menuGroupTopTitle");
+	let eleButton = this.querySelectorBx(this.ele(), "menuGroupTop");
+
+	// It is group top.
+	if(data_page.group_top){
+	    eleSpan.innerHTML = "Group Top Set:";
+	    eleButton.value = "Off";
+	}
+	else {
+	    eleSpan.innerHTML = "Not Group Top Set:";
+	    eleButton.value = "On";
+	}
+    }
 
     changed() {
 	if(0 < arguments.length){
@@ -1883,11 +1984,10 @@ class Menu extends Blox {
 	// set eventListener to open editor
 	const that = this;
 
+	// context menu requested, or right click of a mouse.
 	this.elePageTop().addEventListener('contextmenu', function(event) {
 	    that.editorOpenListener.apply(that, [event]);
 	});
-	
-	this.hrefListenerAdd();
 	
     } // end of class Menu editorOpenListenerSet 
 
@@ -1906,6 +2006,7 @@ class Menu extends Blox {
 	return this.bloxFromElePart(event.target);
     } // end of class Menu bloxToOpen 
 
+    // If Menu.currentBloxV has a value, an editor menu is open.
     currentBlox() {
 	if(0 < arguments.length){ this.currentBloxV = arguments[0]; }
 	return this.currentBloxV;
@@ -1979,7 +2080,9 @@ class Menu extends Blox {
 	    this.editorOpen(this);
 	    return;
 	}
-	
+
+	// this.editorOpen() do this.hrefListenerRemove()
+	// So do this.hrefListenerAdd() when this.editorClose()
 	this.hrefListenerAdd();
 	
 	this.menuVisibleSet();
@@ -2009,57 +2112,76 @@ class Menu extends Blox {
 	// espacialy avoid to move to another page without saveing editing
 	event.preventDefault();
 
-	let href = event.target.getAttribute("href");
+	if(this.moveToLocalPart(event)) { return; }
 
-	// href : #abc
-	// move to #abc .
-	// #: move to top
-	if(href == "#"){
-	    window.scrollTo(0, 0);
-	    return;
-	}
-    
-	if(href.match(/^#(.+)/)){
-	    location.href = href;
-	    // remove #
-	    // scrollHash(href.slice(1));
-	    return;
-	}
-
-	if(href == "javascript:history.back()"){
-	    // console.log("wc.js class Menu hrefEventHandle() href:" + href);
-	    // alert(href);
-	    javascript:history.back();
-	    return;
-	}
-
+	// Alert leaving the page that has some changes not saved yet.
 	if(this.changed()){
 	    alert("Save or discard changes before move page!");
 	    return;
 	}
 
-	let data = {"href" : href};
-    
-	console.log("wc.js class Menu hrefEventHandle() post href:" + href);
-	let res = postData("href", data);
+	let href = event.target.getAttribute("href");
 	
+	// Back
+	if(href == "javascript:history.back()"){
+	    javascript:history.back();
+	    return;
+	}
+
+	// link to out of the page
+	let data = {"href" : href};
+	let res = postData("href", data);
 	res.then(data => {
-	    // alert("wc.jp class Menu hrefEventHandle");
 	    if(data.dest){
 		location.href = data.dest;
 	    }
 	
 	});
 
-	event.preventDefault(); // prevent to move to href
+    } // end of class Menu hrefEventHandle
 
-    } // end of class Menu hrefEventHandle 
+    // Move to a local part if href is # and something,
+    // then return true.
+    // Otherwise href is to out of this page, then return false.
+    moveToLocalPart(event) {
+
+	let href = event.target.getAttribute("href");
+
+	// #: Move to top of local page.
+	if(href == "#"){
+	    window.scrollTo(0, 0);
+	    return true;
+	}
+
+	// Jump to local part.
+	// href : #abc
+	// move to element that id is abc .
+	if(href.match(/^#(.+)/)){
+	    location.href = href;
+	    // remove #
+	    // scrollHash(href.slice(1));
+	    return true;
+	}
+
+	// // Back
+	// if(href == "javascript:history.back()"){
+	//     javascript:history.back();
+	//     return true;
+	// }
+
+	// href dest not linke to this page.
+	return false;
+
+    }
     
     hrefEventListener() {
 	if(0 < arguments.length){ this.hrefEventListenerV = arguments[0]; }
 	return this.hrefEventListenerV;
     } // end of class Menu hrefEventListener 
-    
+
+    // Set all a (anchor) elements event listener calling
+    // method hrefEventHandle of class Menu.
+    //
     hrefListenerAdd() {
 	// this.log("hrefListenerAdd()");
 
@@ -2195,13 +2317,19 @@ class MenuEditor extends Editor {
 	let res = postData("page_move", data);
 
 	delete this.currentStatus().editType;
-	    
+
+	// super: class Editor this class extends on.
 	super.editorEnter();
 	
     } // end of class MenuEditor editorEnterPageMove 
     
 } // end of class MenuEditor end  
 
+// Navi
+// class Navi
+// class NaviItem
+// class NaviItemEditor
+// 
 class Navi extends Blox {
 
     dataParent() {
@@ -2763,6 +2891,13 @@ class ItemsCenter extends Blox {
 
 } // end of class ItemsCenter end 
 
+// class Item
+// class Contents : Contents is contents of Item
+//
+// class Item: a topic of the page.
+// Item have class Contents.
+// Item can have some Items as its children.
+// Each Item have a class Index for the page's index list.
 class Item extends Blox {
 
     itemsCenter() {
@@ -3016,6 +3151,10 @@ class Item extends Blox {
     
 } // end of class Item end 
 
+// class Index
+// class IndexItem
+// class IndexItemEditor
+//
 class Index extends Blox {
 
     item() {
@@ -3179,6 +3318,7 @@ class IndexItemEditor extends Editor {
 	
     } // end of class IndexItemEditor dataSet 
 
+    // Handle enter action of the editor.
     editorEnter() {
 	// this.log2("editorEnter()");
 	
@@ -3205,12 +3345,13 @@ class IndexItemEditor extends Editor {
 	} else {
 	    if(this.item().data()["title"] != titleNew){
 		this.item().data()["title"] = titleNew;
-		this.result("changed", true);
+ 		this.result("changed", true);
 	    }
 	}
 	
     } // end of class IndexItemEditor editorEnterTitle 
-    
+
+    // Handle 
     editorEnterHref() {
 	// console.log("wc.js class IndexItemEditor editorEnterHref()");
 
@@ -3230,6 +3371,12 @@ class IndexItemEditor extends Editor {
 	// abc.html to #subtitle0 // not allow, mut use delete
 	// abc.html to undefined // not allow, mut use delete
 
+	// plan href working with group top page
+	// page_json.data.href.href_edit
+	// new: page_json.data.href.href_edit.new = ["href2","href3"],
+	// update: page_json.data.href.href_edit.update = [["old_href2", "new_href2], []],
+	// delete: page_json.data.href.href_edit.delete = ["href2","href3"],
+
 	// const result = {};
 
 	const hrefCurrent = this.item().data().href;
@@ -3246,36 +3393,27 @@ class IndexItemEditor extends Editor {
 	    return;
 	}
 
-	// current href starts with #
-
-	// href: from hrefCurrent (starts with #) to ...
-	// if(hrefCurrent.match(/^#(.+)/)){
-	if(hrefCurrent && hrefCurrent.match(/^#(.+)/)){
-	    // hrefNew starts with #
-	    if(hrefNew.match(/^#/)){
-		// hrefNew already in use
-		const itemsCenter = this.item().itemsCenter();
-		const hrefInuse = itemsCenter.hrefInUseLocal(hrefNew);
-		if(hrefInuse){
-		    this.result("err", "href alredy in use");
+	// Do not change outer link to local link
+	// hrefCurrent has a value and does not start with #, it it outerlink
+	if (hrefCurrent) {
+	    // Not start with #, it is outer link.
+	    if(! hrefCurrent.match(/^#(.+)/)) {
+		// hrefNew starts with #, it is inner link,
+		if(hrefNew.match(/^#/)){
+		    this.result("err", "Can not change outer link to local link. Delete the link at first.");
 		    return;
 		}
-
-		// will set #abc to #def
 	    }
-	    // return;
-	} else {
-	    // hrefNew: abc.html
-
-	    // abc.html to #subtitle0 // not allow, mut use delete
-	    // if(hrefCurrent.match(/^#/)){
-	    if(hrefCurrent && hrefCurrent.match(/^#/)){
-		this.result("err", "Can not change outer link to local link. Use delete at first.");
-		return;
-	    }
-	    
 	}
 
+	// The href already in use.
+	const itemsCenter = this.item().itemsCenter();
+	const hrefInuse = itemsCenter.hrefInUseLocal(hrefNew);
+	if(hrefInuse){
+	    this.result("err", "href alredy in use");
+	    return;
+	}
+	
 	this.item().data().href = hrefNew;
 	this.result("changed", true);
 	
@@ -3360,6 +3498,7 @@ class IndexItemEditor extends Editor {
 	
     } // end of class IndexItemEditor editorDeleteExecute 
 
+    // bloxTo: target insert to
     // this.editorInsert(bloxTo);
     editorInsert() {
 	// this.log("editorInsert()");
@@ -3377,6 +3516,10 @@ class IndexItemEditor extends Editor {
 	}
 
 	const itemBlank = itemParent.bloxChildBlankNew("Item");
+	// Set itemsCenter because itemBlank is not from child() of class Item
+	// itemsBlank.itemsCenter(), eg. itemsBlank.itemsCenterV
+	// does not have a value yet.
+	itemBlank.itemsCenter(this.item().itemsCenter());
 
 	if(this.currentStatus().editOption == "before"){
 	    itemBlank.itemNext(itemTo);
@@ -3474,14 +3617,20 @@ class IndexItemEditor extends Editor {
 
 	const res = postData("page_new", data);
 	res.then(data => {
-	    console.log("wc.jp newPage res:" + data.res);
+	    console.log("wc.js newPage res:" + data.res);
 	});
 	
 	
     } // end of class IndexItemEditor editorNewPage 
 
 } // end of class IndexItemEditor end 
-    
+
+// class Contents
+// class ContentsEditor
+// class Content : a part of class Contents
+//
+// class Contents represents contents of class Item.
+// Contents have some class Content. 
 class Contents extends Blox {
 
     item() {
@@ -3779,6 +3928,10 @@ class ContentsEditor extends Editor {
     
 } // end of class ContentsEditor end 
 
+// class Content
+// class ContentEditor
+// 
+// class Content is an element of a class Contents for a class Item
 // class Content extends PageBlox {
 class Content extends Blox {
 
@@ -4339,6 +4492,5 @@ async function postData(req, data) {
     )
 
     return response.json();
-} // end of function postData
-"####
+} // end of function postData"####
 }

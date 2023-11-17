@@ -18,5 +18,8 @@ fn handle_dtype(dtype: &str) {
         _ => "",
     };
 
-    let _ = std::fs::write(&filename, &source);
+    let res = std::fs::write(&filename, &source);
+    if let Ok(_) = res {
+        println!("wrote: {}", &filename);
+    }
 }
