@@ -341,6 +341,10 @@ class Blox {
 
     querySelectorBx(ele, name) {
 	const selectors = this.bloxPrefixEscaped(name);
+
+	// dbg
+	// console.log("wc.js class Blox querySelectorBx selectors:" + selectors);
+	
 	return ele.querySelector("." + selectors);
     } // end of class Blox querySelectorBx 
     
@@ -1777,6 +1781,10 @@ class Menu extends Blox {
 	);
 	
 	this.ele(ele);
+
+	// Set value of menuGroupTop
+	// Do this after this.ele(ele) (draw it).
+	this.menuGroupTopViewSet();
 	
     } // end of class Menu eleDrawInst 
     
@@ -1792,11 +1800,12 @@ class Menu extends Blox {
 
 (
 	  <input type="button" value="Page Move" class="{BXPF=menuPageMoveReq}">
-	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference">
-	  <input type="button" value="page_json" class="{BXPF=menupage_json_open">
+	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference}">
+	  <input type="button" value="page_json" class="{BXPF=menupage_json_open}">
 
 
-	  <input type="button" value="Set Group Top" class="{BXPF=menugroup_top_set">
+	  <span class="{BXPF=menuGroupTopTitle}"></span>
+	  <input type="button" value="Group Top On" class="{BXPF=menuGroupTop}">
 )
 
 	</td>
@@ -1809,6 +1818,7 @@ class Menu extends Blox {
 	"menuExit"
 	,"menuSave"
 	,"menuPageMoveReq"
+	,"menuGroupTop"
 	// ,""
     ];
 
@@ -1816,11 +1826,24 @@ class Menu extends Blox {
 	const ele = arguments[0];
 
 	for(const fname of this.menuItem){
+	    // dbg
+	    // console.log("wc.js class Menu setEvent fname:" + fname);
+
+	    
 	    // let fname = "editor"+name;
 	    const eleSws = this.querySelectorAllBx(ele, fname);
+
+	    // dbg
+	    // console.log("wc.js class Menu setEvent eleSws.length:" + eleSws.length);
+	    
 	    if(eleSws.length == 0){ continue;}
+	    
 	    const that = this;
 	    for(const eleSw of eleSws){
+
+		// dbg
+		// console.log("wc.js class Menu setEvent eleSw:" + eleSw);
+		
 		eleSw.addEventListener('click', function(event){
 		    that.menuClick.apply(that, [event, fname]);
 		} );
@@ -1851,7 +1874,7 @@ class Menu extends Blox {
     } // end of class Menu menuExit
 
     menuSave() {
-	// this.log("menuSave()");
+	 // this.log("menuSave()");
 
 	if(! this.changed()){ return; }
 	if(this.currentBlox()){ return; }
@@ -1860,7 +1883,7 @@ class Menu extends Blox {
 
 	res.then(
 	    data => {
-		console.log("wc.jp function save res:" + data.res);
+		console.log("wc.js function save res:" + data.res);
 		if(data.res == "post_handle page_json_save"){}
 		else{
 		    alert(err + "\n Try to save again!");
@@ -1888,7 +1911,50 @@ class Menu extends Blox {
 	this.editor().currentStatus().editType = "pageMove";
 	alert("Close the current editor, then Page Momve menu is comming up!");
 	
-    } // end of class Menu menuPageMoveOpen 
+    } // end of class Menu menuPageMoveOpen
+
+    // Flip group_top value.
+    menuGroupTop() {
+	// this.log("menuGroupTop()");
+	
+	let page = this.parentBx();
+	let page_json = page.data();
+	let data_page = page_json.data.page;
+
+	// Set this page as a group top.
+	if(data_page.group_top){
+	    data_page.group_top = false;
+	}
+	// Set this page as NOT a group top.
+	else {
+	    data_page.group_top = true;
+	}
+
+	this.menuGroupTopViewSet();
+
+	this.changed(true);
+	this.menuVisibleSet();
+	
+    }
+
+    menuGroupTopViewSet () {
+	let page = this.parentBx();
+	let page_json = page.data();
+	let data_page = page_json.data.page;
+
+	let eleSpan = this.querySelectorBx(this.ele(), "menuGroupTopTitle");
+	let eleButton = this.querySelectorBx(this.ele(), "menuGroupTop");
+
+	// It is group top.
+	if(data_page.group_top){
+	    eleSpan.innerHTML = "Group Top Set:";
+	    eleButton.value = "Off";
+	}
+	else {
+	    eleSpan.innerHTML = "Not Group Top Set:";
+	    eleButton.value = "On";
+	}
+    }
 
     changed() {
 	if(0 < arguments.length){
@@ -2048,12 +2114,14 @@ class Menu extends Blox {
 
 	// href : #abc
 	// move to #abc .
-	// #: move to top
+	
+	// #: Move to top of the page.
 	if(href == "#"){
 	    window.scrollTo(0, 0);
 	    return;
 	}
-    
+
+	// Jump to local part.
 	if(href.match(/^#(.+)/)){
 	    location.href = href;
 	    // remove #
@@ -2061,6 +2129,7 @@ class Menu extends Blox {
 	    return;
 	}
 
+	// Back
 	if(href == "javascript:history.back()"){
 	    // console.log("wc.js class Menu hrefEventHandle() href:" + href);
 	    // alert(href);
@@ -2068,6 +2137,7 @@ class Menu extends Blox {
 	    return;
 	}
 
+	// Alert leaving the page that has some changes not saved.
 	if(this.changed()){
 	    alert("Save or discard changes before move page!");
 	    return;
@@ -2079,7 +2149,7 @@ class Menu extends Blox {
 	let res = postData("href", data);
 	
 	res.then(data => {
-	    // alert("wc.jp class Menu hrefEventHandle");
+	    // alert("wc.js class Menu hrefEventHandle");
 	    if(data.dest){
 		location.href = data.dest;
 	    }
@@ -2094,7 +2164,10 @@ class Menu extends Blox {
 	if(0 < arguments.length){ this.hrefEventListenerV = arguments[0]; }
 	return this.hrefEventListenerV;
     } // end of class Menu hrefEventListener 
-    
+
+    // Set all a (anchor) elements with event listener calling
+    // method hrefEventHandle of class Menu.
+    //
     hrefListenerAdd() {
 	// this.log("hrefListenerAdd()");
 
@@ -3258,7 +3331,7 @@ class IndexItemEditor extends Editor {
 	} else {
 	    if(this.item().data()["title"] != titleNew){
 		this.item().data()["title"] = titleNew;
-		this.result("changed", true);
+ 		this.result("changed", true);
 	    }
 	}
 	
@@ -3524,7 +3597,7 @@ class IndexItemEditor extends Editor {
 
 	const res = postData("page_new", data);
 	res.then(data => {
-	    console.log("wc.jp newPage res:" + data.res);
+	    console.log("wc.js newPage res:" + data.res);
 	});
 	
 	
