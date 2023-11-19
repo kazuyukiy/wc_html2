@@ -15,10 +15,10 @@ pub fn system_ini() {
     // under construction
 }
 
-pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
+pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     let http_request = http_request::HttpRequest::new(stream);
 
-    let mut page = match page(page_root, &http_request) {
+    let mut page = match page(page_root_path, &http_request) {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -40,18 +40,65 @@ pub fn response(stream: &mut TcpStream, page_root: &str) -> Vec<u8> {
     http_hello()
 }
 
-fn page(page_root: &str, http_request: &http_request::HttpRequest) -> Result<page::Page, Vec<u8>> {
+fn page(
+    page_root_path: &str,
+    http_request: &http_request::HttpRequest,
+) -> Result<page::Page, Vec<u8>> {
     let path = match http_request.path.as_ref() {
         Some(v) => v,
         None => return Err(http_404()),
     };
 
-    let page = match page::Page::open(page_root, path) {
+    let mut page = match page::Page::open(page_root_path, path) {
         Ok(v) => v,
         Err(_) => return Err(http_404()),
     };
 
+    if let Err(v) = page_prepare(&mut page, http_request) {
+        return Err(v);
+    }
+
     Ok(page)
+}
+
+// page::Page may have some value inside of it.
+// But not all values are set when its instance are created.
+// fn page_prepare sets some values of page::Page depending on its requirement.
+// In case of method is GET, neither page_json nor page.url are required.
+//
+fn page_prepare(
+    page: &mut page::Page,
+    http_request: &http_request::HttpRequest,
+) -> Result<(), Vec<u8>> {
+    let method = match http_request.method.as_ref() {
+        Some(v) => v,
+        None => return Err(http_404()),
+    };
+
+    if method == "GET" {
+        return Ok(());
+    }
+
+    // case backup file
+    // Not sure it is goot to check whether it is backup file.
+    if page.name_end_num() {
+        return Err(http_400());
+    }
+
+    page.json_set();
+
+    // page.rev() exists that means the file contains json data properly
+    // otherwise no further processes
+    if page.rev().is_none() {
+        return Err(http_400());
+    }
+
+    match http_request.url() {
+        Some(v) => page.url_set(v),
+        None => return Err(http_400()),
+    }
+
+    Ok(())
 }
 
 fn handle_get(page: &mut page::Page) -> Vec<u8> {
@@ -63,30 +110,30 @@ fn handle_get(page: &mut page::Page) -> Vec<u8> {
 
 fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
     // case backup file
-    if page.name_end_num() {
-        return http_400();
-    }
+    // if page.name_end_num() {
+    //     return http_400();
+    // }
 
     let wc_request = match http_request.wc_request.as_ref() {
         Some(wc_request) => wc_request,
         None => return http_400(),
     };
 
-    page.json_set();
-    // page.rev() exists that means the file contains json data properly
-    // otherwise no further processes
-    if page.rev().is_none() {
-        return http_400();
-    }
+    // page.json_set();
+    // // page.rev() exists that means the file contains json data properly
+    // // otherwise no further processes
+    // if page.rev().is_none() {
+    //     return http_400();
+    // }
 
-    // set url here, because
-    // url::Url have data of host, path, url
-    // but in case of GET, path is enought,
-    // so do page.url_set(v) not at GET but here POST
-    match http_request.url() {
-        Some(v) => page.url_set(v),
-        None => return http_400(),
-    }
+    // // set url here, because
+    // // url::Url have data of host, path, url
+    // // but in case of GET, path is enought,
+    // // so do page.url_set(v) not at GET but here POST
+    // match http_request.url() {
+    //     Some(v) => page.url_set(v),
+    //     None => return http_400(),
+    // }
 
     if wc_request == b"json_save" {
         return handle_json_save(&mut page, http_request);
