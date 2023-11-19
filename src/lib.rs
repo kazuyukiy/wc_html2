@@ -7,8 +7,8 @@ mod js_css;
 mod thread_pool;
 mod wc_handler;
 
-// page_root
-pub fn wc_note(soket_add: &str, page_root: &str, capa: usize) -> Result<TcpListener> {
+// page_root_path
+pub fn wc_note(soket_add: &str, page_root_path: &str, capa: usize) -> Result<TcpListener> {
     // Copy wc.js, wc.css to ./page/
     // Do it only once when start main()
     // if you change wc.js or wc.css, you may restart main() or copy it manulally
@@ -34,20 +34,20 @@ pub fn wc_note(soket_add: &str, page_root: &str, capa: usize) -> Result<TcpListe
             Err(_) => continue,
         };
 
-        let page_root = String::from(page_root);
+        let page_root_path = String::from(page_root_path);
         pool.execute(|| {
-            handle_connection(stream, page_root);
+            handle_connection(stream, page_root_path);
         });
     }
 
     Ok(listener)
 }
 
-fn handle_connection(mut stream: TcpStream, page_root: String) {
+fn handle_connection(mut stream: TcpStream, page_root_path: String) {
     // Consider to reject access from wher not local
     // println!("lib.rs fn handle_connection cp0");
 
-    let response = wc_handler::response(&mut stream, &page_root);
+    let response = wc_handler::response(&mut stream, &page_root_path);
     stream.write(&response).unwrap();
     stream.flush().unwrap();
 }
