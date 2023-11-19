@@ -111,6 +111,9 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         return handle_href(&page, http_request);
     }
 
+    if wc_request == b"page_move" {
+        return handle_page_move(&mut page, http_request);
+    }
     // temp
     http_404()
 }
@@ -215,6 +218,24 @@ fn handle_href_temp(_page: &page::Page, http_request: &http_request::HttpRequest
     // Ok(_) => r#"{"dest":"href"}"#,
 
     http_ok(&res.as_bytes().to_vec())
+}
+
+fn handle_page_move(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    //
+    // json_post["parent_url"]
+    // json_post["dest_url"]
+    let json_post = match http_request.body_json() {
+        Some(v) => v,
+        None => return http_400(),
+    };
+
+    let parent_url = match json_post["parent_url"].as_str() {
+        Some(v) => v.trim(),
+        None => return http_404(),
+    };
+
+    // temp
+    http_404()
 }
 
 fn http_hello() -> Vec<u8> {
