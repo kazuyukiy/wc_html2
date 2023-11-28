@@ -1,9 +1,51 @@
 use html5ever::serialize;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle}; // , Node
+use std::collections::HashSet;
 use std::fs;
 
 mod dom_utility;
+
+// Create directories for a file_path given as a parameter.
+fn dir_build(file_path: &str) -> Result<(), ()> {
+    // file_path : abc/def/ghi.html
+    // Remove file name and remain only directory path.
+    let re = regex::Regex::new(r"/[^/]+$").unwrap();
+    let mat = re.find(&file_path).unwrap();
+
+    // dir_path abc/def
+    let dir_path = &file_path[..mat.start()];
+
+    match std::fs::DirBuilder::new().recursive(true).create(dir_path) {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            eprintln!("page_utility.rs Failed to create dir: {}", dir_path);
+            Err(())
+        }
+    }
+}
+
+pub fn file_write(path: &str, source: &Vec<u8>) -> Result<(), ()> {
+    if let Err(_) = dir_build(path) {
+        return Err(());
+    }
+
+    match fs::write(&path, source) {
+        Ok(_) => {
+            // println!("write: {}", &path);
+            // println!("write: {}", &self.path);
+            Ok(())
+        }
+        Err(_) => {
+            // eprintln!("Failed to save page: {}", &path);
+            // eprintln!("Failed to save page: {}", &self.path);
+            Err(())
+        }
+    }
+
+    // temp
+    //    Ok(())
+}
 
 pub fn to_dom(source: &str) -> RcDom {
     dom_utility::to_dom(source)
@@ -117,7 +159,7 @@ pub fn page_from_json(
     Ok(page)
 }
 
-fn json_plain() -> json::JsonValue {
+pub fn json_plain() -> json::JsonValue {
     // ~/projects/wc/wc/src/page_json_utility.rs
     json::object! {
         // "syttem" :
@@ -162,7 +204,7 @@ fn json_plain() -> json::JsonValue {
                         "content" : [],
                         "child" : []
                     }
-                    // ,
+                    ,
 
                     // "1" : {
                         // "parent" : "0",
@@ -318,7 +360,8 @@ fn child_navi_set(
     Ok(child_navi)
 }
 
-/// Return relative href of fm_href switching its base from fm_url to to_url.
+/// Returns url of fm_href switned base from fm_url to to_url.
+/// If possible, returns relative url based on to_url.
 fn href_base_switch(fm_url: &url::Url, fm_href: &str, to_url: &url::Url) -> Option<String> {
     // join : Get location of fm_href based on fm_url.
     match fm_url.join(&fm_href) {
@@ -327,9 +370,987 @@ fn href_base_switch(fm_url: &url::Url, fm_href: &str, to_url: &url::Url) -> Opti
             match to_url.make_relative(&href_url) {
                 Some(v) => Some(v),
                 // absolute
-                None => Some(href_url.path().to_string()),
+                None => Some(href_url.as_str().to_string()),
+                // None => Some(href_url.path().to_string()),
             }
         }
         Err(_) => None,
     }
 }
+
+///
+/// Issue: if a file already exits in the destination path.
+///
+/// fm_page : page to be move to.
+/// dest_url: url where fm_page move to.
+/// parent_url: the page fm_page becomes to be the child of.
+///
+/// Buffer new page and its children to be saved.
+/// If an error happens, like a page where moving to already exits with contents,
+/// discards the buffer.
+/// If no err happens, save all page in the buffer after all pages were handled.
+///
+/// After move to new location, change the previous pages as discontinued.
+///
+pub fn page_move(
+    fm_page: &super::Page,
+    dest_url: url::Url,
+    parent_url: Option<url::Url>,
+) -> Result<(), ()> {
+    // dbg
+    println!("page_utility.rs fn page_move");
+
+    let href_list = page_move_href_list(fm_page, fm_page.path());
+    // dbg
+    // for href_url in href_list {
+    //     println!("href_url: {}", href_url.as_str());
+    // }
+
+    // dbg
+    // println!("page_utility.rs fn page_move return");
+    // return Err(());
+
+    let _fm_page_json = match fm_page.json() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    // Save backup of fm_page.
+    let _ = fm_page.file_save_rev();
+
+    let page_root = fm_page.page_root();
+
+    // If a page already exists in dest_url.path(), stop moving.
+    // let mut dest_page = match page_move_dest_page(page_root, dest_url.path()) {
+    let mut dest_page = match page_move_dest_page(fm_page, dest_url.path()) {
+        Ok(v) => v,
+        // Return err if dest_page has contents.
+        Err(_) => return Err(()),
+    };
+
+    // let mut parent_page = match parent_url {
+    let parent_page = match parent_url {
+        Some(parent_url) => match super::Page::open(page_root, parent_url.path()) {
+            Ok(mut page) => {
+                page.json_set();
+                page.url_set(parent_url);
+                Some(page)
+            }
+            Err(_) => None,
+        },
+        None => None,
+    };
+
+    // navi
+    match page_move_navi(parent_page.as_ref(), fm_page, &mut dest_page) {
+        Ok(_) => {}
+        Err(_) => return Err(()),
+    }
+
+    // subsections
+    let _res = page_move_subsections(fm_page, &mut dest_page);
+
+    // temp
+    Ok(())
+}
+
+/// Returns url::Url list of all external pages that can be found in
+/// json_value["data"]["subsection"]["data"][i]["href"].value
+/// and those children recursively.
+/// base_page is expected parent page of href link,
+/// but not have to be the parent,
+/// a page of href also works.
+/// Because it is used to get inherited page.
+fn page_move_href_list(base_page: &super::Page, page_path: &str) -> HashSet<url::Url> {
+    let mut href_list: HashSet<url::Url> = HashSet::new();
+
+    let mut page = base_page.inherited(page_path);
+    page.json_set();
+
+    let page_json = match page.json() {
+        Some(v) => v,
+        None => return href_list,
+    };
+
+    // json_value["data"]["subsection"]["data"][i]["href"].value
+    let subsections = &page_json["data"]["subsection"]["data"];
+    if let json::JsonValue::Object(v) = subsections {
+        let page_url = match page.url() {
+            Some(v) => v,
+            None => return href_list,
+        };
+
+        for (_i, subsection) in v.iter() {
+            let href = match subsection["href"].as_str() {
+                Some(v) => v,
+                None => continue,
+            };
+
+            let href_url = match page_url.join(href) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // Avoides endless loop.
+            // if href is #some,
+            // calling page_move_href_list() causes loop forever.
+            if page_url.path() == href_url.path() {
+                continue;
+            }
+
+            // Find grandchild href.
+            let href_list_sub = page_move_href_list(&page, &href_url.path());
+            // Append children.
+            for href_sub_url in href_list_sub {
+                href_list.insert(href_sub_url);
+            }
+
+            // Append the child href.
+            href_list.insert(href_url);
+        }
+    }
+
+    href_list
+}
+
+/// Returns new super::Page instance that has no contents.
+/// If a page already exists in the path and
+/// it contains contents, return Err.
+/// If it exists, but not contents, it returns an instance.
+fn page_move_dest_page(base_page: &super::Page, path: &str) -> Result<super::Page, ()> {
+    // fn page_move_dest_page(page_root: &str, path: &str) -> Result<super::Page, ()> {
+
+    let page_root = base_page.page_root();
+    match super::Page::open(page_root, path) {
+        // Page exists.
+        Ok(mut dest_page) => {
+            dest_page.json_set();
+            if let Some(json) = dest_page.json() {
+                // No contents, pahaps empty page or discontinued.
+                // json["data"]["subsection"]["data"][0] is not real content.
+                if json["data"]["subsection"]["data"].len() <= 1 {
+                    return Ok(dest_page);
+                }
+            }
+        }
+        // Page does not exists.
+        // Create a new empty instance later.
+        Err(_) => (),
+    }
+
+    // Create a new super::Page instace
+    let mut dest_page = match super::Page::new(page_root, path) {
+        Ok(v) => v,
+        Err(_) => return Err(()),
+    };
+    dest_page.json_plain_set();
+
+    Ok(dest_page)
+}
+
+// fn page_move_dest_page_(base_page: &super::Page, path: &str) -> Result<super::Page, ()> {
+fn page_move_dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> {
+    match super::Page::open(page_root, path) {
+        // Page exists.
+        Ok(mut dest_page) => {
+            dest_page.json_set();
+            if let Some(json) = dest_page.json() {
+                // No contents, pahaps empty page or discontinued.
+                if json["data"]["subsection"]["data"].len() == 0 {
+                    return Ok(dest_page);
+                }
+            }
+        }
+        // Page does not exists.
+        // Create a new empty instance later.
+        Err(_) => (),
+    }
+
+    // Create a new super::Page instace
+    let mut dest_page = match super::Page::new(page_root, path) {
+        Ok(v) => v,
+        Err(_) => return Err(()),
+    };
+    dest_page.json_plain_set();
+
+    Ok(dest_page)
+}
+
+fn page_move_navi(
+    parent_page: Option<&super::Page>,
+    fm_page: &super::Page,
+    dest_page: &mut super::Page,
+) -> Result<(), ()> {
+    let fm_page_json = match fm_page.json() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let fm_page_navi = match &fm_page_json["data"]["navi"] {
+        json::JsonValue::Array(ref v) => v,
+        _ => return Err(()),
+    };
+
+    // If fm_page has only one navi element,
+    // it means the navi element is the top navi item.
+    // So it does not inherit parent navi.
+    //
+    // If parent_page is None, no parent navi is inherited.
+    //
+    let mut navi = if 1 < fm_page_navi.len() && parent_page.is_some() {
+        // Inherite parent page navi.
+        let parent_page = parent_page.as_ref().unwrap();
+        page_move_navi_inherit(parent_page, dest_page)
+    } else {
+        json::JsonValue::new_array()
+    };
+
+    // Push fm_page's title
+    // navi_dest: the last element of navi list that is for destination page.
+    let fm_json = match fm_page.json() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+    let title = match fm_json["data"]["page"]["title"].as_str() {
+        Some(s) => s,
+        None => "no title",
+    };
+    let navi_dest: Vec<json::JsonValue> = vec![title.into(), "".into()];
+    let _ = navi.push(json::JsonValue::Array(navi_dest));
+
+    // Put navi_dest to dest_page.
+    //    page_dest.
+    let dest_page_json = match dest_page.json_mut() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+    dest_page_json["data"]["navi"] = navi;
+
+    Ok(())
+}
+
+/// Create a navi list inheriting parent_page.
+fn page_move_navi_inherit(
+    parent_page: &super::Page,
+    child_page: &super::Page,
+    // ) -> Result<json::JsonValue, ()> {
+) -> json::JsonValue {
+    let mut child_navi = json::JsonValue::new_array();
+
+    let parent_page_json = match parent_page.json() {
+        Some(v) => v,
+        None => return child_navi,
+    };
+
+    let parent_navi = match &parent_page_json["data"]["navi"] {
+        json::JsonValue::Array(ref v) => v,
+        _ => return child_navi,
+    };
+
+    //let parent_page_url = match parent_page.url().as_ref() {
+    let parent_page_url = match parent_page.url() {
+        Some(v) => v,
+        None => return child_navi,
+    };
+
+    // if child_page.url().is_none() { return child_navi; }
+    let child_page_url = match child_page.url() {
+        Some(v) => v,
+        None => return child_navi,
+    };
+
+    for navi in parent_navi {
+        let title = match navi[0].as_str() {
+            Some(v) => v,
+            None => "no title",
+        };
+
+        let href = match navi[1].as_str() {
+            Some(parent_href) => {
+                // Convert href that based on parent pate to based on child_page.
+                match href_base_switch(&parent_page_url, parent_href, &child_page_url) {
+                    Some(v) => v,
+                    None => "".to_string(),
+                }
+            }
+            None => "".to_string(),
+        };
+
+        let vec: Vec<json::JsonValue> = vec![title.into(), href.into()];
+        let _res = child_navi.push(json::JsonValue::Array(vec));
+    }
+
+    child_navi
+}
+
+fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> Result<(), ()> {
+    let dest_page_json = match dest_page.json_mut() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+    let dest_subsections = match &dest_page_json["data"]["subsection"]["data"] {
+        json::JsonValue::Object(v) => v,
+        _ => return Err(()),
+    };
+
+    // ??
+    let mut _dest_subsections = dest_subsections.clone();
+
+    let fm_page_json = match fm_page.json() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+    let fm_subsections = &fm_page_json["data"]["subsection"]["data"];
+    if let json::JsonValue::Object(_) = &fm_page_json["data"]["subsection"]["data"] {
+    } else {
+        return Err(());
+    };
+
+    // entries: returns iterator of JsonValue::Object.
+    for (_id, fm_subsection) in fm_subsections.entries() {
+        let _res = page_move_subsection(fm_page, fm_subsection, dest_page);
+    }
+
+    //temp
+    Ok(())
+}
+
+fn page_move_subsection(
+    fm_page: &super::Page,
+    fm_subsection: &json::JsonValue,
+    dest_page: &mut super::Page,
+) -> Result<(), ()> {
+    let mut dest_subsection = json::JsonValue::new_object();
+
+    // href
+    dest_subsection["href"] = match page_move_subsection_href(fm_page, fm_subsection, dest_page) {
+        Ok(v) => v.into(),
+        Err(_) => return Err(()),
+    };
+
+    // content
+    dest_subsection["content"] =
+        match page_move_subsection_contents(fm_page, fm_subsection, dest_page) {
+            Ok(v) => v,
+            Err(_) => return Err(()),
+        };
+
+    // temp
+    Err(())
+}
+
+fn page_move_href_convert() {}
+
+fn page_move_subsection_href(
+    fm_page: &super::Page,
+    fm_subsection: &json::JsonValue,
+    dest_page: &mut super::Page,
+) -> Result<String, ()> {
+    let fm_href = match fm_subsection["href"].as_str() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let fm_page_url = match fm_page.url() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let fm_href_url = match fm_page_url.join(fm_href) {
+        Ok(v) => v,
+        Err(_) => return Err(()),
+    };
+
+    // Get fm_href_relative to know if fm_href is a relation to fm_page,
+    // or its children.
+    let fm_href_relative = match fm_page_url.make_relative(&fm_href_url) {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let dest_page_url = match dest_page.url() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    // If href starts with "../", it relates not to fm_page or its children.
+    // In this case, convert the relation based on fm_page_url to dest_page_url.
+    let dest_href = if fm_href_relative.starts_with("../") {
+        match href_base_switch(&fm_page_url, fm_href, &dest_page_url) {
+            Some(v) => v,
+            None => return Err(()),
+        }
+    } else {
+        // fm_href_url is a link to fm_page or its children.
+        // Relative href in fm_page can work at dest_page as well.
+        fm_href_relative
+    };
+
+    Ok(dest_href)
+}
+
+fn page_move_subsection_contents(
+    fm_page: &super::Page,
+    fm_subsection: &json::JsonValue,
+    dest_page: &super::Page,
+) -> Result<json::JsonValue, ()> {
+    //
+    let fm_contents = match &fm_subsection["content"] {
+        json::JsonValue::Array(v) => v,
+        _ => return Err(()),
+    };
+
+    let fm_page_url = match fm_page.url() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let dest_page_url = match dest_page.url() {
+        Some(v) => v,
+        None => return Err(()),
+    };
+
+    let dest_contents = json::JsonValue::new_array();
+
+    for fm_content in fm_contents {
+        let fm_value = match fm_content["value"].as_str() {
+            Some(v) => v,
+            None => return Err(()),
+        };
+
+        let mut dest_content = json::JsonValue::new_object();
+
+        dest_content["value"] =
+            // page_move_subsection_content_href_convert(fm_page, fm_value, dest_page).into();
+            page_move_subsection_content_href_convert(fm_value, fm_page_url, dest_page_url).into();
+    }
+
+    Ok(dest_contents)
+}
+
+fn page_move_subsection_content_href_convert(
+    fm_content: &str,
+    fm_page_url: &url::Url,
+    dest_page_url: &url::Url,
+) -> String {
+    // fn page_move_subsection_content_href_convert(
+    //     fm_page: &super::Page,
+    //     fm_content: &str,
+    //     dest_page: &super::Page,
+    // ) -> String {
+    //
+    let mut content = String::from(fm_content);
+
+    // let fm_page_url = match fm_page.url() {
+    //     Some(v) => v,
+    //     None => return content,
+    // };
+
+    // let dest_page_url = match dest_page.url() {
+    //     Some(v) => v,
+    //     None => return content,
+    // };
+
+    // inside of content["value"]
+    let mut index: usize = 0;
+    loop {
+        if content.len() <= index {
+            break;
+        }
+
+        // Get index of href value position in content
+        // href="value1"
+        // Search from &str[index..]
+        let (start, end) = match href_pos(&content, index) {
+            Some(v) => v,
+            // href value not found.
+            None => break,
+        };
+
+        // next loop may start from where after the current href value position
+        index = end;
+
+        let href_value = &content[start..end];
+
+        // Case #abc, it is local link, so nothing to do about href_value,
+        // leave as it is and do further on conversion on the rest.
+        if href_value.starts_with("#") {
+            // index = end;
+            continue;
+        }
+
+        // Convert href to based on dest_page
+        match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+            Some(href_converted) => {
+                // let href_len = href_value.len();
+
+                // index = end - href_value.len() + href_converted.len();
+
+                // Compensate href value change on index.
+                // It should be href_value.len() < index
+                // index = index - href_value.len() + href_converted.len();
+                index -= href_value.len();
+                index = match index.checked_add(href_converted.len()) {
+                    Some(v) => v,
+                    None => break,
+                };
+
+                // replace href_value
+                // start should be greater than 0,
+                // because it is index after " of <a href="href_value">
+                // So checked_add_singed is not required.
+                // content = content[0..start - 1].to_string() + &href_converted + &content[end..];
+                content = content[0..start].to_string() + &href_converted + &content[end..];
+
+                //
+            }
+            // Failed to convert href
+            None => {
+                // ignore the href
+                // index = end;
+                continue;
+            }
+        }
+
+        // Convert href to based on dest_page
+        // let res = href_base_switch(&fm_page_url, href_value, &dest_page_url);
+        // If failed to convert the href, ignore it and go on further loop.
+        // if let None = res {
+        //     // index = match index.checked_add(end) {
+        //     //     Some(v) => v,
+        //     //     None => break,
+        //     // };
+        //     continue;
+        // }
+
+        // res is Some
+        // let href_value_converted = res.unwrap();
+        // let href_len = href_value.len();
+        // let href_converted_len = href_value_converted.len();
+
+        // replace href_value
+        // start should be greater than 0,
+        // because it is index after " of <a href="href_value">
+        // So checked_add_singed is not required.
+        // content = content[0..start - 1].to_string() + &href_value_converted + &content[end..];
+
+        // safely index = index - href_value.len() + href_value_converted.len();
+        // index = index - href_len;
+        // index = match index.checked_add(href_value_converted.len()) {
+        //     Some(v) => v,
+        //     None => break,
+        // };
+
+        // index = index + start + href_value.len();
+
+        // match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+        //     Some(v) => {
+        //         //
+        //         v;
+        //     }
+        //     None => {
+        //         // use checked_add()
+        //         index += end;
+        //     }
+        // };
+
+        // Convert href to based on dest_page
+        // let href_value = match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+        //     Some(s) => s,
+        //     // if not use href not converted
+        //     None => href_value.to_string(),
+        // };
+
+        // get content_str that href is replaced with what based on dest_page
+        // content = content[0..start - 1].to_string() + &href_value + &content[end..];
+    }
+
+    content
+}
+
+/// Find ptn from &str[search_start..] .
+/// search_start: start position of str to find
+/// ptn: pattern to find
+/// It does not match with \ptn; escaped by \
+fn find_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, usize)> {
+    // Regular expression to find ptn
+    let re_ptn = regex::Regex::new(&ptn).unwrap();
+    // Regular expression to find backslash `\` continuing more than two.
+    let re_esc = regex::Regex::new(r"(\\+)$").unwrap();
+
+    let mut index_start = search_start;
+
+    loop {
+        if str.len() <= index_start {
+            // ptn was not found
+            break;
+        }
+
+        // Search ptn
+        let mat = match re_ptn.find(&str[index_start..]) {
+            Some(v) => v,
+            // ptn was not found
+            None => break,
+        };
+
+        // index position of ptn starts.
+        let ptn_start = match index_start.checked_add(mat.start()) {
+            Some(v) => v,
+            None => break,
+        };
+
+        // Check if the ptn is escaped.
+        // To do that, count number of \ before ptn.
+        //
+        // \\\\ptn
+        // if \ exists just befor ptn
+        // it might be an escape code for ptn (\ptn)
+        // or just `\` charactor (\\ptn)
+        //
+        // In case of `\` charactor,
+        // it should be escape code \ before `\` charactor
+        // so \\ is a caractor `\` with escaped code.
+        //
+        // If number of continuous \ is odd, the last \ is escape code for ptn.
+        // eg "\\ \\ \\ \\ \ptn" (The parrern is escaped by \.)
+        // (consider as spaces are not exists, those are only for easy to see.)
+        //
+        // If number of continuous \ is even, those are some couple of
+        // escape code and `\` charactor.
+        // eg "\\ \\ \\ \\ ptn" (The parrern is not escaped by \.)
+        //
+        // If make some couple of \ (\\) and still remains one \
+        // it means ptn is escaped.
+        // In case of html, it is not an element.
+        // eg: \<a\>
+        //
+        // Find escap charactor befor ptn position.
+        // &str[index_start..ptn_start]: str before ptn
+        // Find \ at the end of &str[index_start..ptn_start]
+        if let Some(cap) = re_esc.captures(&str[index_start..ptn_start]) {
+            // escape charactor found
+            if &cap[1].len() % 2 == 1 {
+                // Number of charactor in cap is odd (ex: \\ \).
+                // ptn is escaped.
+                // skip escaped ptn and go further on.
+                // Add mat.end() to index_start.
+                match index_start.checked_add(mat.end()) {
+                    Some(v) => {
+                        index_start = v;
+                        continue;
+                    }
+                    None => break,
+                };
+            }
+        }
+
+        let ptn_end = match index_start.checked_add(mat.end()) {
+            Some(v) => v,
+            None => break,
+        };
+
+        // Return ptn position that is not escaped.
+        return Some((ptn_start, ptn_end));
+    }
+
+    // Reached at the end of str and ptn not escaped was not found.
+    None
+}
+
+/// Find ptn from str_hole.
+/// find_start: start position to find
+/// ptn: pattern to find
+fn _find_not_escaped_alt1(str_hole: &str, find_start: usize, ptn: &str) -> Option<(usize, usize)> {
+    // find_start is more than str_hole.
+    if str_hole.len() <= find_start {
+        return None;
+    }
+
+    let str = &str_hole[find_start..];
+
+    // Regular expression to find ptn
+    let re_ptn = regex::Regex::new(&ptn).unwrap();
+    // Regular expression to find backslash `\` continuing more than two.
+    // at the end of str.
+    let re_esc = regex::Regex::new(r"(\\+)$").unwrap();
+
+    // index_current: index position handling currently.
+    let mut index_current: usize = 0;
+
+    loop {
+        if str.len() <= index_current {
+            // ptn was not found
+            break;
+        }
+
+        let str_crt = &str[index_current..];
+
+        // find ptn
+        let mat = match re_ptn.find(&str_crt) {
+            Some(v) => v,
+            // ptn was not found
+            None => break,
+        };
+
+        // index position of ptn .
+        let ptn_index = mat.start();
+
+        // Check if the ptn is escaped.
+        // To do that, count number of \ before ptn.
+        //
+        // \ptn
+        // if \ exists just befor ptn
+        // it might be an escape code for ptn (\ptn)
+        // or just `\` charactor (\\ptn)
+        //
+        // In case of `\` charactor,
+        // it should be escape code \ before `\` charactor
+        // so \\ is a caractor `\` with escaped code.
+        //
+        // If number of continuous \ is odd, the last \ is escape code.
+        // eg "\\ \\ \\ \\ \ptn" (The parrern is escaped by \.)
+        // (consider as spaces are not exists, those are only for easy to see.)
+        //
+        // If number of continuous \ is even, those are some couple of
+        // escape code and `\` charactor.
+        // eg "\\ \\ \\ \\ ptn" (The parrern is not escaped by \.)
+        //
+        // If make some couple of \ (\\) and still remains one \
+        // it means ptn is escaped, that meas ptn is not an html element
+        //
+        // &str_crt[..ptn_index]: str before ptn
+        // Find \ at the end of &str_crt[..ptn_index].
+        //
+
+        // let cap_op = re_esc.captures(&str_crt[..ptn_index]);
+        // if let Some(cap) = cap_op {
+        //     // escaped
+        //     if &cap[1].len() % 2 == 1 {
+        //         // skip escaped ptn and go further on.
+        //         index_current += mat.end();
+        //         continue;
+        //     }
+        // }
+
+        // Find escap charactor befor ptn position.
+        if let Some(cap) = re_esc.captures(&str_crt[..ptn_index]) {
+            // escape charactor found
+            if &cap[1].len() % 2 == 1 {
+                // Number of charactor in cap is odd (ex: \\ \).
+                // ptn is escaped.
+                // skip escaped ptn and go further on.
+
+                // index_current += mat.end();
+
+                // Add mat.end() to index_current.
+                match index_current.checked_add(mat.end()) {
+                    Some(v) => {
+                        index_current = v;
+                        continue;
+                    }
+                    // index_current reaches usize::MAX.
+                    // Can not work further more.
+                    None => break,
+                }
+            }
+        }
+
+        // match re_esc.captures(&str_crt[..ptn_index]) {
+        //     Some(cap) => {
+        //         if &cap[1].len() % 2 == 1 {
+        //             // Number of charactor in cap is odd.
+        //             // skip escaped ptn and go further on.
+        //             index_current += mat.end();
+        //             continue;
+        //         }
+        //     }
+        //     // not escaped
+        //     None => (),
+        // }
+
+        // ptn was found and it is not escaped
+        return Some((
+            find_start + index_current + mat.start(),
+            find_start + index_current + mat.end(),
+        ));
+    }
+
+    // Reached at the end of str and str not escaped was not found.
+    None
+}
+
+/// Return href value position of <a href="href_value"> element
+/// in &str as Some((start, end)).
+/// It searches on &str[find_start..], &str[..find_start] is ignored.
+/// Start end end position are counted as &str[0] is 0.
+/// If href value is not found, or any err, returns None.
+fn href_pos(str: &str, find_start: usize) -> Option<(usize, usize)> {
+    // let mut index = 0;
+    // href=value
+    // let re_href = regex::Regex::new(r#"(?i)\s*href\s*=\s*["']"#).unwrap();
+
+    // Search <a, but not \<a: escaped
+    let (_a_start, a_end) = match find_not_escaped(&str, find_start, "<a") {
+        Some(v) => v,
+        // <a not found
+        None => return None,
+    };
+
+    // index += a_end;
+
+    // position end of <a
+    // let mut index = a_end;
+
+    // Find href="value or href='value
+    let re_href = regex::Regex::new(r#"(?i)\s*href\s*=\s*["']"#).unwrap();
+    let href_mat = match re_href.find(&str[a_end..]) {
+        Some(v) => v,
+        // href="value not found
+        None => return None,
+    };
+
+    // first quote`"` position of href="value"
+    // let q1_start = index + href_mat.end() - 1;
+    // q1_start = a_end + href_mat.end() - 1;
+    let q1_end = match a_end.checked_add(href_mat.end()) {
+        Some(v) => v,
+        None => return None,
+    };
+    let q1_start = match q1_end.checked_add_signed(-1) {
+        Some(v) => v,
+        None => return None,
+    };
+
+    // Get charactor of the quote, it is " or '.
+    // let quote = &str[q1_start..q1_start + 1];
+    let quote = &str[q1_start..q1_end];
+
+    // Set index at end of the first quote
+    // let index += href_mat.end();
+    // let q1_end = a_end + href_mat.end();
+
+    // Search second " (or ') from abc" of href="abc".
+    // let (q2_start, _q2_end) = match find_not_escaped(&str, index, quote) {
+    let (q2_start, _q2_end) = match find_not_escaped(&str, q1_end, quote) {
+        Some(v) => v,
+        // second quote not found.
+        None => return None,
+    };
+
+    // abc of href="abc"
+    Some((q1_end, q2_start))
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn find_not_escaped() {
+        // cargo test -- --nocapture
+        // println!("page_urility mod tests fn find_not_escaped");
+
+        // Case does not match.
+        let str = "abc";
+        let res = super::find_not_escaped(str, 0, "def");
+        assert_eq!(res, None);
+
+        // Case match whole.
+        let str = "abc";
+        let res = super::find_not_escaped(str, 0, "abc");
+        assert!(res.is_some());
+        if let Some(v) = res {
+            let (start, end) = v;
+            assert_eq!(start, 0);
+            assert_eq!(end, 3);
+        };
+
+        // Case match some part
+        let str = "abcdef";
+        let res = super::find_not_escaped(str, 0, "cde");
+        assert!(res.is_some());
+        if let Some(v) = res {
+            let (start, end) = v;
+            assert_eq!(start, 2);
+            assert_eq!(end, 5);
+        };
+
+        // Case match with escaped backslash
+        let str = r"ab\\cdef";
+        let res = super::find_not_escaped(str, 0, "cde");
+        assert!(res.is_some());
+        if let Some(v) = res {
+            let (start, end) = v;
+            assert_eq!(start, 4);
+            assert_eq!(end, 7);
+        };
+
+        // Case does not match escaped ptn
+        let str = r"ab\cdef";
+        let res = super::find_not_escaped(str, 0, "cde");
+        assert!(res.is_none());
+
+        // assert!(true);
+    }
+
+    #[test]
+    fn href_pos() {
+        let str = r#"abc<a href="a_b_c">abc</a>def<a href="a_b_c">abc</a>ghi"#;
+        //           01234567891123456789212345678931234567894123456789512345
+        let op = super::href_pos(str, 27);
+        assert!(op.is_some());
+        if let Some(v) = op {
+            let (start, end) = v;
+            assert_eq!(start, 38);
+            assert_eq!(end, 43);
+        }
+        // match op {
+        //     Some(v) => {}
+        //     None => (),
+        // }
+    }
+
+    #[test]
+    fn page_move_subsection_content_href_convert() {
+        // Case a page moves to different url.
+        // The href is link to nether fm_url nor dest_url, nor thorse children.
+        // Moving the page should not change href value.
+
+        let fm_url = "http://abc/abc.html";
+        let dest_url = "http://def/def.html";
+        let href1 = "http://page/data.html#d1";
+        let href2 = "http://page/data.html#d1";
+        let content1 = format!("ha ha ha <a href=\"{}\">data</a> he", href1);
+        let content2 = format!("ha ha ha <a href=\"{}\">data</a> he", href2);
+        page_move_subsection_content_href_convert_test(fm_url, dest_url, &content1, &content2);
+
+        if false {}
+
+        // Case href is link to fm_url's child.
+        let fm_url = "http://abc/abc.html";
+        let dest_url = "http://def/def.html";
+        let href1 = "http://abc/abc.html#d1";
+        let href2 = "#d1";
+        let content1 = format!("ha ha ha <a href=\"{}\">data</a> he", href1);
+        let content2 = format!("ha ha ha <a href=\"{}\">data</a> he", href2);
+        page_move_subsection_content_href_convert_test(fm_url, dest_url, &content1, &content2);
+
+        // println!("{}", content2);
+        // assert_eq!(str, &content);
+        // assert!(false);
+    }
+
+    fn page_move_subsection_content_href_convert_test(
+        fm_url: &str,
+        dest_url: &str,
+        content: &str,
+        content2: &str,
+    ) {
+        let fm_url = url::Url::parse(fm_url).unwrap();
+        let dest_url = url::Url::parse(dest_url).unwrap();
+        let content_converted =
+            super::page_move_subsection_content_href_convert(content, &fm_url, &dest_url);
+        assert_eq!(content_converted, content2);
+    }
+}
+
+// work note

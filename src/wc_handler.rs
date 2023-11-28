@@ -23,7 +23,8 @@ pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
         Err(e) => return e,
     };
 
-    let method = match http_request.method.as_ref() {
+    // let method = match http_request.method.as_ref() {
+    let method = match http_request.method() {
         Some(v) => v,
         None => return http_404(),
     };
@@ -40,11 +41,13 @@ pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     http_hello()
 }
 
+/// Return page::Page instance that is of http_request::HttpRequest.
 fn page(
     page_root_path: &str,
     http_request: &http_request::HttpRequest,
 ) -> Result<page::Page, Vec<u8>> {
-    let path = match http_request.path.as_ref() {
+    // let path = match http_request.path.as_ref() {
+    let path = match http_request.path() {
         Some(v) => v,
         None => return Err(http_404()),
     };
@@ -54,6 +57,7 @@ fn page(
         Err(_) => return Err(http_404()),
     };
 
+    // Prepare some data of page in case those data are required.
     if let Err(v) = page_prepare(&mut page, http_request) {
         return Err(v);
     }
@@ -70,7 +74,8 @@ fn page_prepare(
     page: &mut page::Page,
     http_request: &http_request::HttpRequest,
 ) -> Result<(), Vec<u8>> {
-    let method = match http_request.method.as_ref() {
+    // let method = match http_request.method.as_ref() {
+    let method = match http_request.method() {
         Some(v) => v,
         None => return Err(http_404()),
     };
@@ -114,41 +119,27 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
     //     return http_400();
     // }
 
-    let wc_request = match http_request.wc_request.as_ref() {
+    // let wc_request = match http_request.wc_request.as_ref() {
+    let wc_request = match http_request.wc_request() {
         Some(wc_request) => wc_request,
         None => return http_400(),
     };
 
-    // page.json_set();
-    // // page.rev() exists that means the file contains json data properly
-    // // otherwise no further processes
-    // if page.rev().is_none() {
-    //     return http_400();
-    // }
+    // println!("wc_handler.rs wc_request: {}", wc_request);
+    println!("wc_request: {}", wc_request);
 
-    // // set url here, because
-    // // url::Url have data of host, path, url
-    // // but in case of GET, path is enought,
-    // // so do page.url_set(v) not at GET but here POST
-    // match http_request.url() {
-    //     Some(v) => page.url_set(v),
-    //     None => return http_400(),
-    // }
-
-    if wc_request == b"json_save" {
+    // if wc_request == b"json_save" {
+    if wc_request == "json_save" {
         return handle_json_save(&mut page, http_request);
     }
 
-    if wc_request == b"page_new" {
-        // // url::Url have data of host, path, url
-        // // but in case of GET, path is enought
-        // if let Some(v) = http_request.url() {
-        //     page.url_set(v);
-        // }
+    // if wc_request == b"page_new" {
+    if wc_request == "page_new" {
         return handle_page_new(&mut page, http_request);
     }
 
-    if wc_request == b"href" {
+    // if wc_request == b"href" {
+    if wc_request == "href" {
         // memo
         // wc/js
         // hrefEventHandle(event) {
@@ -158,7 +149,8 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         return handle_href(&page, http_request);
     }
 
-    if wc_request == b"page_move" {
+    // if wc_request == b"page_move" {
+    if wc_request == "page_move" {
         return handle_page_move(&mut page, http_request);
     }
     // temp
@@ -187,20 +179,6 @@ fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequ
 
 fn handle_page_new(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
     //
-
-    // move to fn handle_post()
-    // set url here, because
-    // url::Url have data of host, path, url
-    // but in case of GET, path is enought,
-    // so do page.url_set(v) not at GET but here POST
-    // match http_request.url() {
-    //     Some(v) => page.url_set(v),
-    //     None => return http_400(),
-    // }
-    // if let Some(v) = http_request.url() {
-    //     page.url_set(v);
-    // }
-
     let json_post = match http_request.body_json() {
         Some(v) => v,
         None => return http_400(),
@@ -267,8 +245,10 @@ fn handle_href_temp(_page: &page::Page, http_request: &http_request::HttpRequest
     http_ok(&res.as_bytes().to_vec())
 }
 
-fn handle_page_move(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
-    //
+fn handle_page_move(
+    post_page: &mut page::Page,
+    http_request: &http_request::HttpRequest,
+) -> Vec<u8> {
     // json_post["parent_url"]
     // json_post["dest_url"]
     let json_post = match http_request.body_json() {
@@ -277,12 +257,22 @@ fn handle_page_move(page: &mut page::Page, http_request: &http_request::HttpRequ
     };
 
     let parent_url = match json_post["parent_url"].as_str() {
-        Some(v) => v.trim(),
+        Some(v) => v,
         None => return http_404(),
     };
 
-    // temp
-    http_404()
+    let dest_url = match json_post["dest_url"].as_str() {
+        Some(v) => v,
+        None => return http_404(),
+    };
+
+    match post_page.page_move(dest_url, parent_url) {
+        Ok(_) => {
+            let res = format!(r#"{{"Ok":"ok"}}"#);
+            http_ok(&res.as_bytes().to_vec())
+        }
+        Err(_) => http_400(),
+    }
 }
 
 fn http_hello() -> Vec<u8> {

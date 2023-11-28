@@ -4,6 +4,7 @@ use markup5ever_rcdom::RcDom;
 use regex::Regex;
 use std::fs;
 
+mod contents;
 mod page_utility;
 
 // url::Url have a data for path, so path and url are duplicated in some part
@@ -15,6 +16,7 @@ pub struct Page {
     source: Option<Vec<u8>>,
     dom: Option<RcDom>,
     json: Option<json::JsonValue>,
+    data: Option<contents::Contents>,
 }
 
 impl Page {
@@ -31,6 +33,7 @@ impl Page {
             source: None,
             dom: None,
             json: None,
+            data: None,
         }
     }
 
@@ -41,6 +44,7 @@ impl Page {
     ///
     /// This function will return an error if a file does not already exists in  `path`.
     ///
+    /// Fields url, dom, json are None. You need to set those if need.
     ///
     /// page_root: path where page files are strored in the server
     /// path: url path that a client is requesting
@@ -77,8 +81,29 @@ impl Page {
         Ok(page)
     }
 
+    /// Returns a Page that inherites page_root and url of self.
+    pub fn inherited(&self, path: &str) -> Page {
+        let mut page = Page::open(&self.page_root, path);
+        if page.is_err() {
+            page = Page::new(&self.page_root, path);
+        }
+        let mut page = page.unwrap();
+
+        if let Some(url) = self.url() {
+            let url = url.join(path);
+            if url.is_ok() {
+                page.url_set(url.unwrap());
+            }
+        }
+        page
+    }
+
     pub fn page_root(&self) -> &str {
         self.page_root.as_ref()
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     fn file_path(&self, path: &str) -> String {
@@ -117,6 +142,10 @@ impl Page {
         self.dom.replace(dom);
     }
 
+    /// It returns Dom as an Option.
+    /// To call self.dom(), do self.dom_set() in previously.
+    /// To call seld.fom_set(), mutable reference is required.
+    /// But to call self.dom(). immutable reference is enough.
     fn dom(&self) -> Option<&RcDom> {
         match &self.dom {
             Some(v) => Some(&v),
@@ -143,15 +172,37 @@ impl Page {
         self.json.replace(json);
     }
 
-    // to use fn json(), do fn json_set() previously
+    /// Set page_json plain.
+    /// If self.json already value in the option, do nothing.
+    pub fn json_plain_set(&mut self) {
+        if self.json.is_some() {
+            return;
+        }
+        self.json.replace(page_utility::json_plain());
+    }
+
+    /// It returns json value reference in Option.
+    /// To call self.json(), call self.json_set() previously.
+    /// To call self.json_set(), mutable refernece is required.
+    /// But to call self.json(), immutable refernece is enough.
     // self.json.as_ref().unwrap() may couse a panic
     // if json_set() was not called
     // the panic may let you know json_set() was not done
-    fn json(&self) -> Option<&json::JsonValue> {
+    pub fn json(&self) -> Option<&json::JsonValue> {
         match self.json.as_ref() {
             Some(v) => Some(v),
             None => {
-                eprintln!("Failed to get json");
+                eprintln!("page.rs Failed to get json: {}", self.path);
+                None
+            }
+        }
+    }
+
+    pub fn json_mut(&mut self) -> Option<&mut json::JsonValue> {
+        match self.json.as_mut() {
+            Some(v) => Some(v),
+            None => {
+                eprintln!("page.rs Failed to get json: {}", self.path);
                 None
             }
         }
@@ -192,34 +243,26 @@ impl Page {
 
     /// Save self.source to the file.
     fn file_save(&self) -> Result<(), ()> {
-        // make a String to avoid error
-        // &mut self will be used in self.source()
-        // to avoid borrowing &mut self and &self in a time
-
-        // let path = &self.path.to_string();
-
         let source = match self.source() {
             Some(s) => s,
             None => return Err(()),
         };
 
-        // match fs::write(&path, source) {
-        match fs::write(&self.file_path(&self.path), source) {
+        let path = self.file_path(&self.path);
+        match page_utility::file_write(&path, source) {
             Ok(_) => {
-                // println!("write: {}", &path);
-                println!("write: {}", &self.path);
+                println!("write: {}", &path);
                 Ok(())
             }
             Err(_) => {
-                // eprintln!("Failed to save page: {}", &path);
-                eprintln!("Failed to save page: {}", &self.path);
+                eprintln!("page.rs Failed to save page: {}", &path);
                 Err(())
             }
         }
     }
 
     /// Save contents to a file with rev on its file name.
-    pub fn file_save_rev(&mut self) -> Result<(), ()> {
+    pub fn file_save_rev(&self) -> Result<(), ()> {
         let path_rev = match self.path_rev() {
             Some(v) => v,
             None => {
@@ -229,8 +272,7 @@ impl Page {
         };
 
         // if path_rev already exits, no need to save it again
-        // match fs::File::open(&path_rev) {
-        match fs::File::open(&self.file_path(&path_rev)) {
+        match fs::File::open(&path_rev) {
             Ok(_) => {
                 // eprintln!("alreqady exists: {}", &self.file_path(&path_rev));
                 return Err(());
@@ -243,13 +285,13 @@ impl Page {
             None => return Err(()),
         };
 
-        match fs::write(&self.file_path(&path_rev), &source) {
+        match page_utility::file_write(&path_rev, source) {
             Ok(_) => {
                 println!("write: {}", &path_rev);
                 Ok(())
             }
             Err(_) => {
-                eprintln!("Failed to save page: {}", &path_rev);
+                eprintln!("page.rs Failed to save page: {}", &path_rev);
                 Err(())
             }
         }
@@ -326,6 +368,8 @@ impl Page {
         self.url.as_ref()
     }
 
+    //    pub page_from_path
+
     /// Create a new `Page` on json_post(title, href).
     /// json_post: { "title":"title_name,"href":"href_data"}
     /// Return Err if a file already exists.
@@ -359,5 +403,42 @@ impl Page {
             eprintln!("file_save_rev err: {:?}", e);
         }
         Ok(())
+    }
+
+    /// Move this page to dest_url as a child of parent_url.
+    /// Some page might have not parent page.
+    // pub fn page_move(&self, parent_url: &url::Url, dest_url: &url::Url) {}
+    pub fn page_move(&self, dest_url: &str, parent_url: &str) -> Result<(), ()> {
+        // dest_url (destination url) is necessary.
+        // But parent_url is not necessary because some page might have parent.
+        if dest_url.len() == 0 {
+            return Err(());
+        }
+
+        // let post_url = match self.url().as_ref() {
+        let post_url = match self.url() {
+            Some(v) => v,
+            None => return Err(()),
+        };
+
+        let dest_url = match post_url.join(dest_url) {
+            Ok(v) => v,
+            Err(_) => return Err(()),
+        };
+
+        // None: no parent page
+        let parent_url = if parent_url.len() == 0 {
+            None
+        } else {
+            match post_url.join(parent_url) {
+                Ok(v) => Some(v),
+                Err(_) => None,
+            }
+        };
+
+        page_utility::page_move(&self, dest_url, parent_url)
+
+        // temp
+        // Ok(())
     }
 }
