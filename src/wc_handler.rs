@@ -90,11 +90,21 @@ fn page_prepare(
         return Err(http_400());
     }
 
-    page.json_set();
+    // page.json_set();
+    page.contents_set();
 
     // page.rev() exists that means the file contains json data properly
     // otherwise no further processes
-    if page.rev().is_none() {
+    //
+    // if page.rev().is_none() {
+    //     return Err(http_400());
+    // }
+    if page
+        .contents()
+        .map(|contents| contents.rev())
+        .flatten()
+        .is_none()
+    {
         return Err(http_400());
     }
 

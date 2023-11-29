@@ -257,7 +257,16 @@ pub fn page_sub_new(
         return Err(());
     }
 
-    let parent_json = match parent_page.json() {
+    // let parent_json = match parent_page.json() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+
+    // let parent_contents = match parent_page.contents() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+    let parent_contents = match parent_page.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
@@ -268,7 +277,8 @@ pub fn page_sub_new(
     child_json["data"]["page"]["title"] = child_title.into();
 
     // navi
-    let mut child_navi = child_navi_set(parent_url, &parent_json, &child_url)?;
+    // let mut child_navi = child_navi_set(parent_url, &parent_json, &child_url)?;
+    let mut child_navi = child_navi_set(parent_url, &parent_contents, &child_url)?;
     // add child page title as last navi element
     let navi_self: Vec<json::JsonValue> = vec![child_title.into(), "".into()];
     let _res = child_navi.push(json::JsonValue::Array(navi_self));
@@ -410,10 +420,10 @@ pub fn page_move(
     // println!("page_utility.rs fn page_move return");
     // return Err(());
 
-    let _fm_page_json = match fm_page.json() {
-        Some(v) => v,
-        None => return Err(()),
-    };
+    // let _fm_page_json = match fm_page.json() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
 
     // Save backup of fm_page.
     let _ = fm_page.file_save_rev();
@@ -432,7 +442,8 @@ pub fn page_move(
     let parent_page = match parent_url {
         Some(parent_url) => match super::Page::open(page_root, parent_url.path()) {
             Ok(mut page) => {
-                page.json_set();
+                // page.json_set();
+                page.contents_set();
                 page.url_set(parent_url);
                 Some(page)
             }
@@ -465,15 +476,21 @@ fn page_move_href_list(base_page: &super::Page, page_path: &str) -> HashSet<url:
     let mut href_list: HashSet<url::Url> = HashSet::new();
 
     let mut page = base_page.inherited(page_path);
-    page.json_set();
+    page.contents_set();
+    // page.json_set();
 
-    let page_json = match page.json() {
+    let contents = match page.contents_data() {
         Some(v) => v,
         None => return href_list,
     };
+    // let page_json = match page.json() {
+    //     Some(v) => v,
+    //     None => return href_list,
+    // };
 
     // json_value["data"]["subsection"]["data"][i]["href"].value
-    let subsections = &page_json["data"]["subsection"]["data"];
+    // let subsections = &page_json["data"]["subsection"]["data"];
+    let subsections = &contents["data"]["subsection"]["data"];
     if let json::JsonValue::Object(v) = subsections {
         let page_url = match page.url() {
             Some(v) => v,
@@ -524,11 +541,20 @@ fn page_move_dest_page(base_page: &super::Page, path: &str) -> Result<super::Pag
     match super::Page::open(page_root, path) {
         // Page exists.
         Ok(mut dest_page) => {
-            dest_page.json_set();
-            if let Some(json) = dest_page.json() {
+            // dest_page.json_set();
+            dest_page.contents_set();
+            //
+            // if let Some(json) = dest_page.json() {
+            //     // No contents, pahaps empty page or discontinued.
+            //     // json["data"]["subsection"]["data"][0] is not real content.
+            //     if json["data"]["subsection"]["data"].len() <= 1 {
+            //         return Ok(dest_page);
+            //     }
+            // }
+            if let Some(contents) = dest_page.contents_data() {
                 // No contents, pahaps empty page or discontinued.
-                // json["data"]["subsection"]["data"][0] is not real content.
-                if json["data"]["subsection"]["data"].len() <= 1 {
+                // contents["data"]["subsection"]["data"][0] is not real content.
+                if contents["data"]["subsection"]["data"].len() <= 1 {
                     return Ok(dest_page);
                 }
             }
@@ -543,7 +569,10 @@ fn page_move_dest_page(base_page: &super::Page, path: &str) -> Result<super::Pag
         Ok(v) => v,
         Err(_) => return Err(()),
     };
-    dest_page.json_plain_set();
+    // dest_page.json_plain_set();
+    dest_page
+        .contents_mut()
+        .map(|contents| contents.data_plain_set());
 
     Ok(dest_page)
 }
@@ -553,10 +582,18 @@ fn page_move_dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> 
     match super::Page::open(page_root, path) {
         // Page exists.
         Ok(mut dest_page) => {
-            dest_page.json_set();
-            if let Some(json) = dest_page.json() {
+            dest_page.contents_set();
+            // dest_page.json_set();
+
+            // if let Some(json) = dest_page.json() {
+            //     // No contents, pahaps empty page or discontinued.
+            //     if json["data"]["subsection"]["data"].len() == 0 {
+            //         return Ok(dest_page);
+            //     }
+            // }
+            if let Some(contents) = dest_page.contents_data() {
                 // No contents, pahaps empty page or discontinued.
-                if json["data"]["subsection"]["data"].len() == 0 {
+                if contents["data"]["subsection"]["data"].len() == 0 {
                     return Ok(dest_page);
                 }
             }
@@ -571,7 +608,10 @@ fn page_move_dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> 
         Ok(v) => v,
         Err(_) => return Err(()),
     };
-    dest_page.json_plain_set();
+    // dest_page.json_plain_set();
+    let _ = &dest_page
+        .contents_mut()
+        .map(|contents| contents.data_plain_set());
 
     Ok(dest_page)
 }
@@ -581,12 +621,17 @@ fn page_move_navi(
     fm_page: &super::Page,
     dest_page: &mut super::Page,
 ) -> Result<(), ()> {
-    let fm_page_json = match fm_page.json() {
+    // let fm_page_json = match fm_page.json() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+    let fm_contents = match dest_page.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
 
-    let fm_page_navi = match &fm_page_json["data"]["navi"] {
+    // let fm_page_navi = match &fm_page_json["data"]["navi"] {
+    let fm_page_navi = match &fm_contents["data"]["navi"] {
         json::JsonValue::Array(ref v) => v,
         _ => return Err(()),
     };
@@ -607,11 +652,18 @@ fn page_move_navi(
 
     // Push fm_page's title
     // navi_dest: the last element of navi list that is for destination page.
-    let fm_json = match fm_page.json() {
+    //
+    // let fm_json = match fm_page.json() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+    let fm_contents = match fm_page.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
-    let title = match fm_json["data"]["page"]["title"].as_str() {
+
+    // let title = match fm_json["data"]["page"]["title"].as_str() {
+    let title = match fm_contents["data"]["page"]["title"].as_str() {
         Some(s) => s,
         None => "no title",
     };
@@ -620,11 +672,20 @@ fn page_move_navi(
 
     // Put navi_dest to dest_page.
     //    page_dest.
-    let dest_page_json = match dest_page.json_mut() {
+
+    //
+    // let dest_page_json = match dest_page.json_mut() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+
+    let mut dest_page_contents = match dest_page.contents_data_mut() {
         Some(v) => v,
         None => return Err(()),
     };
-    dest_page_json["data"]["navi"] = navi;
+
+    // dest_page_json["data"]["navi"] = navi;
+    dest_page_contents["data"]["navi"] = navi;
 
     Ok(())
 }
@@ -637,12 +698,17 @@ fn page_move_navi_inherit(
 ) -> json::JsonValue {
     let mut child_navi = json::JsonValue::new_array();
 
-    let parent_page_json = match parent_page.json() {
+    // let parent_page_json = match parent_page.json() {
+    //     Some(v) => v,
+    //     None => return child_navi,
+    // };
+    let parent_page_contents = match parent_page.contents_data() {
         Some(v) => v,
         None => return child_navi,
     };
 
-    let parent_navi = match &parent_page_json["data"]["navi"] {
+    // let parent_navi = match &parent_page_json["data"]["navi"] {
+    let parent_navi = match &parent_page_contents["data"]["navi"] {
         json::JsonValue::Array(ref v) => v,
         _ => return child_navi,
     };
@@ -684,11 +750,16 @@ fn page_move_navi_inherit(
 }
 
 fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> Result<(), ()> {
-    let dest_page_json = match dest_page.json_mut() {
+    // let dest_page_json = match dest_page.json_mut() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+    let dest_page_contents = match dest_page.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
-    let dest_subsections = match &dest_page_json["data"]["subsection"]["data"] {
+    // let dest_subsections = match &dest_page_json["data"]["subsection"]["data"] {
+    let dest_subsections = match &dest_page_contents["data"]["subsection"]["data"] {
         json::JsonValue::Object(v) => v,
         _ => return Err(()),
     };
@@ -696,12 +767,16 @@ fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> 
     // ??
     let mut _dest_subsections = dest_subsections.clone();
 
-    let fm_page_json = match fm_page.json() {
+    // let fm_page_json = match fm_page.json() {
+    //     Some(v) => v,
+    //     None => return Err(()),
+    // };
+    let fm_page_contents = match fm_page.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
-    let fm_subsections = &fm_page_json["data"]["subsection"]["data"];
-    if let json::JsonValue::Object(_) = &fm_page_json["data"]["subsection"]["data"] {
+    let fm_subsections = &fm_page_contents["data"]["subsection"]["data"];
+    if let json::JsonValue::Object(_) = &fm_page_contents["data"]["subsection"]["data"] {
     } else {
         return Err(());
     };

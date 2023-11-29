@@ -16,7 +16,7 @@ pub struct Page {
     source: Option<Vec<u8>>,
     dom: Option<RcDom>,
     json: Option<json::JsonValue>,
-    data: Option<contents::Contents>,
+    contents: Option<contents::Contents>,
 }
 
 impl Page {
@@ -33,7 +33,7 @@ impl Page {
             source: None,
             dom: None,
             json: None,
-            data: None,
+            contents: None,
         }
     }
 
@@ -153,7 +153,61 @@ impl Page {
         }
     }
 
-    pub fn json_set(&mut self) {
+    pub fn contents_set(&mut self) {
+        let dom = match self.dom() {
+            Some(v) => v,
+            None => {
+                self.dom_set();
+                match self.dom() {
+                    Some(v) => v,
+                    None => return,
+                }
+            }
+        };
+        let json = match page_utility::json_from_dom(dom) {
+            Some(v) => v,
+            None => return,
+        };
+
+        // self.json.replace(json);
+
+        let contents = contents::Contents::from(json);
+        self.contents.replace(contents);
+    }
+
+    pub fn contents(&self) -> Option<&contents::Contents> {
+        self.contents.as_ref()
+    }
+
+    pub fn contents_mut(&mut self) -> Option<&mut contents::Contents> {
+        self.contents.as_mut()
+    }
+
+    // fn contents_(&self) -> Option<&json::JsonValue> {
+    //     self.contents.map(|contents| contents.data()).flatten()
+    //     // contents.data()
+    // }
+    fn contents_data(&self) -> Option<&json::JsonValue> {
+        self.contents.as_ref()?.data()
+
+        // let contents = self.contents.as_ref()?;
+        // contents.data()
+
+        // self.contents.map(|contents| contents.data()).flatten()
+        // contents.data()
+    }
+
+    fn contents_data_mut(&mut self) -> Option<&mut json::JsonValue> {
+        self.contents.as_mut()?.data_mut()
+
+        // self.contents
+        //     .map(|mut contents| contents.data_mut())
+        //     .flatten()
+        // // contents.data()
+    }
+
+    fn json_set_(&mut self) {
+        // refer fn contents_set
         let dom = match self.dom() {
             Some(v) => v,
             None => {
@@ -170,11 +224,14 @@ impl Page {
         };
 
         self.json.replace(json);
+
+        // let contents = contents::Contents::from(json);
+        // self.contents.replace(contents);
     }
 
     /// Set page_json plain.
     /// If self.json already value in the option, do nothing.
-    pub fn json_plain_set(&mut self) {
+    pub fn json_plain_set_(&mut self) {
         if self.json.is_some() {
             return;
         }
@@ -188,7 +245,7 @@ impl Page {
     // self.json.as_ref().unwrap() may couse a panic
     // if json_set() was not called
     // the panic may let you know json_set() was not done
-    pub fn json(&self) -> Option<&json::JsonValue> {
+    pub fn json_(&self) -> Option<&json::JsonValue> {
         match self.json.as_ref() {
             Some(v) => Some(v),
             None => {
@@ -198,7 +255,7 @@ impl Page {
         }
     }
 
-    pub fn json_mut(&mut self) -> Option<&mut json::JsonValue> {
+    pub fn json_mut_(&mut self) -> Option<&mut json::JsonValue> {
         match self.json.as_mut() {
             Some(v) => Some(v),
             None => {
@@ -217,28 +274,32 @@ impl Page {
     } // end of fn name_end_num
 
     // current rev
-    pub fn rev(&self) -> Option<u32> {
-        match self.json()?["data"]["page"]["rev"].as_u32() {
-            Some(v) => Some(v),
-            None => {
-                eprintln!("Failed to get rev");
-                None
-            }
-        }
-    }
+    // pub fn rev_(&self) -> Option<u32> {
+    //     match self.json()?["data"]["page"]["rev"].as_u32() {
+    //         Some(v) => Some(v),
+    //         None => {
+    //             eprintln!("Failed to get rev");
+    //             None
+    //         }
+    //     }
+    // }
 
     // rev counted up from current rev
-    fn rev_uped(&self) -> Option<u32> {
-        let rev = self.rev()?;
-        Some(rev + 1)
-    }
+    // fn rev_uped_(&self) -> Option<u32> {
+    //     let rev = self.rev()?;
+    //     Some(rev + 1)
+    // }
 
     fn path_rev(&self) -> Option<String> {
-        let rev = self.rev()?;
+        // let rev = self.rev()?;
+        // let rev = self.contents?.rev()?;
+        let rev = self.contents()?.rev()?;
         // file_path + "." + rev
         // Some(format!("{}.{}", &self.path, &rev))
         //String::from(self.path) + rev
-        Some(self.path.clone() + &rev.to_string())
+        // Some(self.path.clone() + &rev.to_string())
+        let file_path_rev = self.file_path(&self.path) + &rev.to_string();
+        Some(file_path_rev)
     }
 
     /// Save self.source to the file.
@@ -271,6 +332,9 @@ impl Page {
             }
         };
 
+        // DBG
+        // println!("page.rs path_rev: {}", path_rev);
+
         // if path_rev already exits, no need to save it again
         match fs::File::open(&path_rev) {
             Ok(_) => {
@@ -300,40 +364,79 @@ impl Page {
     // check if rev is match to rev in json posted
     // if json posted was updated from the current page,
     // the both of rev must match.
-    fn json_post_rev_match(&self, json_post: &json::JsonValue) -> Result<(), ()> {
+    // fn json_post_rev_match(&self, json_post: &json::JsonValue) -> Result<(), ()> {
+    fn json_post_rev_match(&self, json_post: &json::JsonValue) -> bool {
         // let check_sw = true;
         let check_sw = false;
         if check_sw == false {
-            return Ok(());
+            // return Ok(());
+            return true;
         }
 
-        let rev = match self.rev() {
+        // let rev = match self.rev() {
+        //     Some(v) => v,
+        //     None => return Err(()),
+        // };
+
+        // try using map. used map an flatten
+        // let rev = match self.contents {
+        //     Some(contents) => match contents.rev() {
+        //         Some(v) => v,
+        //         // None => return Err(()),
+        //         None => return false,
+        //     },
+        //     None => return false,
+        // };
+
+        // self.contents.map(|contents| contents.rev());
+        // self.contents.map(|contents| contents.rev()).flatten();
+        // let rev = match self.contents.map(|contents| contents.rev()).flatten() {
+        let rev = match self.contents().map(|contents| contents.rev()).flatten() {
             Some(v) => v,
-            None => return Err(()),
+            None => return false,
         };
+
+        // let contents = self.contents.unwrap_or(None).map(|v| v.rev());
+
+        // let rev = match self.contents.flatten() {
+        //     Some(v) => v,
+        //     // None => return Err(()),
+        //     None => return false,
+        // };
 
         let rev_post = match &json_post["data"]["page"]["rev"].as_u32() {
             Some(r) => *r,
             None => {
-                return Err(());
+                return false;
             }
         };
 
-        if rev != rev_post {
-            return Err(());
-        }
+        rev == rev_post
+        // if rev != rev_post {
+        //     return false;
+        // }
 
-        Ok(())
+        // // Ok(())
+        // true
     }
 
     pub fn json_post_save(&mut self, mut json_post: json::JsonValue) -> Result<(), ()> {
         // does not match rev number
-        if let Err(_) = self.json_post_rev_match(&json_post) {
+        //if let Err(_) = self.json_post_rev_match(&json_post) {
+        if self.json_post_rev_match(&json_post) == false {
             return Err(());
         }
 
         // set new rev counted up from current rev
-        let rev_uped = match self.rev_uped() {
+        // let rev_uped = match self.rev_uped() {
+        //     Some(v) => v,
+        //     None => return Err(()),
+        // };
+        let rev_uped = match self
+            .contents()
+            .map(|contents| contents.rev_uped())
+            .flatten()
+        {
             Some(v) => v,
             None => return Err(()),
         };
@@ -346,9 +449,10 @@ impl Page {
                 Err(_) => return Err(()),
             };
 
-        // to set page.dom, page.json from contents
-        // It is needed to handle rev and rev to save files
-        page_post.json_set();
+        // Set page.dom, page.json from contents to use rev
+        // that is used to save file.
+        // page_post.json_set();
+        page_post.contents_set();
 
         //
         if let Err(e) = page_post.file_save() {
@@ -395,7 +499,8 @@ impl Page {
         let mut child_page = page_utility::page_sub_new(&self, title, href)?;
         // to set page.dom, page.json from contents
         // It is needed to handle rev and rev to save files
-        child_page.json_set();
+        // child_page.json_set();
+        child_page.contents_set();
         if let Err(e) = child_page.file_save() {
             eprintln!("file_save err: {:?}", e);
         }
