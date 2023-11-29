@@ -23,7 +23,6 @@ pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
         Err(e) => return e,
     };
 
-    // let method = match http_request.method.as_ref() {
     let method = match http_request.method() {
         Some(v) => v,
         None => return http_404(),
@@ -46,7 +45,6 @@ fn page(
     page_root_path: &str,
     http_request: &http_request::HttpRequest,
 ) -> Result<page::Page, Vec<u8>> {
-    // let path = match http_request.path.as_ref() {
     let path = match http_request.path() {
         Some(v) => v,
         None => return Err(http_404()),
@@ -74,7 +72,6 @@ fn page_prepare(
     page: &mut page::Page,
     http_request: &http_request::HttpRequest,
 ) -> Result<(), Vec<u8>> {
-    // let method = match http_request.method.as_ref() {
     let method = match http_request.method() {
         Some(v) => v,
         None => return Err(http_404()),
@@ -93,12 +90,9 @@ fn page_prepare(
     // page.json_set();
     page.contents_set();
 
-    // page.rev() exists that means the file contains json data properly
-    // otherwise no further processes
-    //
-    // if page.rev().is_none() {
-    //     return Err(http_400());
-    // }
+    // If rev() contains some value,
+    // it means the file contains json data properly.
+    // If not, no further processes
     if page
         .contents()
         .map(|contents| contents.rev())
@@ -124,31 +118,21 @@ fn handle_get(page: &mut page::Page) -> Vec<u8> {
 }
 
 fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
-    // case backup file
-    // if page.name_end_num() {
-    //     return http_400();
-    // }
-
-    // let wc_request = match http_request.wc_request.as_ref() {
     let wc_request = match http_request.wc_request() {
         Some(wc_request) => wc_request,
         None => return http_400(),
     };
 
-    // println!("wc_handler.rs wc_request: {}", wc_request);
     println!("wc_request: {}", wc_request);
 
-    // if wc_request == b"json_save" {
     if wc_request == "json_save" {
         return handle_json_save(&mut page, http_request);
     }
 
-    // if wc_request == b"page_new" {
     if wc_request == "page_new" {
         return handle_page_new(&mut page, http_request);
     }
 
-    // if wc_request == b"href" {
     if wc_request == "href" {
         // memo
         // wc/js
@@ -159,7 +143,6 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         return handle_href(&page, http_request);
     }
 
-    // if wc_request == b"page_move" {
     if wc_request == "page_move" {
         return handle_page_move(&mut page, http_request);
     }

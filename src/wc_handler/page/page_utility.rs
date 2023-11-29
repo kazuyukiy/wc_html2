@@ -679,7 +679,7 @@ fn page_move_navi(
     //     None => return Err(()),
     // };
 
-    let mut dest_page_contents = match dest_page.contents_data_mut() {
+    let dest_page_contents = match dest_page.contents_data_mut() {
         Some(v) => v,
         None => return Err(()),
     };

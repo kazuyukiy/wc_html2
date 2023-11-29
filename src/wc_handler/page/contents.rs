@@ -38,6 +38,7 @@ impl Contents {
         }
     }
 
+    // current rev
     pub fn rev(&self) -> Option<u32> {
         match self.data()?["data"]["page"]["rev"].as_u32() {
             Some(v) => Some(v),
