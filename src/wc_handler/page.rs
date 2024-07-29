@@ -4,6 +4,7 @@ use markup5ever_rcdom::RcDom;
 use regex::Regex;
 use std::fs;
 
+mod contents;
 mod page_utility;
 
 // url::Url have a data for path, so path and url are duplicated in some part
@@ -14,7 +15,8 @@ pub struct Page {
     url: Option<url::Url>,
     source: Option<Vec<u8>>,
     dom: Option<RcDom>,
-    json: Option<json::JsonValue>,
+    // json: Option<json::JsonValue>,
+    contents: Option<contents::Contents>,
 }
 
 impl Page {
@@ -30,7 +32,8 @@ impl Page {
             url: None,
             source: None,
             dom: None,
-            json: None,
+            // json: None,
+            contents: None,
         }
     }
 
@@ -41,6 +44,7 @@ impl Page {
     ///
     /// This function will return an error if a file does not already exists in  `path`.
     ///
+    /// Fields url, dom, json are None. You need to set those if need.
     ///
     /// page_root: path where page files are strored in the server
     /// path: url path that a client is requesting
@@ -77,8 +81,29 @@ impl Page {
         Ok(page)
     }
 
+    /// Returns a Page that inherites page_root and url of self.
+    pub fn inherited(&self, path: &str) -> Page {
+        let mut page = Page::open(&self.page_root, path);
+        if page.is_err() {
+            page = Page::new(&self.page_root, path);
+        }
+        let mut page = page.unwrap();
+
+        if let Some(url) = self.url() {
+            let url = url.join(path);
+            if url.is_ok() {
+                page.url_set(url.unwrap());
+            }
+        }
+        page
+    }
+
     pub fn page_root(&self) -> &str {
         self.page_root.as_ref()
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     fn file_path(&self, path: &str) -> String {
@@ -117,6 +142,10 @@ impl Page {
         self.dom.replace(dom);
     }
 
+    /// It returns Dom as an Option.
+    /// To call self.dom(), do self.dom_set() in previously.
+    /// To call seld.fom_set(), mutable reference is required.
+    /// But to call self.dom(). immutable reference is enough.
     fn dom(&self) -> Option<&RcDom> {
         match &self.dom {
             Some(v) => Some(&v),
@@ -124,7 +153,7 @@ impl Page {
         }
     }
 
-    pub fn json_set(&mut self) {
+    pub fn contents_set(&mut self) {
         let dom = match self.dom() {
             Some(v) => v,
             None => {
@@ -140,21 +169,34 @@ impl Page {
             None => return,
         };
 
-        self.json.replace(json);
+        // self.json.replace(json);
+
+        let contents = contents::Contents::from(json);
+        self.contents.replace(contents);
     }
 
-    // to use fn json(), do fn json_set() previously
-    // self.json.as_ref().unwrap() may couse a panic
-    // if json_set() was not called
-    // the panic may let you know json_set() was not done
-    fn json(&self) -> Option<&json::JsonValue> {
-        match self.json.as_ref() {
-            Some(v) => Some(v),
-            None => {
-                eprintln!("Failed to get json");
-                None
-            }
-        }
+    pub fn contents(&self) -> Option<&contents::Contents> {
+        self.contents.as_ref()
+    }
+
+    pub fn contents_mut(&mut self) -> Option<&mut contents::Contents> {
+        self.contents.as_mut()
+    }
+
+    fn contents_data(&self) -> Option<&json::JsonValue> {
+        self.contents.as_ref()?.data()
+    }
+
+    fn contents_data_mut(&mut self) -> Option<&mut json::JsonValue> {
+        self.contents.as_mut()?.data_mut()
+    }
+
+    fn rev(&self) -> Option<String> {
+        Some(self.contents()?.rev()?.to_string())
+    }
+
+    fn rev_uped(&self) -> Option<String> {
+        Some(self.contents()?.rev_uped()?.to_string())
     }
 
     // xxx.html.01
@@ -165,61 +207,39 @@ impl Page {
         re.is_match(&self.path)
     } // end of fn name_end_num
 
-    // current rev
-    pub fn rev(&self) -> Option<u32> {
-        match self.json()?["data"]["page"]["rev"].as_u32() {
-            Some(v) => Some(v),
-            None => {
-                eprintln!("Failed to get rev");
-                None
-            }
-        }
-    }
-
-    // rev counted up from current rev
-    fn rev_uped(&self) -> Option<u32> {
-        let rev = self.rev()?;
-        Some(rev + 1)
-    }
-
+    /// Returns file_path + "." + rev
     fn path_rev(&self) -> Option<String> {
-        let rev = self.rev()?;
-        // file_path + "." + rev
-        // Some(format!("{}.{}", &self.path, &rev))
-        //String::from(self.path) + rev
-        Some(self.path.clone() + &rev.to_string())
+        // Returns None if no rev value.
+        // let rev = self.contents()?.rev()?;
+        // let file_path_rev = self.file_path(&self.path) + "." + &rev.to_string();
+        // let file_path_rev = self.file_path(&self.path) + "." + &self.rev()?;
+        // Some(file_path_rev)
+
+        Some(self.file_path(&self.path) + "." + &self.rev()?)
     }
 
     /// Save self.source to the file.
     fn file_save(&self) -> Result<(), ()> {
-        // make a String to avoid error
-        // &mut self will be used in self.source()
-        // to avoid borrowing &mut self and &self in a time
-
-        // let path = &self.path.to_string();
-
         let source = match self.source() {
             Some(s) => s,
             None => return Err(()),
         };
 
-        // match fs::write(&path, source) {
-        match fs::write(&self.file_path(&self.path), source) {
+        let path = self.file_path(&self.path);
+        match page_utility::file_write(&path, source) {
             Ok(_) => {
-                // println!("write: {}", &path);
-                println!("write: {}", &self.path);
+                println!("write: {}", &path);
                 Ok(())
             }
             Err(_) => {
-                // eprintln!("Failed to save page: {}", &path);
-                eprintln!("Failed to save page: {}", &self.path);
+                eprintln!("page.rs Failed to save page: {}", &path);
                 Err(())
             }
         }
     }
 
     /// Save contents to a file with rev on its file name.
-    pub fn file_save_rev(&mut self) -> Result<(), ()> {
+    pub fn file_save_rev(&self) -> Result<(), ()> {
         let path_rev = match self.path_rev() {
             Some(v) => v,
             None => {
@@ -229,8 +249,7 @@ impl Page {
         };
 
         // if path_rev already exits, no need to save it again
-        // match fs::File::open(&path_rev) {
-        match fs::File::open(&self.file_path(&path_rev)) {
+        match fs::File::open(&path_rev) {
             Ok(_) => {
                 // eprintln!("alreqady exists: {}", &self.file_path(&path_rev));
                 return Err(());
@@ -243,13 +262,13 @@ impl Page {
             None => return Err(()),
         };
 
-        match fs::write(&self.file_path(&path_rev), &source) {
+        match page_utility::file_write(&path_rev, source) {
             Ok(_) => {
                 println!("write: {}", &path_rev);
                 Ok(())
             }
             Err(_) => {
-                eprintln!("Failed to save page: {}", &path_rev);
+                eprintln!("page.rs Failed to save page: {}", &path_rev);
                 Err(())
             }
         }
@@ -258,37 +277,43 @@ impl Page {
     // check if rev is match to rev in json posted
     // if json posted was updated from the current page,
     // the both of rev must match.
-    fn json_post_rev_match(&self, json_post: &json::JsonValue) -> Result<(), ()> {
+    fn json_post_rev_match(&self, json_post: &json::JsonValue) -> bool {
         // let check_sw = true;
         let check_sw = false;
         if check_sw == false {
-            return Ok(());
+            return true;
         }
 
-        let rev = match self.rev() {
+        let rev = match self.contents().map(|contents| contents.rev()).flatten() {
             Some(v) => v,
-            None => return Err(()),
+            None => return false,
         };
 
         let rev_post = match &json_post["data"]["page"]["rev"].as_u32() {
             Some(r) => *r,
             None => {
-                return Err(());
+                return false;
             }
         };
 
-        if rev != rev_post {
-            return Err(());
-        }
-
-        Ok(())
+        rev == rev_post
     }
 
     pub fn json_post_save(&mut self, mut json_post: json::JsonValue) -> Result<(), ()> {
         // does not match rev number
-        if let Err(_) = self.json_post_rev_match(&json_post) {
+        //if let Err(_) = self.json_post_rev_match(&json_post) {
+        if self.json_post_rev_match(&json_post) == false {
             return Err(());
         }
+
+        // let rev_uped = match self
+        //     .contents()
+        //     .map(|contents| contents.rev_uped())
+        //     .flatten()
+        // {
+        //     Some(v) => v,
+        //     None => return Err(()),
+        // };
 
         // set new rev counted up from current rev
         let rev_uped = match self.rev_uped() {
@@ -297,16 +322,17 @@ impl Page {
         };
         json_post["data"]["page"]["rev"] = rev_uped.into();
 
-        // get a new page from json_post
+        // Create a new page from json_post
         let mut page_post =
             match page_utility::page_from_json(&self.page_root, &self.path, json_post) {
                 Ok(v) => v,
                 Err(_) => return Err(()),
             };
 
-        // to set page.dom, page.json from contents
-        // It is needed to handle rev and rev to save files
-        page_post.json_set();
+        // Set page.dom, page.json from contents to use rev
+        // that is used to save file.
+        // page_post.json_set();
+        page_post.contents_set();
 
         //
         if let Err(e) = page_post.file_save() {
@@ -325,6 +351,8 @@ impl Page {
     pub fn url(&self) -> Option<&url::Url> {
         self.url.as_ref()
     }
+
+    //    pub page_from_path
 
     /// Create a new `Page` on json_post(title, href).
     /// json_post: { "title":"title_name,"href":"href_data"}
@@ -351,7 +379,8 @@ impl Page {
         let mut child_page = page_utility::page_sub_new(&self, title, href)?;
         // to set page.dom, page.json from contents
         // It is needed to handle rev and rev to save files
-        child_page.json_set();
+        // child_page.json_set();
+        child_page.contents_set();
         if let Err(e) = child_page.file_save() {
             eprintln!("file_save err: {:?}", e);
         }
@@ -359,5 +388,42 @@ impl Page {
             eprintln!("file_save_rev err: {:?}", e);
         }
         Ok(())
+    }
+
+    /// Move this page to dest_url as a child of parent_url.
+    /// Some page might have not parent page.
+    // pub fn page_move(&self, parent_url: &url::Url, dest_url: &url::Url) {}
+    pub fn page_move(&self, dest_url: &str, parent_url: &str) -> Result<(), ()> {
+        // dest_url (destination url) is necessary.
+        // But parent_url is not necessary because some page might have parent.
+        if dest_url.len() == 0 {
+            return Err(());
+        }
+
+        // let post_url = match self.url().as_ref() {
+        let post_url = match self.url() {
+            Some(v) => v,
+            None => return Err(()),
+        };
+
+        let dest_url = match post_url.join(dest_url) {
+            Ok(v) => v,
+            Err(_) => return Err(()),
+        };
+
+        // None: no parent page
+        let parent_url = if parent_url.len() == 0 {
+            None
+        } else {
+            match post_url.join(parent_url) {
+                Ok(v) => Some(v),
+                Err(_) => None,
+            }
+        };
+
+        page_utility::page_move(&self, dest_url, parent_url)
+
+        // temp
+        // Ok(())
     }
 }

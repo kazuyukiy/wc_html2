@@ -2,11 +2,17 @@ use std::io::Read;
 use std::net::TcpStream;
 
 pub struct HttpRequest {
-    pub method: Option<String>,
-    pub path: Option<String>,
-    pub body: Option<String>,
-    pub host: Option<String>,
-    pub wc_request: Option<Vec<u8>>,
+    // pub method: Option<String>,
+    method: Option<String>,
+    // pub path: Option<String>,
+    path: Option<String>,
+    // pub body: Option<String>,
+    body: Option<String>,
+    // pub host: Option<String>,
+    host: Option<String>,
+    // pub wc_request: Option<Vec<u8>>,
+    // wc_request: Option<Vec<u8>>,
+    wc_request: Option<String>,
 }
 
 // impl<'h, 'b> HttpRequest<'h, 'b> {
@@ -62,6 +68,20 @@ impl<'h, 'b> HttpRequest {
         http_request
     }
 
+    pub fn method(&self) -> Option<&str> {
+        match self.method.as_ref() {
+            Some(r) => Some(&r),
+            None => None,
+        }
+    }
+
+    pub fn path(&self) -> Option<&str> {
+        match self.path.as_ref() {
+            Some(r) => Some(&r),
+            None => None,
+        }
+    }
+
     // call fn body_set() before use body data
     fn _body(&self) -> Option<&str> {
         match self.body.as_ref() {
@@ -82,6 +102,23 @@ impl<'h, 'b> HttpRequest {
                 eprintln!("Failed to parse to json");
                 None
             }
+        }
+    }
+
+    pub fn _host(&self) -> Option<&str> {
+        match self.host.as_ref() {
+            Some(r) => Some(&r),
+            None => None,
+        }
+    }
+
+    pub fn wc_request(&self) -> Option<&str> {
+        match self.wc_request.as_ref() {
+            Some(r) => {
+                //
+                Some(&r)
+            }
+            None => None,
         }
     }
 
@@ -158,7 +195,15 @@ fn head_value<'a>(request: &'a httparse::Request, name: &str) -> Option<&'a [u8]
 fn wc_request_set(http_request: &mut HttpRequest, request: &httparse::Request) {
     match head_value(request, "wc-request") {
         Some(v) => {
-            http_request.wc_request.replace(v.to_vec());
+            // http_request.wc_request.replace(v.to_vec());
+
+            let vu8 = v.to_vec();
+            match String::from_utf8(vu8) {
+                Ok(v) => {
+                    http_request.wc_request.replace(v);
+                }
+                Err(_) => (),
+            }
         }
         None => (),
     }
