@@ -29,6 +29,9 @@ pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     };
 
     if method == "GET" {
+        // dbg
+        // println!("wc_handler fn response method: GET");
+
         return handle_get(&mut page);
     }
 
@@ -95,8 +98,9 @@ fn page_prepare(
     // If not, no further processes
     if page
         .contents()
-        .map(|contents| contents.rev())
-        .flatten()
+        .map(|contents| contents.rev()) // rev(): Option<u32>
+        // map: wap return of rev() ... Option<Option<u32>>
+        .flatten() // Option<u32>
         .is_none()
     {
         return Err(http_400());
