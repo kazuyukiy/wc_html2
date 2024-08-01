@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 pub struct Contents {
     data: Option<json::JsonValue>,
 }
@@ -40,9 +42,11 @@ impl Contents {
 
     // current rev
     pub fn rev(&self) -> Option<u32> {
-        match self.data()?["data"]["page"]["rev"].as_u32() {
-            Some(v) => Some(v),
-            None => {
+        // data()?["data"]["page"]["rev"]: Short("134")
+        let rev = self.data()?["data"]["page"]["rev"].as_str()?;
+        match u32::from_str(rev) {
+            Ok(v) => Some(v),
+            Err(_) => {
                 eprintln!("Failed to get rev");
                 None
             }

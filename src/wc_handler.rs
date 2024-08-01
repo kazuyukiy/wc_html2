@@ -29,9 +29,6 @@ pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     };
 
     if method == "GET" {
-        // dbg
-        // println!("wc_handler fn response method: GET");
-
         return handle_get(&mut page);
     }
 
@@ -126,8 +123,6 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
         Some(wc_request) => wc_request,
         None => return http_400(),
     };
-
-    println!("wc_request: {}", wc_request);
 
     if wc_request == "json_save" {
         return handle_json_save(&mut page, http_request);
