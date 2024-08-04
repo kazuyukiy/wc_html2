@@ -18,10 +18,14 @@ pub fn system_ini() {
 pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     let http_request = http_request::HttpRequest::new(stream);
 
+    // println!("wc_handler.rs fn response cp0");
+
     let mut page = match page(page_root_path, &http_request) {
         Ok(v) => v,
         Err(e) => return e,
     };
+
+    // println!("wc_handler.rs fn response cp1");
 
     let method = match http_request.method() {
         Some(v) => v,
@@ -50,15 +54,21 @@ fn page(
         None => return Err(http_404()),
     };
 
+    // println!("wc_handler.rs fn page cp0");
+
     let mut page = match page::Page::open(page_root_path, path) {
         Ok(v) => v,
         Err(_) => return Err(http_404()),
     };
 
+    // println!("wc_handler.rs fn page cp1");
+
     // Prepare some data of page in case those data are required.
     if let Err(v) = page_prepare(&mut page, http_request) {
         return Err(v);
     }
+
+    // println!("wc_handler.rs fn page cp2");
 
     Ok(page)
 }
@@ -81,6 +91,8 @@ fn page_prepare(
         return Ok(());
     }
 
+    // println!("wc_handler.rs fn page_prepare cp0");
+
     // case backup file
     // Not sure it is goot to check whether it is backup file.
     if page.name_end_num() {
@@ -89,6 +101,16 @@ fn page_prepare(
 
     // page.json_set();
     page.contents_set();
+
+    // println!("wc_handler.rs fn page_prepare cp1");
+
+    // println!(
+    //     "wc_handler.rs fn page_prepare page.contents().rev():{:?}",
+    //     page.contents().unwrap().rev()
+    // );
+    // page.contents().unwrap().rev();
+
+    // println!("wc_handler.rs fn page_prepare cp2");
 
     // If rev() contains some value,
     // it means the file contains json data properly.
@@ -102,6 +124,8 @@ fn page_prepare(
     {
         return Err(http_400());
     }
+
+    // println!("wc_handler.rs fn page_prepare cp3");
 
     match http_request.url() {
         Some(v) => page.url_set(v),
@@ -119,6 +143,8 @@ fn handle_get(page: &mut page::Page) -> Vec<u8> {
 }
 
 fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    // println!("wc_handler.rs fn handle_post");
+
     let wc_request = match http_request.wc_request() {
         Some(wc_request) => wc_request,
         None => return http_400(),
@@ -154,6 +180,8 @@ fn handle_post(mut page: page::Page, http_request: &http_request::HttpRequest) -
 // replace current `Page` to updated `Page`, maybe easier than changing content and dom and json, so consume `Page` and replace to new `Page`.
 //
 fn handle_json_save(page: &mut page::Page, http_request: &http_request::HttpRequest) -> Vec<u8> {
+    // println!("wc_handler fn handle_json_save");
+
     let json_post = match http_request.body_json() {
         Some(v) => v,
         None => return http_400(),

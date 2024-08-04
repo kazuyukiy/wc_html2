@@ -41,16 +41,87 @@ impl Contents {
     }
 
     // current rev
+    // "version":"0.0.3" "rev":10
     pub fn rev(&self) -> Option<u32> {
+        // data()?["data"]["page"]["rev"]:
+        // may be
+        // case rev="138": Short("138")
+        // or
+        // case rev=10: Number(Number { category: 1, exponent: 0, mantissa: 10 })
+
         // data()?["data"]["page"]["rev"]: Short("134")
-        let rev = self.data()?["data"]["page"]["rev"].as_str()?;
-        match u32::from_str(rev) {
-            Ok(v) => Some(v),
-            Err(_) => {
-                eprintln!("Failed to get rev");
-                None
+        // println!(
+        //     "contents.rs fn rev rev: {:?}",
+        //     self.data()?["data"]["page"]["rev"]
+        // );
+
+        match self.data()?["data"]["page"]["rev"] {
+            // case rev=10: Number(Number { category: 1, exponent: 0, mantissa: 10 })
+            json::JsonValue::Number(number) => {
+                match number.try_into() {
+                    Ok(rev) => return Some(rev),
+                    Err(_) => {
+                        eprintln!("Failed to get rev");
+                        return None;
+                    }
+                };
             }
-        }
+            // case: rev="12"
+            json::JsonValue::Short(short) => {
+                let rev = short.as_str();
+                match u32::from_str(rev) {
+                    Ok(v) => return Some(v),
+                    Err(_) => {
+                        eprintln!("Failed to get rev");
+                        return None;
+                    }
+                }
+            }
+            _ => None::<u32>,
+        };
+
+        // let rev = match self.data()?["data"]["page"]["rev"] {
+        //     // case: rev="12"
+        //     json::short::Short => {
+        //         // let rev = self.data()?["data"]["page"]["rev"].as_str()?;
+        //         let rev = rev.as_str()?;
+        //         match u32::from_str(rev) {
+        //             Ok(v) => Some(v),
+        //             Err(_) => {
+        //                 eprintln!("Failed to get rev");
+        //                 None
+        //             }
+        //         }
+        //     }
+        //     json::number::Number => {
+        //         //		let rev = self.data()?["data"]["page"]["rev"].as_str()?;
+
+        //         let rev = self.data()?["data"]["page"]["rev"];
+
+        //         match u32::from(rev) {
+        //             Ok(v) => Some(v),
+        //             Err(_) => {
+        //                 eprintln!("Failed to get rev");
+        //                 None
+        //             }
+        //         }
+        //     }
+        //     _ => None,
+        // };
+
+        // rev
+
+        // let rev = self.data()?["data"]["page"]["rev"].as_str()?;
+        // match u32::from_str(rev) {
+        //     Ok(v) => Some(v),
+        //     Err(_) => {
+        //         eprintln!("Failed to get rev");
+        //         None
+        //     }
+        // }
+
+        // temp
+        None
     }
 
     // rev counted up from current rev
