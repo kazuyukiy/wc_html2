@@ -207,13 +207,6 @@ fn wc_request_set(http_request: &mut HttpRequest, request: &httparse::Request) {
         }
         None => (),
     }
-
-    // match request.headers.iter().find(|&&h| h.name == "wc-request") {
-    //     Some(header) => {
-    //         http_request.wc_request.replace(header.value.to_vec());
-    //     }
-    //     None => (),
-    // }
 }
 
 fn host_set(http_request: &mut HttpRequest, request: &httparse::Request) {
@@ -230,20 +223,6 @@ fn host_set(http_request: &mut HttpRequest, request: &httparse::Request) {
         }
         None => (),
     }
-    // match request.headers.iter().find(|&&h| h.name == "Host") {
-    //     Some(v) => {
-    //         let host = v.value.to_vec();
-    //         let host = match String::from_utf8(host) {
-    //             Ok(v) => v,
-    //             Err(_) => {
-    //                 eprintln!("Failed to convert host to String");
-    //                 return;
-    //             }
-    //         };
-    //         http_request.host.replace(host);
-    //     }
-    //     None => (),
-    // }
 }
 
 //
@@ -258,9 +237,10 @@ fn print_method_path(http_request: &HttpRequest) {
         Some(v) => v,
         None => return,
     };
-    // if http_request.method.is_none() {
-    //     return;
-    // }
 
     println!("{} {}", method, path);
+
+    if let Some(req) = http_request.wc_request.as_ref() {
+        println!("wc_request: {}", &req);
+    }
 }
