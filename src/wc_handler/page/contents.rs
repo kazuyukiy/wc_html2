@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use tracing::{event, info, instrument, span, Level};
 
 pub struct Contents {
     data: Option<json::JsonValue>,
@@ -9,9 +10,17 @@ impl Contents {
         Contents { data: Some(data) }
     }
 
+    pub fn new() -> Contents {
+        Contents {
+            data: Some(json_plain()),
+        }
+    }
+
     /// Set page_json plain.
     /// If self.data is not None, do nothing.
     pub fn data_plain_set(&mut self) {
+        info!("fn data_plain_set");
+
         if self.data.is_some() {
             return;
         }

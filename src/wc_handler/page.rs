@@ -3,6 +3,7 @@ use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::RcDom;
 use regex::Regex;
 use std::fs;
+use tracing::{event, info, instrument, span, Level};
 
 mod contents;
 mod page_utility;
@@ -175,6 +176,11 @@ impl Page {
         self.contents.replace(contents);
     }
 
+    fn contents_plain_set(&mut self) {
+        self.contents.replace(contents::Contents::new());
+        // dest_page.contents.replace(contents::Contents::new());
+    }
+
     pub fn contents(&self) -> Option<&contents::Contents> {
         self.contents.as_ref()
     }
@@ -224,6 +230,8 @@ impl Page {
     /// Save self.source to the file.
     fn file_save(&self) -> Result<(), ()> {
         // println!("page.rs fn file_save");
+
+        info!("fn file_save");
 
         let source = match self.source() {
             Some(s) => s,
