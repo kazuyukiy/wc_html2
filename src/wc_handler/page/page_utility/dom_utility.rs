@@ -2,11 +2,11 @@ use html5ever::parse_document; // , serialize
 use html5ever::tendril::TendrilSink;
 use markup5ever::interface::Attribute;
 use markup5ever::{namespace_url, ns};
-use markup5ever::{LocalName, QualName};
+use markup5ever::{tendril::Tendril, LocalName, QualName};
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom}; // , SerializableHandle
 use std::cell::RefCell;
 use std::rc::Rc;
-use tendril::Tendril;
+// use tendril::Tendril;
 
 // convert source in str to node
 pub fn to_dom(source: &str) -> RcDom {

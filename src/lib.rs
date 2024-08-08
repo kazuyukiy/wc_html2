@@ -8,7 +8,7 @@ mod thread_pool;
 mod wc_handler;
 
 // page_root_path
-pub fn wc_note(soket_add: &str, page_root_path: &str, capa: usize) -> Result<TcpListener> {
+pub fn wc_note(addr: &str, page_root_path: &str, capa: usize) -> Result<TcpListener> {
     // Copy wc.js, wc.css to ./page/
     // Do it only once when start main()
     // if you change wc.js or wc.css, you may restart main() or copy it manulally
@@ -16,7 +16,7 @@ pub fn wc_note(soket_add: &str, page_root_path: &str, capa: usize) -> Result<Tcp
 
     wc_handler::system_ini();
 
-    let listener = match TcpListener::bind(soket_add) {
+    let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Failed to bind: {:?}", e);
@@ -24,7 +24,7 @@ pub fn wc_note(soket_add: &str, page_root_path: &str, capa: usize) -> Result<Tcp
         }
     };
 
-    println!("bind {}", soket_add);
+    println!("bind {}", addr);
 
     let pool = thread_pool::ThreadPool::new(capa);
 

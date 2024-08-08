@@ -3,6 +3,7 @@ use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::RcDom;
 use regex::Regex;
 use std::fs;
+use tracing::{event, info, instrument, span, Level};
 
 mod contents;
 mod page_utility;
@@ -175,6 +176,11 @@ impl Page {
         self.contents.replace(contents);
     }
 
+    fn contents_plain_set(&mut self) {
+        self.contents.replace(contents::Contents::new());
+        // dest_page.contents.replace(contents::Contents::new());
+    }
+
     pub fn contents(&self) -> Option<&contents::Contents> {
         self.contents.as_ref()
     }
@@ -195,8 +201,11 @@ impl Page {
         Some(self.contents()?.rev()?.to_string())
     }
 
-    fn rev_uped(&self) -> Option<String> {
-        Some(self.contents()?.rev_uped()?.to_string())
+    // fn rev_uped(&self) -> Option<String> {
+    //     Some(self.contents()?.rev_uped()?.to_string())
+    // }
+    fn rev_uped(&self) -> Option<u32> {
+        Some(self.contents()?.rev_uped()?.try_into().ok()?)
     }
 
     // xxx.html.01
@@ -220,6 +229,10 @@ impl Page {
 
     /// Save self.source to the file.
     fn file_save(&self) -> Result<(), ()> {
+        // println!("page.rs fn file_save");
+
+        info!("fn file_save");
+
         let source = match self.source() {
             Some(s) => s,
             None => return Err(()),
@@ -320,7 +333,21 @@ impl Page {
             Some(v) => v,
             None => return Err(()),
         };
+
+        // let i: u32 = rev_uped;
+
+        // let rev_uped: json::number::Number = 30.into();
+        // let rev_uped: json::number::Number = rev_uped.into();
+        // let rev_uped = json::JsonValue::from(rev_uped);
+
         json_post["data"]["page"]["rev"] = rev_uped.into();
+        // json_post["data"]["page"]["rev"] = rev_uped;
+        // json_post["data"]["page"]["rev"]: json::number::Number = rev_uped.into();
+
+        // println!(
+        //     "page.rs fn json_post_save [\"rev\"]: {:?}",
+        //     json_post["data"]["page"]["rev"]
+        // );
 
         // Create a new page from json_post
         let mut page_post =

@@ -3,7 +3,9 @@ use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle}; // , Node
 use std::collections::HashSet;
 use std::fs;
+use tracing::{event, info, instrument, span, Level};
 
+// mod contents;
 mod dom_utility;
 
 // Create directories for a file_path given as a parameter.
@@ -391,9 +393,9 @@ fn href_base_switch(fm_url: &url::Url, fm_href: &str, to_url: &url::Url) -> Opti
 ///
 /// Issue: if a file already exits in the destination path.
 ///
-/// fm_page : page to be move to.
-/// dest_url: url where fm_page move to.
-/// parent_url: the page fm_page becomes to be the child of.
+/// page_moving : page to be move to.
+/// dest_url: url where page_moving move to.
+/// parent_url: the page page_moving becomes to be the child of.
 ///
 /// Buffer new page and its children to be saved.
 /// If an error happens, like a page where moving to already exits with contents,
@@ -403,40 +405,46 @@ fn href_base_switch(fm_url: &url::Url, fm_href: &str, to_url: &url::Url) -> Opti
 /// After move to new location, change the previous pages as discontinued.
 ///
 pub fn page_move(
-    fm_page: &super::Page,
+    page_moving: &super::Page,
     dest_url: url::Url,
     parent_url: Option<url::Url>,
 ) -> Result<(), ()> {
     // dbg
-    println!("page_utility.rs fn page_move");
+    println!("page_utility.rs fn page_move start");
 
-    let href_list = page_move_href_list(fm_page, fm_page.path());
+    let href_list = page_move_href_list(page_moving, page_moving.path());
     // dbg
     // for href_url in href_list {
     //     println!("href_url: {}", href_url.as_str());
     // }
 
     // dbg
-    // println!("page_utility.rs fn page_move return");
+    println!("page_utility.rs fn page_move cp0");
     // return Err(());
 
-    // let _fm_page_json = match fm_page.json() {
+    // let _page_moving_json = match page_moving.json() {
     //     Some(v) => v,
     //     None => return Err(()),
     // };
 
-    // Save backup of fm_page.
-    let _ = fm_page.file_save_rev();
+    // Save backup of page_moving.
+    let _ = page_moving.file_save_rev();
 
-    let page_root = fm_page.page_root();
+    let page_root = page_moving.page_root();
+
+    // dbg
+    println!("page_utility.rs fn page_move cp1");
 
     // If a page already exists in dest_url.path(), stop moving.
-    // let mut dest_page = match page_move_dest_page(page_root, dest_url.path()) {
-    let mut dest_page = match page_move_dest_page(fm_page, dest_url.path()) {
+    // let mut dest_page = match dest_page(page_root, dest_url.path()) {
+    let mut dest_page = match dest_page(page_moving, dest_url.path()) {
         Ok(v) => v,
         // Return err if dest_page has contents.
         Err(_) => return Err(()),
     };
+
+    // dbg
+    println!("page_utility.rs fn page_move cp2");
 
     // let mut parent_page = match parent_url {
     let parent_page = match parent_url {
@@ -452,14 +460,31 @@ pub fn page_move(
         None => None,
     };
 
+    // dbg
+    println!("page_utility.rs fn page_move cp3");
+
     // navi
-    match page_move_navi(parent_page.as_ref(), fm_page, &mut dest_page) {
+    match page_move_navi(parent_page.as_ref(), page_moving, &mut dest_page) {
         Ok(_) => {}
         Err(_) => return Err(()),
     }
 
+    // dbg
+    println!("page_utility.rs fn page_move cp4");
+
     // subsections
-    let _res = page_move_subsections(fm_page, &mut dest_page);
+    let _res = page_move_subsections(page_moving, &mut dest_page);
+
+    dest_page.file_save();
+    dest_page.file_save_rev();
+
+    // momorize moving info
+
+    // save page_moving
+
+    // ~/projects/wc/wc_html/src/page/page_utility.rs
+    // edit the original page_moving
+    // set navi
 
     // temp
     Ok(())
@@ -531,26 +556,14 @@ fn page_move_href_list(base_page: &super::Page, page_path: &str) -> HashSet<url:
 }
 
 /// Returns new super::Page instance that has no contents.
-/// If a page already exists in the path and
-/// it contains contents, return Err.
-/// If it exists, but not contents, it returns an instance.
-fn page_move_dest_page(base_page: &super::Page, path: &str) -> Result<super::Page, ()> {
-    // fn page_move_dest_page(page_root: &str, path: &str) -> Result<super::Page, ()> {
-
-    let page_root = base_page.page_root();
+/// If the page already exists in the path and contains contents, return Err.
+/// If it exists, but not contents, it returns the instance.
+fn dest_page(page_moving: &super::Page, path: &str) -> Result<super::Page, ()> {
+    let page_root = page_moving.page_root();
     match super::Page::open(page_root, path) {
         // Page exists.
         Ok(mut dest_page) => {
-            // dest_page.json_set();
             dest_page.contents_set();
-            //
-            // if let Some(json) = dest_page.json() {
-            //     // No contents, pahaps empty page or discontinued.
-            //     // json["data"]["subsection"]["data"][0] is not real content.
-            //     if json["data"]["subsection"]["data"].len() <= 1 {
-            //         return Ok(dest_page);
-            //     }
-            // }
             if let Some(contents) = dest_page.contents_data() {
                 // No contents, pahaps empty page or discontinued.
                 // contents["data"]["subsection"]["data"][0] is not real content.
@@ -564,64 +577,82 @@ fn page_move_dest_page(base_page: &super::Page, path: &str) -> Result<super::Pag
         Err(_) => (),
     }
 
+    info!("fn dest_page creage new page");
+
     // Create a new super::Page instace
     let mut dest_page = match super::Page::new(page_root, path) {
         Ok(v) => v,
         Err(_) => return Err(()),
     };
     // dest_page.json_plain_set();
+    info!("fn dest_page calling data_plain_set");
+    // let contents = dest_page.contents();
+    // info!("fn dest_page contents_mut: {:?}", contents);
+
+    // dbg
+    // match dest_page.contents_mut() {
+    //     Some(_) => info!("fn dest_page contents exists"),
+    //     _ => info!("fn dest_page contents Not exists"),
+    // };
+
     dest_page
         .contents_mut()
         .map(|contents| contents.data_plain_set());
 
-    Ok(dest_page)
-}
-
-// fn page_move_dest_page_(base_page: &super::Page, path: &str) -> Result<super::Page, ()> {
-fn page_move_dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> {
-    match super::Page::open(page_root, path) {
-        // Page exists.
-        Ok(mut dest_page) => {
-            dest_page.contents_set();
-            // dest_page.json_set();
-
-            // if let Some(json) = dest_page.json() {
-            //     // No contents, pahaps empty page or discontinued.
-            //     if json["data"]["subsection"]["data"].len() == 0 {
-            //         return Ok(dest_page);
-            //     }
-            // }
-            if let Some(contents) = dest_page.contents_data() {
-                // No contents, pahaps empty page or discontinued.
-                if contents["data"]["subsection"]["data"].len() == 0 {
-                    return Ok(dest_page);
-                }
-            }
-        }
-        // Page does not exists.
-        // Create a new empty instance later.
-        Err(_) => (),
-    }
-
-    // Create a new super::Page instace
-    let mut dest_page = match super::Page::new(page_root, path) {
-        Ok(v) => v,
-        Err(_) => return Err(()),
-    };
-    // dest_page.json_plain_set();
-    let _ = &dest_page
-        .contents_mut()
-        .map(|contents| contents.data_plain_set());
+    // dest_page.contents.replace(contents::Contents::new());
+    dest_page.contents_plain_set();
 
     Ok(dest_page)
 }
+
+// fn dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> {
+//     match super::Page::open(page_root, path) {
+//         // Page exists.
+//         Ok(mut dest_page) => {
+//             dest_page.contents_set();
+//             // dest_page.json_set();
+
+//             // if let Some(json) = dest_page.json() {
+//             //     // No contents, pahaps empty page or discontinued.
+//             //     if json["data"]["subsection"]["data"].len() == 0 {
+//             //         return Ok(dest_page);
+//             //     }
+//             // }
+//             if let Some(contents) = dest_page.contents_data() {
+//                 // No contents, pahaps empty page or discontinued.
+//                 if contents["data"]["subsection"]["data"].len() == 0 {
+//                     return Ok(dest_page);
+//                 }
+//             }
+//         }
+//         // Page does not exists.
+//         // Create a new empty instance later.
+//         Err(_) => (),
+//     }
+
+//     // Create a new super::Page instace
+//     let mut dest_page = match super::Page::new(page_root, path) {
+//         Ok(v) => v,
+//         Err(_) => return Err(()),
+//     };
+//     // dest_page.json_plain_set();
+//     let _ = &dest_page
+//         .contents_mut()
+//         .map(|contents| contents.data_plain_set());
+
+//     Ok(dest_page)
+// }
 
 fn page_move_navi(
     parent_page: Option<&super::Page>,
-    fm_page: &super::Page,
+    page_moving: &super::Page,
     dest_page: &mut super::Page,
 ) -> Result<(), ()> {
-    // let fm_page_json = match fm_page.json() {
+    // span!(Level::TRACE, "fn_page_move_navi");
+
+    info!("fn page_move_navi cp");
+
+    // let page_moving_json = match page_moving.json() {
     //     Some(v) => v,
     //     None => return Err(()),
     // };
@@ -630,19 +661,23 @@ fn page_move_navi(
         None => return Err(()),
     };
 
-    // let fm_page_navi = match &fm_page_json["data"]["navi"] {
-    let fm_page_navi = match &fm_contents["data"]["navi"] {
+    info!("fn page_move_navi cp1");
+
+    // let page_moving_navi = match &page_moving_json["data"]["navi"] {
+    let page_moving_navi = match &fm_contents["data"]["navi"] {
         json::JsonValue::Array(ref v) => v,
         _ => return Err(()),
     };
 
-    // If fm_page has only one navi element,
+    info!("fn page_move_navi cp2");
+
+    // If page_moving has only one navi element,
     // it means the navi element is the top navi item.
     // So it does not inherit parent navi.
     //
     // If parent_page is None, no parent navi is inherited.
     //
-    let mut navi = if 1 < fm_page_navi.len() && parent_page.is_some() {
+    let mut navi = if 1 < page_moving_navi.len() && parent_page.is_some() {
         // Inherite parent page navi.
         let parent_page = parent_page.as_ref().unwrap();
         page_move_navi_inherit(parent_page, dest_page)
@@ -650,17 +685,19 @@ fn page_move_navi(
         json::JsonValue::new_array()
     };
 
-    // Push fm_page's title
+    // Push page_moving's title
     // navi_dest: the last element of navi list that is for destination page.
     //
-    // let fm_json = match fm_page.json() {
+    // let fm_json = match page_moving.json() {
     //     Some(v) => v,
     //     None => return Err(()),
     // };
-    let fm_contents = match fm_page.contents_data() {
+    let fm_contents = match page_moving.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
+
+    info!("fn page_move_navi cp3");
 
     // let title = match fm_json["data"]["page"]["title"].as_str() {
     let title = match fm_contents["data"]["page"]["title"].as_str() {
@@ -683,6 +720,8 @@ fn page_move_navi(
         Some(v) => v,
         None => return Err(()),
     };
+
+    info!("fn page_move_navi cp4");
 
     // dest_page_json["data"]["navi"] = navi;
     dest_page_contents["data"]["navi"] = navi;
@@ -749,7 +788,7 @@ fn page_move_navi_inherit(
     child_navi
 }
 
-fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> Result<(), ()> {
+fn page_move_subsections(page_moving: &super::Page, dest_page: &mut super::Page) -> Result<(), ()> {
     // let dest_page_json = match dest_page.json_mut() {
     //     Some(v) => v,
     //     None => return Err(()),
@@ -767,23 +806,23 @@ fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> 
     // ??
     let mut _dest_subsections = dest_subsections.clone();
 
-    // let fm_page_json = match fm_page.json() {
+    // let page_moving_json = match page_moving.json() {
     //     Some(v) => v,
     //     None => return Err(()),
     // };
-    let fm_page_contents = match fm_page.contents_data() {
+    let page_moving_contents = match page_moving.contents_data() {
         Some(v) => v,
         None => return Err(()),
     };
-    let fm_subsections = &fm_page_contents["data"]["subsection"]["data"];
-    if let json::JsonValue::Object(_) = &fm_page_contents["data"]["subsection"]["data"] {
+    let fm_subsections = &page_moving_contents["data"]["subsection"]["data"];
+    if let json::JsonValue::Object(_) = &page_moving_contents["data"]["subsection"]["data"] {
     } else {
         return Err(());
     };
 
     // entries: returns iterator of JsonValue::Object.
     for (_id, fm_subsection) in fm_subsections.entries() {
-        let _res = page_move_subsection(fm_page, fm_subsection, dest_page);
+        let _res = page_move_subsection(page_moving, fm_subsection, dest_page);
     }
 
     //temp
@@ -791,21 +830,22 @@ fn page_move_subsections(fm_page: &super::Page, dest_page: &mut super::Page) -> 
 }
 
 fn page_move_subsection(
-    fm_page: &super::Page,
+    page_moving: &super::Page,
     fm_subsection: &json::JsonValue,
     dest_page: &mut super::Page,
 ) -> Result<(), ()> {
     let mut dest_subsection = json::JsonValue::new_object();
 
     // href
-    dest_subsection["href"] = match page_move_subsection_href(fm_page, fm_subsection, dest_page) {
+    dest_subsection["href"] = match page_move_subsection_href(page_moving, fm_subsection, dest_page)
+    {
         Ok(v) => v.into(),
         Err(_) => return Err(()),
     };
 
     // content
     dest_subsection["content"] =
-        match page_move_subsection_contents(fm_page, fm_subsection, dest_page) {
+        match page_move_subsection_contents(page_moving, fm_subsection, dest_page) {
             Ok(v) => v,
             Err(_) => return Err(()),
         };
@@ -817,7 +857,7 @@ fn page_move_subsection(
 fn page_move_href_convert() {}
 
 fn page_move_subsection_href(
-    fm_page: &super::Page,
+    page_moving: &super::Page,
     fm_subsection: &json::JsonValue,
     dest_page: &mut super::Page,
 ) -> Result<String, ()> {
@@ -826,19 +866,19 @@ fn page_move_subsection_href(
         None => return Err(()),
     };
 
-    let fm_page_url = match fm_page.url() {
+    let page_moving_url = match page_moving.url() {
         Some(v) => v,
         None => return Err(()),
     };
 
-    let fm_href_url = match fm_page_url.join(fm_href) {
+    let fm_href_url = match page_moving_url.join(fm_href) {
         Ok(v) => v,
         Err(_) => return Err(()),
     };
 
-    // Get fm_href_relative to know if fm_href is a relation to fm_page,
+    // Get fm_href_relative to know if fm_href is a relation to page_moving,
     // or its children.
-    let fm_href_relative = match fm_page_url.make_relative(&fm_href_url) {
+    let fm_href_relative = match page_moving_url.make_relative(&fm_href_url) {
         Some(v) => v,
         None => return Err(()),
     };
@@ -848,16 +888,16 @@ fn page_move_subsection_href(
         None => return Err(()),
     };
 
-    // If href starts with "../", it relates not to fm_page or its children.
-    // In this case, convert the relation based on fm_page_url to dest_page_url.
+    // If href starts with "../", it relates not to page_moving or its children.
+    // In this case, convert the relation based on page_moving_url to dest_page_url.
     let dest_href = if fm_href_relative.starts_with("../") {
-        match href_base_switch(&fm_page_url, fm_href, &dest_page_url) {
+        match href_base_switch(&page_moving_url, fm_href, &dest_page_url) {
             Some(v) => v,
             None => return Err(()),
         }
     } else {
-        // fm_href_url is a link to fm_page or its children.
-        // Relative href in fm_page can work at dest_page as well.
+        // fm_href_url is a link to page_moving or its children.
+        // Relative href in page_moving can work at dest_page as well.
         fm_href_relative
     };
 
@@ -865,7 +905,7 @@ fn page_move_subsection_href(
 }
 
 fn page_move_subsection_contents(
-    fm_page: &super::Page,
+    page_moving: &super::Page,
     fm_subsection: &json::JsonValue,
     dest_page: &super::Page,
 ) -> Result<json::JsonValue, ()> {
@@ -875,7 +915,7 @@ fn page_move_subsection_contents(
         _ => return Err(()),
     };
 
-    let fm_page_url = match fm_page.url() {
+    let page_moving_url = match page_moving.url() {
         Some(v) => v,
         None => return Err(()),
     };
@@ -896,8 +936,8 @@ fn page_move_subsection_contents(
         let mut dest_content = json::JsonValue::new_object();
 
         dest_content["value"] =
-            // page_move_subsection_content_href_convert(fm_page, fm_value, dest_page).into();
-            page_move_subsection_content_href_convert(fm_value, fm_page_url, dest_page_url).into();
+            // page_move_subsection_content_href_convert(page_moving, fm_value, dest_page).into();
+            page_move_subsection_content_href_convert(fm_value, page_moving_url, dest_page_url).into();
     }
 
     Ok(dest_contents)
@@ -905,18 +945,18 @@ fn page_move_subsection_contents(
 
 fn page_move_subsection_content_href_convert(
     fm_content: &str,
-    fm_page_url: &url::Url,
+    page_moving_url: &url::Url,
     dest_page_url: &url::Url,
 ) -> String {
     // fn page_move_subsection_content_href_convert(
-    //     fm_page: &super::Page,
+    //     page_moving: &super::Page,
     //     fm_content: &str,
     //     dest_page: &super::Page,
     // ) -> String {
     //
     let mut content = String::from(fm_content);
 
-    // let fm_page_url = match fm_page.url() {
+    // let page_moving_url = match page_moving.url() {
     //     Some(v) => v,
     //     None => return content,
     // };
@@ -955,7 +995,7 @@ fn page_move_subsection_content_href_convert(
         }
 
         // Convert href to based on dest_page
-        match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+        match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
             Some(href_converted) => {
                 // let href_len = href_value.len();
 
@@ -988,7 +1028,7 @@ fn page_move_subsection_content_href_convert(
         }
 
         // Convert href to based on dest_page
-        // let res = href_base_switch(&fm_page_url, href_value, &dest_page_url);
+        // let res = href_base_switch(&page_moving_url, href_value, &dest_page_url);
         // If failed to convert the href, ignore it and go on further loop.
         // if let None = res {
         //     // index = match index.checked_add(end) {
@@ -1018,7 +1058,7 @@ fn page_move_subsection_content_href_convert(
 
         // index = index + start + href_value.len();
 
-        // match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+        // match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
         //     Some(v) => {
         //         //
         //         v;
@@ -1030,7 +1070,7 @@ fn page_move_subsection_content_href_convert(
         // };
 
         // Convert href to based on dest_page
-        // let href_value = match href_base_switch(&fm_page_url, href_value, &dest_page_url) {
+        // let href_value = match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
         //     Some(s) => s,
         //     // if not use href not converted
         //     None => href_value.to_string(),
