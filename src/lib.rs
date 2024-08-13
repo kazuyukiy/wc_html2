@@ -5,7 +5,8 @@ use std::net::TcpStream;
 
 mod js_css;
 mod thread_pool;
-mod wc_handler;
+// mod wc_handler;
+mod wc_handler2;
 
 // page_root_path
 pub fn wc_note(addr: &str, page_root_path: &str, capa: usize) -> Result<TcpListener> {
@@ -14,7 +15,7 @@ pub fn wc_note(addr: &str, page_root_path: &str, capa: usize) -> Result<TcpListe
     // if you change wc.js or wc.css, you may restart main() or copy it manulally
     js_css::setup();
 
-    wc_handler::system_ini();
+    // wc_handler::system_ini();
 
     let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
@@ -47,7 +48,9 @@ fn handle_connection(mut stream: TcpStream, page_root_path: String) {
     // Consider to reject access from wher not local
     // println!("lib.rs fn handle_connection cp0");
 
-    let response = wc_handler::response(&mut stream, &page_root_path);
+    let response = wc_handler2::response(&mut stream, &page_root_path);
+
+    // let response = wc_handler::response(&mut stream, &page_root_path);
     stream.write(&response).unwrap();
     stream.flush().unwrap();
 }

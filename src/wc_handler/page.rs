@@ -3,7 +3,8 @@ use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::RcDom;
 use regex::Regex;
 use std::fs;
-use tracing::{event, info, instrument, span, Level};
+// use tracing::{event, info, instrument, span, Level};
+use tracing::info; // event, , instrument, span, Level
 
 mod contents;
 mod page_utility;

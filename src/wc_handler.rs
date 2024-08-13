@@ -4,6 +4,8 @@ use std::net::TcpStream;
 mod http_request; // does not work
 mod page;
 
+// mod page2;
+
 // Initialization
 // fn system_ini() is to be called at beginning of lib.rs wc_node()
 // so it will be done once at the biginning
@@ -15,7 +17,7 @@ pub fn system_ini() {
     // under construction
 }
 
-pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
+pub fn _response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
     let http_request = http_request::HttpRequest::new(stream);
 
     // println!("wc_handler.rs fn response cp0");

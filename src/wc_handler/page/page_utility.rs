@@ -3,7 +3,8 @@ use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle}; // , Node
 use std::collections::HashSet;
 use std::fs;
-use tracing::{event, info, instrument, span, Level};
+// use tracing::{event, info, instrument, span, Level};
+use tracing::info; // event, , instrument, span, Level
 
 // mod contents;
 mod dom_utility;
@@ -412,7 +413,7 @@ pub fn page_move(
     // dbg
     println!("page_utility.rs fn page_move start");
 
-    let href_list = page_move_href_list(page_moving, page_moving.path());
+    let _href_list = page_move_href_list(page_moving, page_moving.path());
     // dbg
     // for href_url in href_list {
     //     println!("href_url: {}", href_url.as_str());
