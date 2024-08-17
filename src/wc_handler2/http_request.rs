@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::net::TcpStream;
-use tracing::info; //  event, instrument, span, Level
+// use tracing::info; //  event, instrument, span, Level
 
 pub struct HttpRequest {
     // method: Option<String>,
@@ -115,6 +115,14 @@ impl HttpRequest {
         // self.path.as_ref().map(|v| v.as_str())
         // self.path.as_ref().unwrap()
         &self.path
+    }
+
+    pub fn wc_request(&self) -> Option<&str> {
+        self.wc_request.as_ref().map(|v| v.as_str())
+    }
+
+    pub fn body(&self) -> Option<&Vec<u8>> {
+        self.body.as_ref()
     }
 }
 
