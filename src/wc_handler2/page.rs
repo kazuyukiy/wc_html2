@@ -7,7 +7,6 @@ use std::fs;
 use tracing::info;
 // info!("hooll");
 
-// mod contents_json;
 mod page_json;
 pub mod page_utility;
 // use crate::wc_handler2::page::page_utility::json_from_dom;
@@ -17,59 +16,61 @@ pub mod page_utility;
 /// Some(Some(v)) : Tried to read and get the contents.
 ///
 pub struct Page {
-    // page_root: String,
-    path: String,
+    stor_root: String,
+    page_path: String,
     source: Option<Option<Vec<u8>>>,
-    // json: Option<contents_json::ContentsJson>,
     dom: Option<Option<RcDom>>,
     // json: Option<Option<json::JsonValue>>,
     json: Option<Option<page_json::PageJson>>,
-    // page_json: Option<page_json::PageJson>,
 }
 
 impl Page {
     /// Returns `Page`.
     /// It is used for further creation of 'Page'
-    pub fn new(path: &str) -> Page {
-        let path = String::from(path);
+    pub fn new(stor_root: &str, page_path: &str) -> Page {
+        // let path = String::from(path);
 
         Page {
-            path,
-            // url: None,
+            stor_root: String::from(stor_root),
+            page_path: String::from(page_path),
             source: None,
             // dom: None,
             // contents: None,
             dom: None,
             json: None,
-            // page_json: None,
         }
     }
-    ///
-    /// Open the file.
-    ///
-    /// # Error
-    ///
-    /// This function will return an error if a file does not exists in `path`.
-    ///
-    fn _open(&mut self, path: &str) -> Page {
-        let mut page = Page::new(path);
+    // ///
+    // /// Open the file.
+    // ///
+    // /// # Error
+    // ///
+    // /// This function will return an error if a file does not exists in `path`.
+    // ///
+    // fn _open(&mut self, path: &str) -> Page {
+    //     let mut page = Page::new(path);
 
-        let _ = page.read();
+    //     let _ = page.read();
 
-        page
+    //     page
+    // }
+
+    fn file_path(&self) -> String {
+        // String + "." + &str
+        self.stor_root.to_string() + self.page_path.as_str()
     }
 
     pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
-        match fs::read(&self.path) {
+        let file_path = &self.file_path();
+        match fs::read(&file_path) {
             Ok(s) => {
                 self.source.replace(Some(s));
-                // self.source.as_ref().unwrap().as_ref().unwrap();
                 return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
             }
             // file not found
             Err(e) => {
                 self.source.replace(None);
-                eprintln!("Faile to read: {}, {:?}", self.path, e.kind());
+                eprintln!("Faile to read: {}, {:?}", &file_path, e.kind());
                 return Err(());
             }
         }
@@ -79,10 +80,8 @@ impl Page {
         if self.source.is_none() {
             let _ = self.read();
         }
-        match self.source.as_ref().unwrap().as_ref() {
-            Some(v) => return Some(v),
-            None => return None,
-        }
+
+        self.source.as_ref().unwrap().as_ref()
     }
 
     fn dom_parse(&mut self) -> Result<(), ()> {
@@ -91,10 +90,7 @@ impl Page {
             None => return Err(()),
         };
 
-        let source = match String::from_utf8(source) {
-            Ok(v) => v,
-            Err(_) => return Err(()),
-        };
+        let source = String::from_utf8(source).or(Err(()))?;
         let dom =
             parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(source);
 
@@ -106,19 +102,13 @@ impl Page {
 
     fn dom(&mut self) -> Option<&RcDom> {
         if self.dom.is_none() {
-            if let Err(_) = self.dom_parse() {
-                return None;
-            }
+            let _ = self.dom_parse().ok()?;
         };
         Some(self.dom.as_ref().unwrap().as_ref().unwrap())
     }
 
     fn json_parse(&mut self) -> Result<(), ()> {
-        let dom = match self.dom() {
-            Some(v) => v,
-            None => return Err(()),
-        };
-
+        let dom = self.dom().ok_or(())?;
         match page_utility::json_from_dom(dom) {
             Some(v) => {
                 let page_json = page_json::PageJson::from(v);
@@ -148,80 +138,91 @@ impl Page {
             return Err("rev not match.");
         }
 
-        let page_json = match self.json() {
-            Some(v) => v,
-            None => return Err("Failed to get page_json."),
-        };
-
-        let rev_uped = match page_json.rev_uped() {
-            Some(v) => v,
-            None => return Err("Failed to get rev_uped"),
-        };
+        let page_json = self.json().ok_or("Failed to get page_json.")?;
+        let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
         json_data2["data"]["page"]["rev"] = rev_uped.into();
 
-        let mut page2 = match page_utility::page_from_json(&self.path, json_data2) {
-            Ok(v) => v,
-            Err(_) => return Err("Failed to create a page from json posted."),
-        };
+        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, json_data2)
+            .or(Err("Failed to create a page from json posted."))?;
 
         let _ = page2.file_save();
 
-        match page2.file_save_rev() {
-            Ok(_) => Ok(()),
-            Err(_) => Err("Failed to save page with rev."),
-        }
+        page2
+            .file_save_rev()
+            .and(Ok(()))
+            .or(Err("Failed to save page with rev."))
+        // match page2.file_save_rev() {
+        //     Ok(_) => Ok(()),
+        //     Err(_) => Err("Failed to save page with rev."),
+        // }
     }
 
     /// Save self.source data to the file.
     pub fn file_save(&mut self) -> Result<(), ()> {
-        let path = self.path.clone();
-
-        let source = match self.source() {
-            Some(v) => v,
-            None => return Err(()),
-        };
-
-        match fs::write(&path, source) {
-            Ok(_) => {
-                info!("save: {}", path);
+        let file_path = &self.file_path();
+        let source = self.source().ok_or(())?;
+        fs::write(&file_path, source)
+            .and_then(|_| {
+                info!("save: {}", &file_path);
                 Ok(())
-            }
-            Err(_) => Err(()),
-        }
+            })
+            .or(Err(()))
+        // match fs::write(&path, source) {
+        //     Ok(_) => {
+        //         info!("save: {}", path);
+        //         Ok(())
+        //     }
+        //     Err(_) => Err(()),
+        // }
     }
 
     fn path_rev(&mut self) -> Result<String, ()> {
-        let page_json = match self.json() {
-            Some(v) => v,
-            None => return Err(()),
-        };
+        let page_json = self.json().ok_or(())?;
+        let rev = page_json
+            .rev()
+            .and_then(|v| Some(v.to_string()))
+            .ok_or(())?;
+        // let rev = match page_json.rev() {
+        //     Some(v) => v.to_string(),
+        //     None => return Err(()),
+        // };
 
-        let rev = match page_json.rev() {
-            Some(v) => v.to_string(),
-            None => return Err(()),
-        };
-
-        // String + "." + &str
-        Ok(self.path.clone() + "." + &rev)
+        Ok(self.file_path() + "." + &rev)
     }
 
     pub fn file_save_rev(&mut self) -> Result<(), ()> {
-        let path_rev = match self.path_rev() {
-            Ok(v) => v,
-            Err(()) => return Err(()),
-        };
-
-        let source = match self.source() {
-            Some(v) => v,
-            None => return Err(()),
-        };
-
-        match fs::write(&path_rev, source) {
-            Ok(_) => {
+        let path_rev = self.path_rev()?;
+        let source = self.source().ok_or(())?;
+        fs::write(&path_rev, source)
+            .and_then(|_| {
                 info!("save: {}", path_rev);
                 Ok(())
-            }
-            Err(_) => Err(()),
-        }
+            })
+            .or(Err(()))
+        // match fs::write(&path_rev, source) {
+        //     Ok(_) => {
+        //         info!("save: {}", path_rev);
+        //         Ok(())
+        //     }
+        //     Err(_) => Err(()),
+        // }
+    }
+
+    /// Create a new page as a child of the parent being given in JsonValue as a argument.
+    pub fn page_sub_new_save(&self, json_parent: json::JsonValue) -> Result<(), ()> {
+        // title
+        let title = json_parent["title"].as_str().ok_or_else(|| {
+            eprintln!("title not found");
+            () // return as Err.
+        })?;
+
+        // href
+        let href = json_parent["href"].as_str().ok_or_else(|| {
+            eprintln!("href not found");
+            () // return as Err.
+        })?;
+
+        // temp
+        Ok(())
     }
 }

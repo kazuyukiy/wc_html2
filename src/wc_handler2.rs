@@ -3,35 +3,31 @@ mod http_request;
 mod page;
 use tracing::info; //  event, instrument, span, Level debug,
 
-pub fn response(stream: &mut TcpStream, page_root_path: &str) -> Vec<u8> {
+pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
     let http_request = match http_request::HttpRequest::from(stream) {
         Ok(v) => v,
         _ => return http_404(),
     };
 
+    // info!("hots: {:?}", http_request.host.as_ref());
+
     let method = http_request.method();
     info!("{} {}", method, http_request.path());
 
     if method == "GET" {
-        return handle_get(&http_request, page_root_path).unwrap_or(http_404());
+        return handle_get(&http_request, stor_root).unwrap_or(http_404());
     }
 
     if method == "POST" {
-        return handle_post(&http_request, page_root_path).unwrap_or(http_404());
+        return handle_post(&http_request, stor_root).unwrap_or(http_404());
     }
 
     // temp
     http_hello()
 }
 
-fn path(page_root: &str, path: &str) -> String {
-    page_root.to_string() + path
-}
-
-// fn _page(http_request: &http_request::HttpRequest, page_root_path: &str) -> Result<page::Page, ()> {
-//     let path = path(page_root_path, http_request.path());
-//     let page = page::Page::new(&path);
-//     Ok(page)
+// fn path(stor_root: &str, path: &str) -> String {
+//     stor_root.to_string() + path
 // }
 
 fn http_ok(contents: &Vec<u8>) -> Vec<u8> {
@@ -66,13 +62,12 @@ fn http_form(status: &str, contents: &Vec<u8>) -> Vec<u8> {
     [header.into_bytes(), contents.clone()].concat()
 }
 
-fn handle_get(http_request: &http_request::HttpRequest, page_root: &str) -> Result<Vec<u8>, ()> {
-    let path = path(page_root, http_request.path());
-    let mut page = page::Page::new(&path);
+fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let mut page = page::Page::new(&stor_root, http_request.path());
     page.read().map_or(Err(()), |v| Ok(http_ok(v)))
 }
 
-fn handle_post(http_request: &http_request::HttpRequest, page_root: &str) -> Result<Vec<u8>, ()> {
+fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
     let wc_request = if let Some(v) = http_request.wc_request() {
         v
     } else {
@@ -81,43 +76,32 @@ fn handle_post(http_request: &http_request::HttpRequest, page_root: &str) -> Res
     info!("wc_request: {}", wc_request);
 
     if wc_request == "json_save" {
-        // return json_save(http_request, page_root);
-        // return match json_save(http_request, page_root) {
-        match json_save(http_request, page_root) {
-            Ok(v) => {
-                return Ok(v);
-            }
-            Err(_) => {
-                return Err(());
-            }
-        };
+        return json_save(http_request, stor_root);
+    }
+
+    if wc_request == "page_new" {
+        return page_new(http_request, stor_root);
     }
 
     // temp
     Ok(http_hello())
 }
 
-fn json_save(http_request: &http_request::HttpRequest, page_root: &str) -> Result<Vec<u8>, ()> {
-    let path = &path(page_root, http_request.path());
-    let mut page = page::Page::new(path);
+fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let mut page = page::Page::new(stor_root, http_request.path());
 
     // The file not exist.
     if page.read().is_err() {
         return Err(());
     }
 
-    let json_post = match http_request.body() {
-        Some(v) => v.to_vec(), // &Vec to Vec
-        None => return Err(()),
-    };
-
-    // Vec<u8> to String
-    let json_post = match String::from_utf8(json_post) {
-        Ok(v) => v,
-        Err(_) => return Err(()),
-    };
+    let json_post = http_request.body_string().ok_or(())?;
 
     // &str to JsonValue
+    // let json_post = json::parse(&json_post).or_else(|_| {
+    //     eprintln!("Failed to parse to json");
+    //     Err(())
+    // })?;
     let json_post = match json::parse(&json_post) {
         Ok(v) => v,
         Err(_) => {
@@ -134,4 +118,15 @@ fn json_save(http_request: &http_request::HttpRequest, page_root: &str) -> Resul
         }
     };
     Ok(http_ok(&res))
+}
+
+fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let mut p_page = page::Page::new(stor_root, http_request.path());
+
+    // title: title for new page
+    // href: the location of the new page viewing from the parent.
+    let json_post = http_request.body_string().ok_or(())?;
+
+    // temp
+    Err(())
 }
