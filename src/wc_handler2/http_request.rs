@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::net::TcpStream;
-use tracing::info; //  event, instrument, span, Level
+// use tracing::info; //  event, instrument, span, Level
 
 pub struct HttpRequest {
     // method: Option<String>,
@@ -8,7 +8,7 @@ pub struct HttpRequest {
     method: String,
     path: String,
     wc_request: Option<String>,
-    // pub host: Option<String>,
+    host: Option<String>,
     body: Option<Vec<u8>>,
 }
 
@@ -56,19 +56,11 @@ impl HttpRequest {
         //     return Err(());
         // }
 
-        // info!("fn file_save");
-        // info!(
-        //     // "{} {}",
-        //     "{}",
-        //     request.method.as_ref().unwrap(),
-        //     // request.path.as_ref().unwrap()
-        // );
-
         let mut http_request = HttpRequest {
             method,
             path,
             wc_request: None,
-            // host: None,
+            host: None,
             body: None,
         };
 
@@ -87,12 +79,14 @@ impl HttpRequest {
         }
 
         // Host // ex.: 127.0.0.1:3000
-        // if let Some(v) = head_value(&request, "Host") {
-        //     let vu8 = v.to_vec();
-        //     if let Ok(v) = String::from_utf8(vu8) {
-        //         http_request.host.replace(v);
-        //     }
-        // }
+        if let Some(v) = head_value(&request, "Host") {
+            // let vu8 = v.to_vec();
+            let v = v.to_vec();
+            // if let Ok(v) = String::from_utf8(vu8) {
+            if let Ok(v) = String::from_utf8(v) {
+                http_request.host.replace(v);
+            }
+        }
 
         // body
         if body_offset.is_some() {
@@ -130,6 +124,19 @@ impl HttpRequest {
             .as_ref()
             .and_then(|v| Some(v.to_vec()))
             .and_then(|v| String::from_utf8(v).ok())
+    }
+
+    pub fn body_json(&self) -> Option<json::JsonValue> {
+        let json_post = self.body_string()?;
+        json::parse(&json_post).ok()
+    }
+
+    pub fn url(&self) -> Option<url::Url> {
+        let host = self.host.as_ref()?;
+        let path = &self.path;
+
+        let url = format!("https://{}{}", host, path);
+        url::Url::parse(&url).ok()
     }
 }
 

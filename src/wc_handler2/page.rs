@@ -19,6 +19,7 @@ pub struct Page {
     stor_root: String,
     page_path: String,
     source: Option<Option<Vec<u8>>>,
+    // host: Option<String>,
     dom: Option<Option<RcDom>>,
     // json: Option<Option<json::JsonValue>>,
     json: Option<Option<page_json::PageJson>>,
@@ -34,12 +35,14 @@ impl Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),
             source: None,
+            // host: None,
             // dom: None,
             // contents: None,
             dom: None,
             json: None,
         }
     }
+
     // ///
     // /// Open the file.
     // ///
@@ -55,13 +58,19 @@ impl Page {
     //     page
     // }
 
+    fn stor_root(&self) -> &str {
+        self.stor_root.as_str()
+    }
+
     fn file_path(&self) -> String {
+        page_utility::file_path(&self.stor_root, &self.page_path)
         // String + "." + &str
-        self.stor_root.to_string() + self.page_path.as_str()
+        // self.stor_root.to_string() + self.page_path.as_str()
     }
 
     pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
         let file_path = &self.file_path();
+        // let file_path = page_utility::file_path(&self.stor_root, &self.page_path);
         match fs::read(&file_path) {
             Ok(s) => {
                 self.source.replace(Some(s));
@@ -145,12 +154,15 @@ impl Page {
         let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, json_data2)
             .or(Err("Failed to create a page from json posted."))?;
 
-        let _ = page2.file_save();
+        self.file_save_and_rev().or(Err("failed to save"))
 
-        page2
-            .file_save_rev()
-            .and(Ok(()))
-            .or(Err("Failed to save page with rev."))
+        // let _ = page2.file_save();
+
+        // page2
+        //     .file_save_rev()
+        //     .and(Ok(()))
+        //     .or(Err("Failed to save page with rev."))
+        //
         // match page2.file_save_rev() {
         //     Ok(_) => Ok(()),
         //     Err(_) => Err("Failed to save page with rev."),
@@ -208,21 +220,41 @@ impl Page {
         // }
     }
 
-    /// Create a new page as a child of the parent being given in JsonValue as a argument.
-    pub fn page_sub_new_save(&self, json_parent: json::JsonValue) -> Result<(), ()> {
-        // title
-        let title = json_parent["title"].as_str().ok_or_else(|| {
-            eprintln!("title not found");
-            () // return as Err.
-        })?;
+    pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
+        let mut saved = true;
 
-        // href
-        let href = json_parent["href"].as_str().ok_or_else(|| {
-            eprintln!("href not found");
-            () // return as Err.
-        })?;
+        if self.file_save().is_err() {
+            saved = false;
+        }
+        if self.file_save_rev().is_err() {
+            saved = false;
+        }
 
-        // temp
-        Ok(())
+        // DBG
+        info!("saved: {}", saved);
+
+        if saved {
+            Ok(())
+        } else {
+            Err(())
+        }
     }
+
+    // /// Create a new page as a child of the parent being given in JsonValue as a argument.
+    // pub fn page_child_new_save_(&self, json_parent: json::JsonValue) -> Result<(), ()> {
+    //     // title
+    //     let title = json_parent["title"].as_str().ok_or_else(|| {
+    //         eprintln!("title not found");
+    //         () // return as Err.
+    //     })?;
+
+    //     // href
+    //     let href = json_parent["href"].as_str().ok_or_else(|| {
+    //         eprintln!("href not found");
+    //         () // return as Err.
+    //     })?;
+
+    //     // temp
+    //     Ok(())
+    // }
 }

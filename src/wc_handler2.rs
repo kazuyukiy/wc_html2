@@ -18,6 +18,9 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
         return handle_get(&http_request, stor_root).unwrap_or(http_404());
     }
 
+    // dbg
+    // info!("url: {}", http_request.url().unwrap());
+
     if method == "POST" {
         return handle_post(&http_request, stor_root).unwrap_or(http_404());
     }
@@ -123,10 +126,47 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
 fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
     let mut p_page = page::Page::new(stor_root, http_request.path());
 
+    let url = http_request.url().ok_or(())?;
+    // info!("hots: {:?}", http_request.host.as_ref());
+
     // title: title for new page
     // href: the location of the new page viewing from the parent.
-    let json_post = http_request.body_string().ok_or(())?;
+    let json_post = http_request.body_json().ok_or(())?;
+
+    // title
+    // json_post["title"].as_str();
+    let title = match json_post["title"].as_str() {
+        Some(s) => s,
+        None => {
+            eprintln!("title not found");
+            return Err(());
+        }
+    };
+
+    // href
+    let href = match json_post["href"].as_str() {
+        Some(s) => s,
+        None => {
+            eprintln!("href not found");
+            return Err(());
+        }
+    };
+
+    // info!("href: {}", href);
+
+    let mut page_child = page::page_utility::page_child_new(&mut p_page, url, title, href)?;
+
+    // info!("Got page_child");
+
+    let res: Vec<u8> = match page_child.file_save_and_rev() {
+        Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
+        Err(_) => r#"{"res":"post_handle page_new failed"}"#.into(),
+    };
+
+    Ok(http_ok(&res))
+
+    // page_child.file_save_and_rev().or(Err(()))
 
     // temp
-    Err(())
+    // Err(())
 }
