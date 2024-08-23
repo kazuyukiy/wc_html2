@@ -85,7 +85,36 @@ impl Page {
         }
     }
 
-    fn source(&mut self) -> Option<&Vec<u8>> {
+    // Create dirs saving this file.
+    pub fn dir_build(&self) -> Result<(), ()> {
+        // file_path : abc/def/ghi.html (Contains a file name.)
+        let file_path = self.file_path();
+        let path = std::path::Path::new(&file_path);
+        // parent: abc/def (remain only directory path.)
+        let parent = path.parent().ok_or(())?;
+
+        // Already exists.
+        if let Ok(true) = parent.try_exists() {
+            return Ok(());
+        }
+
+        let parent_path = parent.to_str().ok_or(())?;
+        match std::fs::DirBuilder::new()
+            .recursive(true)
+            .create(parent_path)
+        {
+            Ok(_) => {
+                info!("dir created: {}", parent_path);
+                Ok(())
+            }
+            Err(_) => {
+                eprintln!("Failed to create dir: {}", parent_path);
+                Err(())
+            }
+        }
+    }
+
+    pub fn source(&mut self) -> Option<&Vec<u8>> {
         if self.source.is_none() {
             let _ = self.read();
         }
@@ -161,6 +190,10 @@ impl Page {
     pub fn file_save(&mut self) -> Result<(), ()> {
         let file_path = &self.file_path();
         let source = self.source().ok_or(())?;
+
+        // dbg
+        info!("Got source.");
+
         page_utility::fs_write(file_path, source)
     }
 

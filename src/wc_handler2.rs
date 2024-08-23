@@ -156,7 +156,14 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
 
     let mut page_child = page::page_utility::page_child_new(&mut p_page, url, title, href)?;
 
-    // info!("Got page_child");
+    info!("Got page_child");
+    // if let Some(c) = page_child.source() {
+    //     info!("contents: {:?}", c);
+    // }
+
+    // page::page_utility::dir_build(&page_child.file_path());
+
+    page_child.dir_build()?;
 
     let res: Vec<u8> = match page_child.file_save_and_rev() {
         Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
