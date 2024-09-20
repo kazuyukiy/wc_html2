@@ -1,6 +1,8 @@
 use html5ever::driver::parse_document; // , serialize
 use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::RcDom;
+// use std::collections::HashMap;
+// use std::collections::HashSet;
 use std::fs;
 // use std::str::FromStr;
 // use tracing::{instrument, Level}; // event, info, , span , debug
@@ -13,13 +15,12 @@ pub mod page_utility;
 
 /// path: the path of the page.
 /// source: None: not tried to read, Some(None): Tried to read with faile,
-/// Some(Some(v)) : Tried to read and get the contents.
+/// Some(Some(v)) : Tried to read and get the source.
 ///
 pub struct Page {
     stor_root: String,
     page_path: String,
     source: Option<Option<Vec<u8>>>,
-    // host: Option<String>,
     dom: Option<Option<RcDom>>,
     // json: Option<Option<json::JsonValue>>,
     json: Option<Option<page_json::PageJson>>,
@@ -35,28 +36,10 @@ impl Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),
             source: None,
-            // host: None,
-            // dom: None,
-            // contents: None,
             dom: None,
             json: None,
         }
     }
-
-    // ///
-    // /// Open the file.
-    // ///
-    // /// # Error
-    // ///
-    // /// This function will return an error if a file does not exists in `path`.
-    // ///
-    // fn _open(&mut self, path: &str) -> Page {
-    //     let mut page = Page::new(path);
-
-    //     let _ = page.read();
-
-    //     page
-    // }
 
     fn stor_root(&self) -> &str {
         self.stor_root.as_str()
@@ -92,6 +75,10 @@ impl Page {
         let path = std::path::Path::new(&file_path);
         // parent: abc/def (remain only directory path.)
         let parent = path.parent().ok_or(())?;
+
+        // parent.components().count();
+        // This count() counts depth of directory.
+        // Consider how avoid too match deep directorys making.
 
         // Already exists.
         if let Ok(true) = parent.try_exists() {
@@ -170,20 +157,39 @@ impl Page {
         self.json.as_ref().unwrap().as_ref()
     }
 
-    pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<(), &str> {
-        if !page_utility::json_rev_match(self, &json_data2) {
-            info!("rev not match.");
-            return Err("rev not match.");
+    fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
+        if self.json.is_none() {
+            if let Err(_) = self.json_parse() {
+                return None;
+            }
         }
 
+        self.json.as_mut().unwrap().as_mut()
+    }
+
+    /// Updata the page with json_data2
+    /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
+    pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<(), String> {
+        page_utility::json_rev_match(self, &json_data2)?;
+        // if !page_utility::json_rev_match(self, &json_data2) {
+        //     info!("rev not match on {}.", &self.page_path);
+        //     return Err(format!("rev not match on {}.", &self.page_path));
+        // }
+
+        // Updata rev no.
         let page_json = self.json().ok_or("Failed to get page_json.")?;
         let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
         json_data2["data"]["page"]["rev"] = rev_uped.into();
 
-        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, json_data2)
-            .or(Err("Failed to create a page from json posted."))?;
+        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2)
+            .or(Err(format!(
+                "Failed to create a page from json posted on {}.",
+                &self.page_path
+            )))?;
 
-        page2.file_save_and_rev().or(Err("failed to save"))
+        page2
+            .file_save_and_rev()
+            .or(Err(format!("failed to save on  {}", &self.page_path)))
     }
 
     /// Save self.source data to the file.
@@ -191,8 +197,8 @@ impl Page {
         let file_path = &self.file_path();
         let source = self.source().ok_or(())?;
 
-        // dbg
-        info!("Got source.");
+        // DBG
+        info!("fn file_save source exists: {}", file_path);
 
         page_utility::fs_write(file_path, source)
     }
@@ -203,11 +209,6 @@ impl Page {
             .rev()
             .and_then(|v| Some(v.to_string()))
             .ok_or(())?;
-        // let rev = match page_json.rev() {
-        //     Some(v) => v.to_string(),
-        //     None => return Err(()),
-        // };
-
         Ok(self.file_path() + "." + &rev)
     }
 
@@ -232,5 +233,67 @@ impl Page {
         } else {
             Err(())
         }
+    }
+
+    fn json_title(&mut self) -> Option<String> {
+        let value = self.json().and_then(|page_json| page_json.value())?;
+        // let title = value["data"]["page"]["title"].as_str().ok_or(None)?;
+        let title = value["data"]["page"]["title"].as_str()?;
+        //
+
+        // Some(String::from(""))
+        Some(title.to_string())
+    }
+
+    // pub fn json_navi(&mut self) -> Option<&json::object::Object> {
+    // pub fn json_navi(&mut self) -> Option<&json::JsonValue> {
+    pub fn json_navi(&mut self) -> Option<&json::Array> {
+        self.json().and_then(|page_json| {
+            // dbg
+            // info!("page_json.navi(): {:?}", page_json.navi());
+
+            page_json.navi()
+        })
+    }
+
+    pub fn json_subsections(&mut self) -> Option<&json::object::Object> {
+        self.json().and_then(|page_json| page_json.subsections())
+    }
+
+    pub fn json_subsections_data_exists(&mut self) -> bool {
+        self.json()
+            .is_some_and(|page_json| page_json.subsections_data_exists())
+
+        // if let Some(page_json) = self.json() {
+        //     page_json.subsections_data_exists()
+        // } else {
+        // }
+
+        // self.json().and_then(|page_json| page_json.subsections_no_data())
+    }
+
+    /// Move this page to dest_url as a child of parent_url.
+    /// parent_url is an optional. If it is None, this page is a top page.
+    pub fn page_move(
+        &mut self,
+        page_url: url::Url,
+        dest_url: url::Url,
+        parent_url: Option<url::Url>,
+    ) -> Result<(), String> {
+        // Case page alredy moved, return Err.
+        if self
+            .json()
+            .and_then(|page_json| page_json.moved_to())
+            .is_some()
+        {
+            return Err(format!("This page already moved to: {}", self.page_path));
+        }
+
+        page_utility::page_move(
+            self.stor_root.as_str(),
+            &page_url,
+            dest_url.clone(),
+            parent_url.as_ref(),
+        )
     }
 }

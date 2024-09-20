@@ -27,34 +27,17 @@ impl HttpRequest {
             Err(_) => return Err(()),
         };
 
-        // info!("fn from: stream_data: {:?}", stream_data);
-        // info!("fn from cp1 request.path: {:?}", request.path);
-        // info!("fn from cp1 body_offset: {:?}", body_offset);
-
         // request.path
         let path = match request.path {
             Some(path) => path.to_string(),
             None => return Err(()),
         };
-        // if let Some(path) = request.path {
-        //     http_request.path.replace(path.to_string());
-        // } else {
-        //     return Err(());
-        // }
-
-        // info!("fn from cp2 method:{:?}", request.method);
-        // info!("fn from cp2 path:{:?}", request.path);
 
         // request.method
         let method = match request.method {
             Some(method) => method.to_string(),
             None => return Err(()),
         };
-        // if let Some(method) = request.method {
-        //     http_request.method.replace(method.to_string());
-        // } else {
-        //     return Err(());
-        // }
 
         let mut http_request = HttpRequest {
             method,
@@ -97,29 +80,34 @@ impl HttpRequest {
         Ok(http_request)
     }
 
-    // pub fn method(&self) -> Option<&str> {
     pub fn method(&self) -> &str {
-        // self.method.as_ref().map(|v| v.as_str())
-        // &self.method.as_ref().unwrap()
         &self.method
     }
 
-    // pub fn path(&self) -> Option<&str> {
     pub fn path(&self) -> &str {
-        // self.path.as_ref().map(|v| v.as_str())
-        // self.path.as_ref().unwrap()
         &self.path
+    }
+
+    // pub fn path_contains_rev(&self) -> bool {
+    pub fn path_ends_with_rev(&self) -> bool {
+        // abc.html.003
+        let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+        reg.is_match(self.path())
+        // self.path();
+
+        // temp
+        // balse
     }
 
     pub fn wc_request(&self) -> Option<&str> {
         self.wc_request.as_ref().map(|v| v.as_str())
     }
 
-    pub fn body(&self) -> Option<&Vec<u8>> {
+    fn _body(&self) -> Option<&Vec<u8>> {
         self.body.as_ref()
     }
 
-    pub fn body_string(&self) -> Option<String> {
+    fn body_string(&self) -> Option<String> {
         self.body
             .as_ref()
             .and_then(|v| Some(v.to_vec()))
