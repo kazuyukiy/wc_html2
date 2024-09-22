@@ -1,13 +1,13 @@
-use tracing::{event, info, instrument, span, Level};
+// use tracing::{instrument, Level}; // event, info, , span
 use tracing_subscriber;
 
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let span = span!(Level::TRACE, "my span");
+    // let span = span!(Level::TRACE, "my span");
     // let _enter = span.enter();
 
-    info!("hooll");
+    // info!("hooll");
 
     let addr = "127.0.0.1:3000";
     // let addr = "127.0.0.1:8080";
