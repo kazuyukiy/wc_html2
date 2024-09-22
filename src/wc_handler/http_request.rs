@@ -1,136 +1,130 @@
 use std::io::Read;
 use std::net::TcpStream;
+// use tracing::info; //  event, instrument, span, Level
 
 pub struct HttpRequest {
-    // pub method: Option<String>,
-    method: Option<String>,
-    // pub path: Option<String>,
-    path: Option<String>,
-    // pub body: Option<String>,
-    body: Option<String>,
-    // pub host: Option<String>,
-    host: Option<String>,
-    // pub wc_request: Option<Vec<u8>>,
-    // wc_request: Option<Vec<u8>>,
+    // method: Option<String>,
+    // path: Option<String>,
+    method: String,
+    path: String,
     wc_request: Option<String>,
+    host: Option<String>,
+    body: Option<Vec<u8>>,
 }
 
-// impl<'h, 'b> HttpRequest<'h, 'b> {
-impl<'h, 'b> HttpRequest {
-    pub fn new(stream: &mut TcpStream) -> HttpRequest {
+impl HttpRequest {
+    pub fn from(stream: &mut TcpStream) -> Result<HttpRequest, ()> {
         let stream_data = stream_read(stream);
-
+        // info!("fn from");
         let mut headers = [httparse::EMPTY_HEADER; 64];
         let mut request = httparse::Request::new(&mut headers);
+
         let body_offset = match request.parse(&stream_data) {
             Ok(s) => match s {
                 httparse::Status::Complete(l) => Some(l),
                 httparse::Status::Partial => None,
             },
-            Err(_) => None,
+            Err(_) => return Err(()),
         };
 
-        let method = match request.method {
-            Some(v) => Some(v.to_string()),
-            None => None,
-        };
-
+        // request.path
         let path = match request.path {
-            Some(v) => Some(v.to_string()),
-            None => None,
+            Some(path) => path.to_string(),
+            None => return Err(()),
+        };
+
+        // request.method
+        let method = match request.method {
+            Some(method) => method.to_string(),
+            None => return Err(()),
         };
 
         let mut http_request = HttpRequest {
             method,
             path,
-            body: None,
-            host: None,
             wc_request: None,
+            host: None,
+            body: None,
         };
 
-        if http_request.method.is_some() && body_offset.is_some() {
-            let method = http_request.method.as_ref().unwrap();
-            // on case method is POST, set body and wc_request
-            if method == "POST" {
-                let body_offset = body_offset.unwrap();
-                // http_request.body have a value when method is "POST"
-                body_set(&mut http_request, body_offset, &stream_data);
+        // GET
+        if http_request.method() == "GET" {
+            return Ok(http_request);
+        }
 
-                // http_request.host have a value when method is "POST"
-                host_set(&mut http_request, &request);
-                // http_request.wc_request have a value when method is "POST"
-                wc_request_set(&mut http_request, &request);
+        // request.headers
+        // wc-request
+        if let Some(v) = head_value(&request, "wc-request") {
+            let vu8 = v.to_vec();
+            if let Ok(v) = String::from_utf8(vu8) {
+                http_request.wc_request.replace(v);
+            };
+        }
+
+        // Host // ex.: 127.0.0.1:3000
+        if let Some(v) = head_value(&request, "Host") {
+            // let vu8 = v.to_vec();
+            let v = v.to_vec();
+            // if let Ok(v) = String::from_utf8(vu8) {
+            if let Ok(v) = String::from_utf8(v) {
+                http_request.host.replace(v);
             }
         }
 
-        print_method_path(&http_request);
-
-        http_request
-    }
-
-    pub fn method(&self) -> Option<&str> {
-        match self.method.as_ref() {
-            Some(r) => Some(&r),
-            None => None,
-        }
-    }
-
-    pub fn path(&self) -> Option<&str> {
-        match self.path.as_ref() {
-            Some(r) => Some(&r),
-            None => None,
-        }
-    }
-
-    // call fn body_set() before use body data
-    fn _body(&self) -> Option<&str> {
-        match self.body.as_ref() {
-            Some(v) => Some(&v),
-            None => None,
-        }
-    }
-
-    pub fn body_json(&self) -> Option<json::JsonValue> {
-        let body = match self.body.as_ref() {
-            Some(v) => v,
-            None => return None,
+        // body
+        if body_offset.is_some() {
+            let body = stream_data[body_offset.unwrap()..].to_vec();
+            http_request.body.replace(body);
         };
 
-        match json::parse(&body) {
-            Ok(v) => Some(v),
-            Err(_) => {
-                eprintln!("Failed to parse to json");
-                None
-            }
-        }
+        Ok(http_request)
     }
 
-    pub fn _host(&self) -> Option<&str> {
-        match self.host.as_ref() {
-            Some(r) => Some(&r),
-            None => None,
-        }
+    pub fn method(&self) -> &str {
+        &self.method
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    // pub fn path_contains_rev(&self) -> bool {
+    pub fn path_ends_with_rev(&self) -> bool {
+        // abc.html.003
+        let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+        reg.is_match(self.path())
+        // self.path();
+
+        // temp
+        // balse
     }
 
     pub fn wc_request(&self) -> Option<&str> {
-        match self.wc_request.as_ref() {
-            Some(r) => {
-                //
-                Some(&r)
-            }
-            None => None,
-        }
+        self.wc_request.as_ref().map(|v| v.as_str())
+    }
+
+    fn _body(&self) -> Option<&Vec<u8>> {
+        self.body.as_ref()
+    }
+
+    fn body_string(&self) -> Option<String> {
+        self.body
+            .as_ref()
+            .and_then(|v| Some(v.to_vec()))
+            .and_then(|v| String::from_utf8(v).ok())
+    }
+
+    pub fn body_json(&self) -> Option<json::JsonValue> {
+        let json_post = self.body_string()?;
+        json::parse(&json_post).ok()
     }
 
     pub fn url(&self) -> Option<url::Url> {
         let host = self.host.as_ref()?;
-        let path = self.path.as_ref()?;
+        let path = &self.path;
 
         let url = format!("https://{}{}", host, path);
-        match url::Url::parse(&url) {
-            Ok(u) => Some(u),
-            Err(_) => None,
-        }
+        url::Url::parse(&url).ok()
     }
 }
 
@@ -158,89 +152,9 @@ fn stream_read(stream: &mut TcpStream) -> Vec<u8> {
     stream_data
 }
 
-fn _stream_read_to_end(stream: &mut TcpStream) -> Vec<u8> {
-    let mut stream_data: Vec<u8> = Vec::new();
-    // issue read_to_end() does not return result
-    let res = stream.read_to_end(&mut stream_data);
-
-    match res {
-        Ok(_) => (),
-        Err(e) => eprintln!("wc_handler fn stream_read_to_end Err: {:?}", e),
-    }
-
-    stream_data
-}
-
-fn body_set(http_request: &mut HttpRequest, body_offset: usize, stream_data: &Vec<u8>) {
-    let body = stream_data[body_offset..].to_vec();
-
-    let body = match String::from_utf8(body) {
-        Ok(v) => v,
-        Err(_) => {
-            eprintln!("Failed to convert body to String");
-            return;
-        }
-    };
-
-    http_request.body.replace(body);
-}
-
 fn head_value<'a>(request: &'a httparse::Request, name: &str) -> Option<&'a [u8]> {
     match request.headers.iter().find(|&&h| h.name == name) {
         Some(header) => Some(header.value),
         None => None,
-    }
-}
-
-fn wc_request_set(http_request: &mut HttpRequest, request: &httparse::Request) {
-    match head_value(request, "wc-request") {
-        Some(v) => {
-            // http_request.wc_request.replace(v.to_vec());
-
-            let vu8 = v.to_vec();
-            match String::from_utf8(vu8) {
-                Ok(v) => {
-                    http_request.wc_request.replace(v);
-                }
-                Err(_) => (),
-            }
-        }
-        None => (),
-    }
-}
-
-fn host_set(http_request: &mut HttpRequest, request: &httparse::Request) {
-    match head_value(request, "Host") {
-        Some(v) => {
-            let host = match String::from_utf8(v.to_vec()) {
-                Ok(v) => v,
-                Err(_) => {
-                    eprintln!("Failed to convert host to String");
-                    return;
-                }
-            };
-            http_request.host.replace(host);
-        }
-        None => (),
-    }
-}
-
-//
-
-fn print_method_path(http_request: &HttpRequest) {
-    let method = match http_request.method.as_ref() {
-        Some(v) => v,
-        None => return,
-    };
-
-    let path = match http_request.path.as_ref() {
-        Some(v) => v,
-        None => return,
-    };
-
-    println!("{} {}", method, path);
-
-    if let Some(req) = http_request.wc_request.as_ref() {
-        println!("wc_request: {}", &req);
     }
 }

@@ -1,67 +1,39 @@
 use html5ever::serialize;
 use html5ever::serialize::SerializeOpts;
-use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle}; // , Node
-use std::collections::HashSet;
-use std::fs;
-// use tracing::{event, info, instrument, span, Level};
-use tracing::info; // event, , instrument, span, Level
-
-// mod contents;
+use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle};
+use std::collections::HashMap;
+// use std::collections::HashSet;
+use std::str::FromStr;
+use tracing::{error, info};
+// use tracing::{event, info, instrument, span, Level, Node};
 mod dom_utility;
 
-// Create directories for a file_path given as a parameter.
-fn dir_build(file_path: &str) -> Result<(), ()> {
-    // file_path : abc/def/ghi.html
-    // Remove file name and remain only directory path.
-    let re = regex::Regex::new(r"/[^/]+$").unwrap();
-    let mat = re.find(&file_path).unwrap();
-
-    // dir_path abc/def
-    let dir_path = &file_path[..mat.start()];
-
-    match std::fs::DirBuilder::new().recursive(true).create(dir_path) {
-        Ok(_) => Ok(()),
-        Err(_) => {
-            eprintln!("page_utility.rs Failed to create dir: {}", dir_path);
-            Err(())
-        }
-    }
+pub fn file_path(stor_root: &str, page_path: &str) -> String {
+    // String + "." + &str
+    stor_root.to_string() + page_path
 }
 
-pub fn file_write(path: &str, source: &Vec<u8>) -> Result<(), ()> {
-    if let Err(_) = dir_build(path) {
-        return Err(());
-    }
+pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
+    // DBG
+    // info!("DBG save: {} (Not saved indeed, make DBG off)", file_path);
+    // return Ok(());
 
-    match fs::write(&path, source) {
-        Ok(_) => {
-            // println!("write: {}", &path);
-            // println!("write: {}", &self.path);
+    std::fs::write(&file_path, contents)
+        .and_then(|_| {
+            info!("save: {}", file_path);
             Ok(())
-        }
-        Err(_) => {
-            // eprintln!("Failed to save page: {}", &path);
-            // eprintln!("Failed to save page: {}", &self.path);
+        })
+        .or_else(|e| {
+            error!("fn fs_write e: {:?}", e);
             Err(())
-        }
-    }
+        })
 
-    // temp
-    //    Ok(())
+    // DBG comment out
+    // .or(Err(()))
 }
 
 pub fn to_dom(source: &str) -> RcDom {
     dom_utility::to_dom(source)
-}
-
-// Get span node from page_dom
-// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
-pub fn span_json_node(page_dom: &RcDom) -> Handle {
-    let attrs = &vec![("id", "page_json_str")];
-    let ptn_span = dom_utility::node_element("span", &attrs);
-    // let ptn_span = span_json_node_ptn();
-    // the <span> mut exists
-    dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
 }
 
 pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
@@ -75,7 +47,6 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
 
     let contents = match &children[0].data {
         NodeData::Text { contents } => contents,
-        // _ => return Err(err_no_json_value()),
         _ => {
             eprintln!("Failed, json contents not found in the span element");
             return None;
@@ -95,6 +66,14 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     Some(json_value)
 }
 
+// Get span node from page_dom
+// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
+pub fn span_json_node(page_dom: &RcDom) -> Handle {
+    let attrs = &vec![("id", "page_json_str")];
+    let ptn_span = dom_utility::node_element("span", &attrs);
+    dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
+}
+
 fn page_dom_plain() -> RcDom {
     to_dom(page_html_plain())
 }
@@ -108,7 +87,7 @@ fn page_html_plain() -> &'static str {
 }
 
 /// Create a page source from json value.
-fn source_from_json(page_json: json::JsonValue) -> Vec<u8> {
+fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     let page_dom = page_dom_plain();
 
     // title
@@ -123,7 +102,7 @@ fn source_from_json(page_json: json::JsonValue) -> Vec<u8> {
     // put json value into span as str
     let span = span_json_node(&page_dom);
     let _ = &span.children.borrow_mut().clear();
-    let json_str = json::stringify(page_json);
+    let json_str = page_json.dump();
     let json_node_text = dom_utility::node_text(&json_str);
     let _ = &span.children.borrow_mut().push(json_node_text);
 
@@ -135,106 +114,86 @@ fn source_from_json(page_json: json::JsonValue) -> Vec<u8> {
     page_bytes
 }
 
-/// Create `supser::Page` from page_json and return it.
+/// Create `supser::Page` from json.
 /// // If a file exists, open the file and overwrite page_json.
 /// // If no file exists, create a `super::Page` from page_json.
 ///
 pub fn page_from_json(
-    page_root: &str,
-    path: &str,
-    page_json: json::JsonValue,
-) -> Result<super::Page, ()> {
-    let page_bytes = source_from_json(page_json);
+    stor_root: &str,
+    page_path: &str,
+    // page_json: json::JsonValue,
+    page_json: &json::JsonValue,
+    // ) -> Result<super::Page, ()> {
+) -> super::Page {
+    let source = source_from_json(page_json); // bytes
 
-    let mut page = match super::Page::new(page_root, path) {
-        Ok(v) => v,
-        Err(_) => match super::Page::open(page_root, path) {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!("Failed to get `Page`.");
-                return Err(());
-            }
-        },
-    };
+    let mut page = super::Page::new(stor_root, page_path);
+    page.source.replace(Some(source));
 
-    page.source.replace(page_bytes);
-
-    Ok(page)
+    // Ok(page)
+    page
 }
 
-pub fn json_plain() -> json::JsonValue {
-    // ~/projects/wc/wc/src/page_json_utility.rs
-    json::object! {
-        // "syttem" :
-        "system" : {
-            // "version" : "0.0.1",
-            // "version" : "0.0.2",
-            "version" : "0.0.3",
+// pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> bool {
+pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> Result<(), String> {
+    if page.json().is_none() {
+        // return false;
+        return Err(format!("Failed to get json of {}", page.page_path));
+    }
+
+    let rev = match page.json().unwrap().rev() {
+        Some(rev) => rev,
+        // None => return false,
+        None => return Err(format!("Failed to get rev of {}", page.page_path)),
+    };
+
+    let rev2 = match json_data2["data"]["page"]["rev"] {
+        json::JsonValue::Number(number) => match number.try_into() {
+            Ok(rev2) => rev2,
+            Err(_) => {
+                // eprintln!("Failed to get rev");
+                // return false;
+
+                return Err(format!("Failed to get rev from json_data2"));
+            }
         },
+        // case: rev="12" ( with "" )
+        json::JsonValue::Short(short) => {
+            let rev2 = short.as_str();
+            match u32::from_str(rev2) {
+                Ok(rev2) => rev2,
+                Err(_) => {
+                    return Err(format!("Failed to get rev2"));
 
-        "data" : {
-            "page" : {
-                "title" : "",
-                "rev" : 0,
-                "rev_speculation" : 0,
-                "group_top" : false,
-        // consider to add path , uri data
-            },
+                    // eprintln!("Failed to get rev");
+                    // return false;
+                }
+            }
+        }
+        // _ => return false,
+        _ => return Err(format!("Failed to get rev2")),
+    };
 
-            "navi" : [
-                /*
-                {"name0" : "href0"},
-                {"name1" : "href1"}
-                // change to
-                ["name0" , "href0"],
-                ["name0" , "href0"],
+    // rev == rev2
+    if rev == rev2 {
+        Ok(())
+    } else {
+        // DBG
+        // Remove a line blow for debug mode
+        // error!(
+        //     "{}",
+        //     format!("DEB SKIP for rev not match {} : {}", rev, rev2)
+        // );
+        // return Ok(());
 
-                 */
-            ],
-
-            "subsection" : {
-                "id" : {
-                    "id_next" : 2,
-                    "id_notinuse" : []
-                },
-
-                "data" : {
-                    "0" : {
-                        "parent" : "",
-                        "id" : "0",
-                        "title" : "",
-                        "href" : "",
-                        "content" : [],
-                        "child" : []
-                    }
-                    ,
-
-                    // "1" : {
-                        // "parent" : "0",
-                        // "id" : "1",
-                        // "title" : "sample",
-                        // "href" : "#sample",
-                        // "content" : [ {"type" : "text", "value" : "sample"} ],
-                        // "child" : []
-                    // }
-
-                },
-
-            },
-
-            "href" : {
-                "relation" : {},
-                "last" : {},
-                "history" : {},
-            },
-        },
+        Err(format!("rev not match {} : {}", rev, rev2))
     }
 }
 
 /// Create a new page under the parent_page
 /// It returns an instance of super::Page
 /// but its file is not saved.
-/// You need to save the file if need it .
+/// You need to save the file if needs.
 ///
 /// It return Err if a file alraady exists in the child_href,
 ///
@@ -246,1227 +205,872 @@ pub fn json_plain() -> json::JsonValue {
 ///
 /// child_href: absolute or related location based on parent_page
 ///
-pub fn page_sub_new(
-    parent_page: &super::Page,
+pub fn page_child_new(
+    parent_page: &mut super::Page,
+    parent_url: url::Url,
     child_title: &str,
     child_href: &str,
 ) -> Result<super::Page, ()> {
-    let (child_title, child_href) = child_title_href(child_title, child_href)?;
-    let (parent_url, child_url) = parent_child_url(parent_page, child_href)?;
+    // If no parent json, no file or no data, return Err(())
+    let _parent_json = parent_page.json().ok_or(())?;
 
-    let child_file_path = parent_page.file_path(child_url.path());
-    if let Ok(_) = fs::File::open(&child_file_path) {
-        // already the file exists.
+    let (child_title, child_href) = title_href_check(child_title, child_href)?;
+    let child_url = child_url(&parent_url, child_href).or(Err(()))?;
+    let child_path = child_url.path();
+
+    // child_href might be a relative: ex: ./move2/move2.html, not for Page::new()
+    // child_url.path(): /Computing/move2/move2.html
+    let mut child_page = super::Page::new(&parent_page.stor_root, child_path);
+
+    // If the file already exists, return Err(())
+    if child_page.source().is_some() {
+        info!("file {} already exists", child_page.file_path());
         return Err(());
     }
 
-    // let parent_json = match parent_page.json() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
+    // json plain
+    let mut child_json = super::page_json::page_json_plain();
 
-    // let parent_contents = match parent_page.contents() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-    let parent_contents = match parent_page.contents_data() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    // Create child_json
-    let mut child_json = json_plain();
     // title
     child_json["data"]["page"]["title"] = child_title.into();
 
     // navi
-    // let mut child_navi = child_navi_set(parent_url, &parent_json, &child_url)?;
-    let mut child_navi = child_navi_set(parent_url, &parent_contents, &child_url)?;
-    // add child page title as last navi element
-    let navi_self: Vec<json::JsonValue> = vec![child_title.into(), "".into()];
-    let _res = child_navi.push(json::JsonValue::Array(navi_self));
+    // navi of parent_page
+    let mut child_navi = child_navi(parent_page, &parent_url, &child_url).or(Err(()))?;
+
+    // add navi of child_href
+    let navi_child: Vec<json::JsonValue> = vec![child_title.into(), "".into()];
+    if child_navi.push(json::JsonValue::Array(navi_child)).is_err() {
+        return Err(());
+    }
+
     child_json["data"]["navi"] = child_navi;
 
     // return Ok(Page)
-    page_from_json(parent_page.page_root(), child_url.path(), child_json)
+    // page_from_json(parent_page.stor_root(), child_path, child_json).or(Err(()))
+    // page_from_json(parent_page.stor_root(), child_path, &child_json).or(Err(()))
+    let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
+    Ok(child_page)
 }
 
-// Check child title and href
-fn child_title_href<'a>(
-    child_title: &'a str,
-    child_href: &'a str,
-) -> Result<(&'a str, &'a str), ()> {
-    let child_title = child_title.trim();
-    if child_title.len() == 0 {
+/// Check title and href
+fn title_href_check<'a>(title: &'a str, href: &'a str) -> Result<(&'a str, &'a str), ()> {
+    let title = title.trim();
+    if title.len() == 0 {
         eprintln!("no child title");
         return Err(());
     }
 
-    let child_href = child_href.trim();
-    if child_href.starts_with("#") {
+    let href = href.trim();
+    if href.starts_with("#") {
         eprintln!("child href starts with #");
         return Err(());
     }
-    if child_href.len() == 0 {
+    if href.len() == 0 {
         eprintln!("no child href");
         return Err(());
     }
 
-    Ok((child_title, child_href))
+    Ok((title, href))
 }
 
-fn parent_child_url<'a>(
-    parent_page: &'a super::Page,
-    child_href: &str,
-) -> Result<(&'a url::Url, url::Url), ()> {
-    let parent_url = match parent_page.url() {
-        Some(v) => v,
-        None => {
-            eprintln!("no parent url");
-            return Err(());
-        }
-    };
-
-    // parent_url;
-    let child_url = match parent_url.join(&child_href) {
-        Ok(u) => u,
-        Err(_) => {
-            eprintln!("parent_url.join failed");
-            return Err(());
-        }
-    };
-
-    Ok((parent_url, child_url))
+fn child_url(parent_url: &url::Url, child_href: &str) -> Result<url::Url, ()> {
+    parent_url.join(&child_href).or_else(|_| {
+        eprintln!("parent_url.join failed");
+        Err(())
+    })
 }
 
-fn child_navi_set(
+/// Create a navi data from parent_page except child_url and its title.
+/// Convert href based on child_url as relative if possible.
+fn child_navi(
+    parent_page: &mut super::Page,
     parent_url: &url::Url,
-    parent_json: &json::JsonValue,
     child_url: &url::Url,
 ) -> Result<json::JsonValue, ()> {
+    let parent_json = parent_page.json().ok_or(())?;
+    // let parent_json = parent_json.data().ok_or(())?;
+    let parent_json = parent_json.value().ok_or(())?;
+
     let parent_navi = match &parent_json["data"]["navi"] {
         json::JsonValue::Array(ref v) => v,
         _ => return Err(()),
     };
 
-    let mut child_navi = json::JsonValue::new_array();
+    let mut child_navi = json::JsonValue::Array(vec![]);
 
     for navi in parent_navi {
-        let title = match navi[0].as_str() {
-            Some(v) => v,
-            None => "no title",
-        };
+        let title = navi[0].clone();
 
         // Convert href switching its base on paretn_url to child_url
-        let href = match navi[1].as_str() {
-            Some(parent_href) => match href_base_switch(&parent_url, parent_href, &child_url) {
-                Some(v) => v,
-                None => "".to_string(),
-            },
-            None => "".to_string(),
-        };
+        let href = navi[1]
+            .as_str()
+            .and_then(|href| href_url(&parent_url, href, &child_url))
+            .or(Some("".to_string())) // only Some
+            .unwrap();
 
-        let navi2: Vec<json::JsonValue> = vec![title.into(), href.into()];
-        let _ = child_navi.push(json::JsonValue::Array(navi2));
+        let mut navi2 = json::JsonValue::Array(vec![]);
+        navi2.push::<json::JsonValue>(title.into()).or(Err(()))?;
+        navi2.push::<json::JsonValue>(href.into()).or(Err(()))?;
+
+        child_navi.push(navi2).or(Err(()))?;
     }
 
     Ok(child_navi)
 }
 
-/// Returns url of fm_href switned base from fm_url to to_url.
-/// If possible, returns relative url based on to_url.
-fn href_base_switch(fm_url: &url::Url, fm_href: &str, to_url: &url::Url) -> Option<String> {
-    // join : Get location of fm_href based on fm_url.
-    match fm_url.join(&fm_href) {
-        Ok(href_url) => {
-            // make_relative: Get relative location of href_url based on to_Url.
-            match to_url.make_relative(&href_url) {
-                Some(v) => Some(v),
-                // absolute
-                None => Some(href_url.as_str().to_string()),
-                // None => Some(href_url.path().to_string()),
-            }
-        }
+/// Convert href to href_url based on org_base.
+/// And get relative url of href based on new_base if posibble.
+fn href_url(org_base: &url::Url, href: &str, new_base: &url::Url) -> Option<String> {
+    // Get Url of href based on org_base
+    match org_base.join(&href) {
+        // Get relative url of href_url based on new_base
+        Ok(href_url) => match new_base.make_relative(&href_url) {
+            Some(v) => Some(v),
+            // No relative exists, so absolute url of href_url(href)
+            None => Some(href_url.as_str().to_string()),
+        },
         Err(_) => None,
     }
 }
 
-///
-/// Issue: if a file already exits in the destination path.
-///
-/// page_moving : page to be move to.
-/// dest_url: url where page_moving move to.
-/// parent_url: the page page_moving becomes to be the child of.
-///
-/// Buffer new page and its children to be saved.
-/// If an error happens, like a page where moving to already exits with contents,
-/// discards the buffer.
-/// If no err happens, save all page in the buffer after all pages were handled.
-///
-/// After move to new location, change the previous pages as discontinued.
-///
+// fn page_json(page: &super::Page) -> Option<&json::JsonValue> {
+//     page.json_value().or_else(|| {
+//         error!(
+//             "{}",
+//             format!("Failed to get page_json.data of {}", page.path())
+//         );
+//         None
+//     })
+// }
+
+/// Move org_page to dest_url as a child of dest_parent_url.
+/// dest_parent_url can be None in a case dest_url is the top page.
 pub fn page_move(
-    page_moving: &super::Page,
+    stor_root: &str,
+    org_url: &url::Url,
     dest_url: url::Url,
-    parent_url: Option<url::Url>,
-) -> Result<(), ()> {
-    // dbg
-    println!("page_utility.rs fn page_move start");
+    dest_parent_url: Option<&url::Url>,
+) -> Result<(), String> {
+    let mut org_page = super::Page::new(stor_root, org_url.path());
 
-    let _href_list = page_move_href_list(page_moving, page_moving.path());
-    // dbg
-    // for href_url in href_list {
-    //     println!("href_url: {}", href_url.as_str());
-    // }
+    let mut dest_parent_page = dest_parent_url.and_then(|url| {
+        let dest_parent_page = super::Page::new(stor_root, url.path());
+        Some(dest_parent_page)
+    });
 
-    // dbg
-    println!("page_utility.rs fn page_move cp0");
-    // return Err(());
-
-    // let _page_moving_json = match page_moving.json() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-
-    // Save backup of page_moving.
-    let _ = page_moving.file_save_rev();
-
-    let page_root = page_moving.page_root();
-
-    // dbg
-    println!("page_utility.rs fn page_move cp1");
-
-    // If a page already exists in dest_url.path(), stop moving.
-    // let mut dest_page = match dest_page(page_root, dest_url.path()) {
-    let mut dest_page = match dest_page(page_moving, dest_url.path()) {
-        Ok(v) => v,
-        // Return err if dest_page has contents.
-        Err(_) => return Err(()),
-    };
-
-    // dbg
-    println!("page_utility.rs fn page_move cp2");
-
-    // let mut parent_page = match parent_url {
-    let parent_page = match parent_url {
-        Some(parent_url) => match super::Page::open(page_root, parent_url.path()) {
-            Ok(mut page) => {
-                // page.json_set();
-                page.contents_set();
-                page.url_set(parent_url);
-                Some(page)
-            }
-            Err(_) => None,
-        },
+    let dest_parent_page_json = match dest_parent_page.as_mut() {
+        Some(page) => page.json(),
         None => None,
     };
 
-    // dbg
-    println!("page_utility.rs fn page_move cp3");
+    let dest_parent_json = dest_parent_page_json.and_then(|page_json| page_json.value());
 
-    // navi
-    match page_move_navi(parent_page.as_ref(), page_moving, &mut dest_page) {
-        Ok(_) => {}
-        Err(_) => return Err(()),
+    let mut page_moving = PageMoving::new();
+
+    let org_json = org_page
+        .json()
+        .and_then(|page_json| page_json.value())
+        .ok_or("Failed to get page_Json.")?;
+
+    page_move_json(
+        &mut page_moving,
+        stor_root,
+        org_json,
+        org_url,
+        &dest_url,
+        dest_parent_url,
+        dest_parent_json,
+    )?;
+
+    dest_page_save(stor_root, &page_moving);
+    org_page_save(stor_root, &page_moving);
+
+    Ok(())
+}
+
+struct PageMoving {
+    org_url_list: Vec<String>,
+    // <org_url, (org_url, dest_url, dest_json)>
+    data: HashMap<String, (url::Url, url::Url, json::JsonValue)>,
+}
+
+impl PageMoving {
+    fn new() -> PageMoving {
+        PageMoving {
+            org_url_list: vec![],
+            data: HashMap::new(),
+        }
     }
 
-    // dbg
-    println!("page_utility.rs fn page_move cp4");
+    fn insert(
+        &mut self,
+        org_url: url::Url,
+        dest_url: url::Url,
+        json: json::JsonValue,
+    ) -> Result<(), String> {
+        if self.data.contains_key(org_url.as_str()) {
+            return Err(format!("org_url recurred: {}", org_url).to_string());
+        }
 
-    // subsections
-    let _res = page_move_subsections(page_moving, &mut dest_page);
+        self.org_url_list.push(org_url.to_string());
+        self.data
+            .insert(org_url.to_string(), (org_url, dest_url, json));
 
-    dest_page.file_save();
-    dest_page.file_save_rev();
+        Ok(())
+    }
 
-    // momorize moving info
+    fn contains_org_url(&self, org_url: &url::Url) -> bool {
+        self.data.contains_key(org_url.as_str())
+    }
 
-    // save page_moving
+    fn get(&self, org_url: &str) -> Option<(url::Url, url::Url, &json::JsonValue)> {
+        if let Some((org_url, dest_url, dest_json)) = self.data.get(org_url) {
+            return Some((org_url.clone(), dest_url.clone(), dest_json));
+        };
 
-    // ~/projects/wc/wc_html/src/page/page_utility.rs
-    // edit the original page_moving
-    // set navi
+        None
+    }
+
+    fn org_url_list(&self) -> Vec<&str> {
+        self.org_url_list.iter().map(|url| url.as_str()).collect()
+    }
+}
+
+fn page_move_json(
+    page_moving: &mut PageMoving,
+    stor_root: &str,
+    org_json: &json::JsonValue,
+    org_url: &url::Url,
+    dest_url: &url::Url,
+    dest_parent_url: Option<&url::Url>,
+    dest_parent_json: Option<&json::JsonValue>,
+) -> Result<(), String> {
+    // DBG
+    info!("\n org_url: {} to\ndest_url: {}", org_url, dest_url);
+
+    // org_url duplication avoiding endlessloop
+    if page_moving.contains_org_url(org_url) {
+        return Err(format!("Duplicated org_url: {}", org_url.as_str()));
+    }
+
+    // Already moved page
+    if !org_json["data"]["page"]["moved_to"].is_empty() {
+        return Err(format!("Already moved : {}", org_url));
+    }
+
+    page_move_dest_already_data(stor_root, dest_url)?;
+
+    let mut dest_json = super::page_json::page_json_plain();
+
+    page_move_system_and(&mut dest_json, &org_json);
+
+    page_move_navi(&mut dest_json, dest_parent_url, dest_parent_json);
+
+    let org_children_href = page_move_subsections(dest_url, &mut dest_json, org_json, &org_url)?;
+
+    page_moving.insert(org_url.clone(), dest_url.clone(), dest_json.clone())?;
+
+    page_move_children(
+        page_moving,
+        stor_root,
+        org_children_href,
+        org_url,
+        dest_url,
+        &dest_json,
+    )?;
 
     // temp
     Ok(())
 }
 
-/// Returns url::Url list of all external pages that can be found in
-/// json_value["data"]["subsection"]["data"][i]["href"].value
-/// and those children recursively.
-/// base_page is expected parent page of href link,
-/// but not have to be the parent,
-/// a page of href also works.
-/// Because it is used to get inherited page.
-fn page_move_href_list(base_page: &super::Page, page_path: &str) -> HashSet<url::Url> {
-    let mut href_list: HashSet<url::Url> = HashSet::new();
-
-    let mut page = base_page.inherited(page_path);
-    page.contents_set();
-    // page.json_set();
-
-    let contents = match page.contents_data() {
-        Some(v) => v,
-        None => return href_list,
-    };
-    // let page_json = match page.json() {
-    //     Some(v) => v,
-    //     None => return href_list,
-    // };
-
-    // json_value["data"]["subsection"]["data"][i]["href"].value
-    // let subsections = &page_json["data"]["subsection"]["data"];
-    let subsections = &contents["data"]["subsection"]["data"];
-    if let json::JsonValue::Object(v) = subsections {
-        let page_url = match page.url() {
-            Some(v) => v,
-            None => return href_list,
-        };
-
-        for (_i, subsection) in v.iter() {
-            let href = match subsection["href"].as_str() {
-                Some(v) => v,
-                None => continue,
-            };
-
-            let href_url = match page_url.join(href) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            // Avoides endless loop.
-            // if href is #some,
-            // calling page_move_href_list() causes loop forever.
-            if page_url.path() == href_url.path() {
-                continue;
-            }
-
-            // Find grandchild href.
-            let href_list_sub = page_move_href_list(&page, &href_url.path());
-            // Append children.
-            for href_sub_url in href_list_sub {
-                href_list.insert(href_sub_url);
-            }
-
-            // Append the child href.
-            href_list.insert(href_url);
-        }
+/// Return Err if page in dest_url has subsection data.
+fn page_move_dest_already_data(
+    // a_page: &mut super::Page,
+    stor_root: &str,
+    dest_url: &url::Url,
+) -> Result<(), String> {
+    // Return Err if dest_page already exists, except no data in the page.
+    let mut dest_page = super::Page::new(stor_root, dest_url.path());
+    // Case the page already has subsection data, abort moving.
+    if dest_page.json_subsections_data_exists() {
+        return Err(format!("The file data already exists: {}", dest_url.path()));
+        // let err_msg = format!("The file data already exists: {}", dest_url.path());
+        // return Err(err_msg);
     }
-
-    href_list
+    return Ok(());
 }
 
-/// Returns new super::Page instance that has no contents.
-/// If the page already exists in the path and contains contents, return Err.
-/// If it exists, but not contents, it returns the instance.
-fn dest_page(page_moving: &super::Page, path: &str) -> Result<super::Page, ()> {
-    let page_root = page_moving.page_root();
-    match super::Page::open(page_root, path) {
-        // Page exists.
-        Ok(mut dest_page) => {
-            dest_page.contents_set();
-            if let Some(contents) = dest_page.contents_data() {
-                // No contents, pahaps empty page or discontinued.
-                // contents["data"]["subsection"]["data"][0] is not real content.
-                if contents["data"]["subsection"]["data"].len() <= 1 {
-                    return Ok(dest_page);
-                }
-            }
-        }
-        // Page does not exists.
-        // Create a new empty instance later.
-        Err(_) => (),
-    }
-
-    info!("fn dest_page creage new page");
-
-    // Create a new super::Page instace
-    let mut dest_page = match super::Page::new(page_root, path) {
-        Ok(v) => v,
-        Err(_) => return Err(()),
-    };
-    // dest_page.json_plain_set();
-    info!("fn dest_page calling data_plain_set");
-    // let contents = dest_page.contents();
-    // info!("fn dest_page contents_mut: {:?}", contents);
-
-    // dbg
-    // match dest_page.contents_mut() {
-    //     Some(_) => info!("fn dest_page contents exists"),
-    //     _ => info!("fn dest_page contents Not exists"),
-    // };
-
-    dest_page
-        .contents_mut()
-        .map(|contents| contents.data_plain_set());
-
-    // dest_page.contents.replace(contents::Contents::new());
-    dest_page.contents_plain_set();
-
-    Ok(dest_page)
+fn page_move_system_and(dest_json: &mut json::JsonValue, org_json: &json::JsonValue) {
+    dest_json["system"] = org_json["system"].clone();
+    dest_json["data"]["page"] = org_json["data"]["page"].clone();
 }
 
-// fn dest_page_(page_root: &str, path: &str) -> Result<super::Page, ()> {
-//     match super::Page::open(page_root, path) {
-//         // Page exists.
-//         Ok(mut dest_page) => {
-//             dest_page.contents_set();
-//             // dest_page.json_set();
-
-//             // if let Some(json) = dest_page.json() {
-//             //     // No contents, pahaps empty page or discontinued.
-//             //     if json["data"]["subsection"]["data"].len() == 0 {
-//             //         return Ok(dest_page);
-//             //     }
-//             // }
-//             if let Some(contents) = dest_page.contents_data() {
-//                 // No contents, pahaps empty page or discontinued.
-//                 if contents["data"]["subsection"]["data"].len() == 0 {
-//                     return Ok(dest_page);
-//                 }
-//             }
-//         }
-//         // Page does not exists.
-//         // Create a new empty instance later.
-//         Err(_) => (),
-//     }
-
-//     // Create a new super::Page instace
-//     let mut dest_page = match super::Page::new(page_root, path) {
-//         Ok(v) => v,
-//         Err(_) => return Err(()),
-//     };
-//     // dest_page.json_plain_set();
-//     let _ = &dest_page
-//         .contents_mut()
-//         .map(|contents| contents.data_plain_set());
-
-//     Ok(dest_page)
-// }
-
+/// Set page title in dest_json["data"]["page"]["title"] before call this.
 fn page_move_navi(
-    parent_page: Option<&super::Page>,
-    page_moving: &super::Page,
-    dest_page: &mut super::Page,
-) -> Result<(), ()> {
-    // span!(Level::TRACE, "fn_page_move_navi");
+    dest_json: &mut json::JsonValue,
+    dest_parent_url: Option<&url::Url>,
+    dest_parent_json: Option<&json::JsonValue>,
+) {
+    // Get title at here before calling page_move_navi_parent
+    // to avoid a borrow err.
+    let title = dest_json["data"]["page"]["title"]
+        .as_str()
+        .or(Some("no title"))
+        .unwrap()
+        .to_string();
 
-    info!("fn page_move_navi cp");
+    let dest_navi = &mut dest_json["data"]["navi"];
 
-    // let page_moving_json = match page_moving.json() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-    let fm_contents = match dest_page.contents_data() {
-        Some(v) => v,
-        None => return Err(()),
-    };
+    // navi to the parent
+    page_move_navi_parent(dest_parent_url, dest_parent_json, dest_navi);
 
-    info!("fn page_move_navi cp1");
-
-    // let page_moving_navi = match &page_moving_json["data"]["navi"] {
-    let page_moving_navi = match &fm_contents["data"]["navi"] {
-        json::JsonValue::Array(ref v) => v,
-        _ => return Err(()),
-    };
-
-    info!("fn page_move_navi cp2");
-
-    // If page_moving has only one navi element,
-    // it means the navi element is the top navi item.
-    // So it does not inherit parent navi.
-    //
-    // If parent_page is None, no parent navi is inherited.
-    //
-    let mut navi = if 1 < page_moving_navi.len() && parent_page.is_some() {
-        // Inherite parent page navi.
-        let parent_page = parent_page.as_ref().unwrap();
-        page_move_navi_inherit(parent_page, dest_page)
-    } else {
-        json::JsonValue::new_array()
-    };
-
-    // Push page_moving's title
-    // navi_dest: the last element of navi list that is for destination page.
-    //
-    // let fm_json = match page_moving.json() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-    let fm_contents = match page_moving.contents_data() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    info!("fn page_move_navi cp3");
-
-    // let title = match fm_json["data"]["page"]["title"].as_str() {
-    let title = match fm_contents["data"]["page"]["title"].as_str() {
-        Some(s) => s,
-        None => "no title",
-    };
-    let navi_dest: Vec<json::JsonValue> = vec![title.into(), "".into()];
-    let _ = navi.push(json::JsonValue::Array(navi_dest));
-
-    // Put navi_dest to dest_page.
-    //    page_dest.
-
-    //
-    // let dest_page_json = match dest_page.json_mut() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-
-    let dest_page_contents = match dest_page.contents_data_mut() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    info!("fn page_move_navi cp4");
-
-    // dest_page_json["data"]["navi"] = navi;
-    dest_page_contents["data"]["navi"] = navi;
-
-    Ok(())
+    // navi to this page
+    let title = json::JsonValue::from(title);
+    let href = json::JsonValue::from("");
+    let navi = json::array![title, href];
+    let _ = dest_navi.push(navi);
 }
 
-/// Create a navi list inheriting parent_page.
-fn page_move_navi_inherit(
-    parent_page: &super::Page,
-    child_page: &super::Page,
-    // ) -> Result<json::JsonValue, ()> {
-) -> json::JsonValue {
-    let mut child_navi = json::JsonValue::new_array();
+fn page_move_navi_parent(
+    dest_parent_url: Option<&url::Url>,
+    dest_parent_json: Option<&json::JsonValue>,
+    dest_navi: &mut json::JsonValue,
+) -> Option<()> {
+    let dest_parent_url = dest_parent_url?;
+    let dest_parent_navi = match dest_parent_json?["data"]["navi"] {
+        json::JsonValue::Array(ref vec) => Some(vec),
+        _ => None,
+    }?;
 
-    // let parent_page_json = match parent_page.json() {
-    //     Some(v) => v,
-    //     None => return child_navi,
-    // };
-    let parent_page_contents = match parent_page.contents_data() {
-        Some(v) => v,
-        None => return child_navi,
-    };
+    for p_navi in dest_parent_navi.iter() {
+        let title = p_navi[0].as_str().or(Some("no title")).unwrap();
+        let title = json::JsonValue::from(title);
 
-    // let parent_navi = match &parent_page_json["data"]["navi"] {
-    let parent_navi = match &parent_page_contents["data"]["navi"] {
-        json::JsonValue::Array(ref v) => v,
-        _ => return child_navi,
-    };
-
-    //let parent_page_url = match parent_page.url().as_ref() {
-    let parent_page_url = match parent_page.url() {
-        Some(v) => v,
-        None => return child_navi,
-    };
-
-    // if child_page.url().is_none() { return child_navi; }
-    let child_page_url = match child_page.url() {
-        Some(v) => v,
-        None => return child_navi,
-    };
-
-    for navi in parent_navi {
-        let title = match navi[0].as_str() {
-            Some(v) => v,
-            None => "no title",
-        };
-
-        let href = match navi[1].as_str() {
-            Some(parent_href) => {
-                // Convert href that based on parent pate to based on child_page.
-                match href_base_switch(&parent_page_url, parent_href, &child_page_url) {
-                    Some(v) => v,
-                    None => "".to_string(),
-                }
-            }
-            None => "".to_string(),
-        };
-
-        let vec: Vec<json::JsonValue> = vec![title.into(), href.into()];
-        let _res = child_navi.push(json::JsonValue::Array(vec));
+        let href = p_navi[1].as_str().or(Some(""))?;
+        // href based on org_parent_url
+        // href: String of url.path()
+        let href = dest_parent_url
+            .join(href)
+            .and_then(|url| Ok(url.path().to_string()))
+            // "" if failed.
+            .or::<Result<&str, ()>>(Ok("".to_string()))
+            .unwrap();
+        let href = json::JsonValue::from(href);
+        let navi = json::array![title, href];
+        let _ = dest_navi.push(navi);
     }
 
-    child_navi
+    Some(())
 }
 
-fn page_move_subsections(page_moving: &super::Page, dest_page: &mut super::Page) -> Result<(), ()> {
-    // let dest_page_json = match dest_page.json_mut() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-    let dest_page_contents = match dest_page.contents_data() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-    // let dest_subsections = match &dest_page_json["data"]["subsection"]["data"] {
-    let dest_subsections = match &dest_page_contents["data"]["subsection"]["data"] {
-        json::JsonValue::Object(v) => v,
-        _ => return Err(()),
-    };
+fn page_move_subsections(
+    dest_url: &url::Url,
+    dest_json: &mut json::JsonValue,
+    org_json: &json::JsonValue,
+    org_url: &url::Url,
+) -> Result<Vec<String>, String> {
+    let subsections = match &org_json["data"]["subsection"]["data"] {
+        json::JsonValue::Object(ref object) => Some(object),
+        _ => None,
+    }
+    .ok_or("Failed to get subsection data".to_string())?;
 
-    // ??
-    let mut _dest_subsections = dest_subsections.clone();
+    let mut dest_subsections = json::object! {};
+    let mut children_href: Vec<String> = vec![];
 
-    // let page_moving_json = match page_moving.json() {
-    //     Some(v) => v,
-    //     None => return Err(()),
-    // };
-    let page_moving_contents = match page_moving.contents_data() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-    let fm_subsections = &page_moving_contents["data"]["subsection"]["data"];
-    if let json::JsonValue::Object(_) = &page_moving_contents["data"]["subsection"]["data"] {
-    } else {
-        return Err(());
-    };
-
-    // entries: returns iterator of JsonValue::Object.
-    for (_id, fm_subsection) in fm_subsections.entries() {
-        let _res = page_move_subsection(page_moving, fm_subsection, dest_page);
+    for (id, org_subsection) in subsections.iter() {
+        dest_subsections[id] =
+            page_move_subsection(dest_url, org_url, org_subsection, &mut children_href)?;
     }
 
-    //temp
-    Ok(())
+    dest_json["data"]["subsection"]["data"] = dest_subsections;
+
+    // temp
+    Ok(children_href)
 }
 
 fn page_move_subsection(
-    page_moving: &super::Page,
-    fm_subsection: &json::JsonValue,
-    dest_page: &mut super::Page,
-) -> Result<(), ()> {
-    let mut dest_subsection = json::JsonValue::new_object();
-
-    // href
-    dest_subsection["href"] = match page_move_subsection_href(page_moving, fm_subsection, dest_page)
-    {
-        Ok(v) => v.into(),
-        Err(_) => return Err(()),
-    };
-
-    // content
-    dest_subsection["content"] =
-        match page_move_subsection_contents(page_moving, fm_subsection, dest_page) {
-            Ok(v) => v,
-            Err(_) => return Err(()),
-        };
-
-    // temp
-    Err(())
-}
-
-fn page_move_href_convert() {}
-
-fn page_move_subsection_href(
-    page_moving: &super::Page,
-    fm_subsection: &json::JsonValue,
-    dest_page: &mut super::Page,
-) -> Result<String, ()> {
-    let fm_href = match fm_subsection["href"].as_str() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    let page_moving_url = match page_moving.url() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    let fm_href_url = match page_moving_url.join(fm_href) {
-        Ok(v) => v,
-        Err(_) => return Err(()),
-    };
-
-    // Get fm_href_relative to know if fm_href is a relation to page_moving,
-    // or its children.
-    let fm_href_relative = match page_moving_url.make_relative(&fm_href_url) {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    let dest_page_url = match dest_page.url() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    // If href starts with "../", it relates not to page_moving or its children.
-    // In this case, convert the relation based on page_moving_url to dest_page_url.
-    let dest_href = if fm_href_relative.starts_with("../") {
-        match href_base_switch(&page_moving_url, fm_href, &dest_page_url) {
-            Some(v) => v,
-            None => return Err(()),
+    dest_url: &url::Url,
+    org_url: &url::Url,
+    org_subsection: &json::JsonValue,
+    children_href: &mut Vec<String>,
+) -> Result<json::JsonValue, String> {
+    let mut dest_subsection = json::object! {};
+    page_move_subsection_title_and(org_subsection, &mut dest_subsection);
+    let org_href = org_subsection["href"].as_str().or(Some("")).unwrap();
+    if let Some((dest_href, is_child)) = href_move(org_url, org_href, dest_url) {
+        dest_subsection["href"] = dest_href.as_str().into();
+        if is_child {
+            // In case a child dest_href is relative and
+            // can be used for org_url also
+            children_href.push(dest_href);
         }
-    } else {
-        // fm_href_url is a link to page_moving or its children.
-        // Relative href in page_moving can work at dest_page as well.
-        fm_href_relative
     };
+    dest_subsection["content"] =
+        page_move_subsection_content(&org_subsection["content"], org_url, dest_url)?;
 
-    Ok(dest_href)
+    Ok(dest_subsection)
 }
 
-fn page_move_subsection_contents(
-    page_moving: &super::Page,
-    fm_subsection: &json::JsonValue,
-    dest_page: &super::Page,
-) -> Result<json::JsonValue, ()> {
-    //
-    let fm_contents = match &fm_subsection["content"] {
-        json::JsonValue::Array(v) => v,
-        _ => return Err(()),
+fn page_move_subsection_title_and(
+    subsection: &json::JsonValue,
+    dest_subsection: &mut json::JsonValue,
+) {
+    dest_subsection["parent"] = subsection["parent"].clone();
+    // dest_subsection["id"] = subsection["id"].clone();
+    dest_subsection["title"] = subsection["title"].clone();
+    dest_subsection["child"] = subsection["child"].clone();
+
+    // Set id as str, converting number to str.
+    let id_str = match subsection["id"] {
+        json::JsonValue::Number(number) => {
+            let id: f64 = number.clone().into();
+            id.to_string()
+        }
+        _ => subsection["id"].as_str().or(Some("")).unwrap().to_string(),
     };
+    dest_subsection["id"] = id_str.into();
+}
 
-    let page_moving_url = match page_moving.url() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    let dest_page_url = match dest_page.url() {
-        Some(v) => v,
-        None => return Err(()),
-    };
-
-    let dest_contents = json::JsonValue::new_array();
-
-    for fm_content in fm_contents {
-        let fm_value = match fm_content["value"].as_str() {
-            Some(v) => v,
-            None => return Err(()),
+/// Premise: all urls of org_children_url are children of parent_org_url.
+fn page_move_children(
+    page_moving: &mut PageMoving,
+    stor_root: &str,
+    org_children_href: Vec<String>,
+    parent_org_url: &url::Url,
+    parent_dest_url: &url::Url,
+    parent_dest_json: &json::JsonValue,
+) -> Result<(), String> {
+    for child_org_href in org_children_href {
+        let (child_org_json, child_org_url, child_dest_url) = match page_move_children_prepare(
+            stor_root,
+            &child_org_href,
+            parent_org_url,
+            parent_dest_url,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{}", e);
+                continue;
+            }
         };
+        page_move_json(
+            page_moving,
+            stor_root,
+            &child_org_json,
+            &child_org_url,
+            &child_dest_url,
+            Some(parent_dest_url),
+            Some(parent_dest_json),
+        )?;
+    }
 
-        let mut dest_content = json::JsonValue::new_object();
+    Ok(())
+}
 
-        dest_content["value"] =
-            // page_move_subsection_content_href_convert(page_moving, fm_value, dest_page).into();
-            page_move_subsection_content_href_convert(fm_value, page_moving_url, dest_page_url).into();
+fn page_move_children_prepare(
+    stor_root: &str,
+    child_org_href: &str,
+    parent_org_url: &url::Url,
+    parent_dest_url: &url::Url,
+) -> Result<(json::JsonValue, url::Url, url::Url), String> {
+    let child_org_url = match parent_org_url.join(child_org_href) {
+        Ok(v) => v,
+        Err(_) => return Err(format!("Failed to get url for : {}", child_org_href)),
+    };
+
+    let mut child_org_page = super::Page::new(stor_root, child_org_url.path());
+
+    let child_org_json = match child_org_page
+        .json()
+        .and_then(|page_json| page_json.value())
+    {
+        Some(v) => v,
+        None => {
+            return Err(format!(
+                "Failed to get page_json of {}",
+                child_org_page.file_path()
+            ))
+        }
+    };
+
+    let child_dest_url = match parent_dest_url.join(child_org_href) {
+        Ok(v) => v,
+        Err(_) => {
+            return Err(format!(
+                "Failed to get child_dest_url of {}",
+                child_org_href
+            ));
+        }
+    };
+
+    Ok((child_org_json.clone(), child_org_url, child_dest_url))
+}
+
+fn page_move_subsection_content(
+    org_contents: &json::JsonValue,
+    org_url: &url::Url,
+    dest_url: &url::Url,
+    //
+    // dest_subsection: &mut json::JsonValue,
+    // org_children_url: &mut HashSet<url::Url>,
+) -> Result<json::JsonValue, String> {
+    let org_contents = match org_contents {
+        json::JsonValue::Array(ref v) => v,
+        _ => {
+            let msg = format!("Failed to get content of {} as Arrray", org_url.path());
+            return Err(msg);
+        }
+    };
+
+    let mut dest_contents = json::array![];
+    for org_content in org_contents {
+        // "content" : [ {"type" : "text", "value" : "sample"} ],
+        let mut dest_content = json::object! {};
+        dest_content["type"] = org_content["type"].clone();
+
+        let org_content_value = org_content["value"].as_str().or(Some("")).unwrap();
+        let dest_content_value =
+            page_move_content_href_convert(org_content_value, org_url, dest_url);
+        dest_content["value"] = dest_content_value.into();
+
+        dest_contents.push(dest_content).or_else(|e| {
+            let msg = format!(
+                "Failed to push content {}\n with {:?}",
+                org_content_value, e
+            );
+            Err(msg)
+        })?;
     }
 
     Ok(dest_contents)
 }
 
-fn page_move_subsection_content_href_convert(
-    fm_content: &str,
-    page_moving_url: &url::Url,
-    dest_page_url: &url::Url,
-) -> String {
-    // fn page_move_subsection_content_href_convert(
-    //     page_moving: &super::Page,
-    //     fm_content: &str,
-    //     dest_page: &super::Page,
-    // ) -> String {
+fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
+    for org_url in page_moving.org_url_list() {
+        let (_org_url, dest_url, dest_json) = match page_moving.get(org_url) {
+            Some(v) => v,
+            None => {
+                error!("{}", format!("No page2Moving for {}", org_url));
+                continue;
+            }
+        };
+        let mut dest_page = page_from_json(stor_root, dest_url.path(), dest_json);
+        // dest_page.dir_build();
+        if dest_page.dir_build().is_err() {
+            continue;
+        }
+
+        let _r = dest_page.file_save_and_rev();
+    }
+}
+
+fn org_page_save(stor_root: &str, page_moving: &PageMoving) {
+    for org_url in page_moving.org_url_list() {
+        let (mut org_page, org_page_json) =
+            match page_org_page_moved(stor_root, org_url, &page_moving) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    continue;
+                }
+            };
+
+        if let Err(e) = org_page.json_replace_save(org_page_json) {
+            error!("{}", e);
+        }
+    }
+}
+
+// fn page_moved_to(page: &mut super::Page) -> Option<&str> {
+//     let json_value = page.json_value()?;
+//     json_value["data"]["page"]["moved_to"].as_str()
+
+//     // let mut org_page = super::Page::new(stor_root, org_url.path());
+//     // let org_json = org_page
+//     //     .json_value()
+//     //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
+
+//     //    org_json_uped["data"]["page"]["moved_to"] = dest_url.as_str().into();
+// }
+
+/// Set the page of org_url as moved.
+fn page_org_page_moved(
+    stor_root: &str,
+    org_url: &str,
+    page_moving: &PageMoving,
+) -> Result<(super::Page, json::JsonValue), String> {
+    let (org_url, dest_url, _dest_json) = match page_moving.get(org_url) {
+        Some(v) => v,
+        None => return Err(format!("No page2Moving for {}", org_url)),
+    };
+
+    let mut org_page = super::Page::new(stor_root, org_url.path());
+    let org_json = org_page
+        .json_value()
+        .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
+
+    // let org_json = org_page
+    //     .json()
+    //     .and_then(|page_json| page_json.value())
+    //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
+
+    // let org_json = match org_page.json().and_then(|page_json| page_json.value()) {
+    //     Some(v) => v,
+    //     None => return Err(format!("Failed to get page_json.data of {}", org_url)),
+    // };
+
+    let mut org_json_uped = org_json.clone();
+
+    // moved_to
+    org_json_uped["data"]["page"]["moved_to"] = dest_url.as_str().into();
+
+    // title
+    let title = org_json["data"]["page"]["title"]
+        .as_str()
+        .or(Some(""))
+        .unwrap();
+    let title = format!("Moved({}) to {}", title, dest_url);
+
+    // navi
+    let navi = match &mut org_json_uped["data"]["navi"] {
+        json::JsonValue::Array(ref mut v) => v,
+        _ => return Err(format!("Failed to vet navi data of : {}", org_url)),
+    };
+
+    if navi.len() == 0 {
+        return Err(format!("Failed to vet navi data of : {}", org_url));
+    }
+
+    let pos_last = navi.len() - 1;
+    navi[pos_last][0] = title.into();
+
+    Ok((org_page, org_json_uped))
+}
+
+/// Returns Option<(String, bool)
+/// Convert org_href to href based on dest_url.
+/// String: href value in String that can be used in the page at dest_url.
+/// bool: true if org_href is child of org_url, false if org_href is link to the page of org_url or not child of org_url.
+/// Return None if failed to convert href.
+///
+/// org_url: original url base
+/// org_href: original href defined in the page of org_url
+/// dest_url: url where new href is used at.
+///
+/// href to child page of org_url can be relative,
+/// but otherwise should be absolute.
+/// "/abc" : absolute, start with /
+/// "abc" : relative, start without /
+fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option<(String, bool)> {
+    let org_href_url = org_url.join(org_href).ok()?;
+
+    let is_not_child = false;
+
+    // Case the host is not of this page, return the original value as it is.
+    if org_href_url.host() != org_url.host() {
+        // full url
+        let href = org_href_url.as_str().to_string();
+        return Some((href, is_not_child));
+    }
+
+    // Case org_href path is as same as org_url path, means same page.
+    // if org_href is empty, no need to make a new link.
+    if org_url.path() == org_href_url.path() {
+        // org_href may be as same as href we get here,
+        // but org_href might have some more infomation than the reference.
+        // fragment: (#)subsection1 (exclude #)
+        let fragment = org_href_url.fragment()?;
+        let href = "#".to_string() + fragment;
+
+        return Some((href, is_not_child));
+    }
+
+    // Case org_href is child of org_url,
+    // In case org_href path is as same as org_url path, it was handled previously and it does not come here.
+    // relative href can be used, so you can forget about dest_url
     //
-    let mut content = String::from(fm_content);
+    // remove file name from org_url.path()
+    let filename = org_url.path_segments().and_then(|split| split.last())?;
+    let org_dir = org_url.path().strip_suffix(filename)?;
+    if org_href_url.path().starts_with(org_dir) {
+        //      org_dir: org/url/  (org_url without filename)
+        // org_href_url: org/url/href/page.html#fragment
+        // remove prefix(: org/url/ ), remains: href/page.html
+        // href: href/page.html
+        let mut href = org_href_url.path().strip_prefix(org_dir)?.to_string();
+        if let Some(fragment) = org_href_url.fragment() {
+            href = href + "#" + fragment;
+        }
+        // dest base
+        let is_child = true;
+        return Some((href, is_child));
+    }
 
-    // let page_moving_url = match page_moving.url() {
-    //     Some(v) => v,
-    //     None => return content,
-    // };
+    // Case not child of the orig_url
+    let org_href_url = org_url.join(org_href).unwrap();
+    println!("org_href_url: {}", org_href_url.as_str());
+    let dest_href_url = org_href_url;
+    let mut href = dest_href_url.path().to_string();
+    if let Some(fragment) = dest_href_url.fragment() {
+        href = href + "#" + fragment;
+    }
 
-    // let dest_page_url = match dest_page.url() {
-    //     Some(v) => v,
-    //     None => return content,
-    // };
+    Some((href, is_not_child))
+}
 
-    // inside of content["value"]
+fn page_move_content_href_convert(
+    org_content: &str,
+    org_url: &url::Url,
+    dest_url: &url::Url,
+) -> String {
     let mut index: usize = 0;
+    let mut content = String::from(org_content);
+
     loop {
         if content.len() <= index {
             break;
         }
 
-        // Get index of href value position in content
-        // href="value1"
-        // Search from &str[index..]
-        let (start, end) = match href_pos(&content, index) {
-            Some(v) => v,
-            // href value not found.
-            None => break,
-        };
+        // Search where href="xxx".
+        let href_pos = href_pos(&content, index);
+        // href not found.
+        if href_pos.is_none() {
+            break;
+        }
+        let (href_start, href_end, href_value_start, href_value_end) = href_pos.unwrap();
 
-        // next loop may start from where after the current href value position
-        index = end;
+        // Convert href value for moving.
+        let org_href = &content[href_value_start..href_value_end];
+        let op_href_move = href_move(org_url, org_href, dest_url);
 
-        let href_value = &content[start..end];
-
-        // Case #abc, it is local link, so nothing to do about href_value,
-        // leave as it is and do further on conversion on the rest.
-        if href_value.starts_with("#") {
-            // index = end;
+        // Failed to convert href valuye.
+        // Leave the href="xxx" as it is.
+        // Keep the loop from href_value_end.
+        if op_href_move.is_none() {
+            index = href_value_end;
             continue;
         }
 
-        // Convert href to based on dest_page
-        match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
-            Some(href_converted) => {
-                // let href_len = href_value.len();
+        let (dest_href, _is_child) = op_href_move.unwrap();
 
-                // index = end - href_value.len() + href_converted.len();
+        // make href="converted_href_value"
+        // put a space before "href=".
+        let dest_href_equation = " href=\"".to_string() + &dest_href + "\"";
+        content.replace_range(href_start..href_end, &dest_href_equation);
 
-                // Compensate href value change on index.
-                // It should be href_value.len() < index
-                // index = index - href_value.len() + href_converted.len();
-                index -= href_value.len();
-                index = match index.checked_add(href_converted.len()) {
-                    Some(v) => v,
-                    None => break,
-                };
-
-                // replace href_value
-                // start should be greater than 0,
-                // because it is index after " of <a href="href_value">
-                // So checked_add_singed is not required.
-                // content = content[0..start - 1].to_string() + &href_converted + &content[end..];
-                content = content[0..start].to_string() + &href_converted + &content[end..];
-
-                //
-            }
-            // Failed to convert href
-            None => {
-                // ignore the href
-                // index = end;
-                continue;
-            }
+        index = match href_start.checked_add(dest_href_equation.len()) {
+            Some(v) => v,
+            None => break,
         }
-
-        // Convert href to based on dest_page
-        // let res = href_base_switch(&page_moving_url, href_value, &dest_page_url);
-        // If failed to convert the href, ignore it and go on further loop.
-        // if let None = res {
-        //     // index = match index.checked_add(end) {
-        //     //     Some(v) => v,
-        //     //     None => break,
-        //     // };
-        //     continue;
-        // }
-
-        // res is Some
-        // let href_value_converted = res.unwrap();
-        // let href_len = href_value.len();
-        // let href_converted_len = href_value_converted.len();
-
-        // replace href_value
-        // start should be greater than 0,
-        // because it is index after " of <a href="href_value">
-        // So checked_add_singed is not required.
-        // content = content[0..start - 1].to_string() + &href_value_converted + &content[end..];
-
-        // safely index = index - href_value.len() + href_value_converted.len();
-        // index = index - href_len;
-        // index = match index.checked_add(href_value_converted.len()) {
-        //     Some(v) => v,
-        //     None => break,
-        // };
-
-        // index = index + start + href_value.len();
-
-        // match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
-        //     Some(v) => {
-        //         //
-        //         v;
-        //     }
-        //     None => {
-        //         // use checked_add()
-        //         index += end;
-        //     }
-        // };
-
-        // Convert href to based on dest_page
-        // let href_value = match href_base_switch(&page_moving_url, href_value, &dest_page_url) {
-        //     Some(s) => s,
-        //     // if not use href not converted
-        //     None => href_value.to_string(),
-        // };
-
-        // get content_str that href is replaced with what based on dest_page
-        // content = content[0..start - 1].to_string() + &href_value + &content[end..];
     }
-
     content
 }
 
-/// Find ptn from &str[search_start..] .
-/// search_start: start position of str to find
-/// ptn: pattern to find
-/// It does not match with \ptn; escaped by \
-fn find_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, usize)> {
-    // Regular expression to find ptn
-    let re_ptn = regex::Regex::new(&ptn).unwrap();
-    // Regular expression to find backslash `\` continuing more than two.
-    let re_esc = regex::Regex::new(r"(\\+)$").unwrap();
+/// Ssearch an element <a href="href_value"> on argument str and return href and its value positions as Some((href_start, href_end, href_value_start, href_value_end))
+/// Return None if not found or any error.
+/// The search starts on &str[find_start..], so &str[..find_start] is ignored.
+/// Start end end position are counted as &str[0] is 0.
+///
+/// Serch pattern takes speces before href="xxx" if there is, but not at the and.
+/// So to remake href, you may put space before href="yyy"
+fn href_pos(str: &str, search_start: usize) -> Option<(usize, usize, usize, usize)> {
+    // Search <a, but not escaped \<a:
+    let (_a_start, a_end) = pos_not_escaped(str, search_start, "<a")?;
+
+    // Search href="value"
+    // href=" or href='
+    // (?i) : not case-sensitive
+    let reg_href = regex::Regex::new(r#"(?i)\s*href\s*=\s*["']"#).unwrap();
+    let href_mat = reg_href.find(&str[a_end..])?;
+    // begining point of href=""
+    // starts a_end so add it to the result
+    let href_start = a_end.checked_add(href_mat.start())?;
+    // position of the first quote charactor
+    // starts a_end so add it to the result
+    let q1_end = a_end.checked_add(href_mat.end())?;
+    // one charactor " before
+    let q1_start = q1_end.checked_add_signed(-1)?;
+    // Get the first quote.
+    let quote = &str[q1_start..q1_end];
+    // Search second quote in after href=", q1_end position.
+    let (q2_start, q2_end) = pos_not_escaped(str, q1_end, quote)?;
+    let href_value_start = q1_end;
+    let href_value_end = q2_start;
+    let href_end = q2_end;
+
+    // Return positions of value part: abc of href="abc"
+    // Some((q1_end, q2_start))
+    Some((href_start, href_end, href_value_start, href_value_end))
+}
+
+/// Search ptn on str and return the first position of it as Some(start, end),
+/// or None if not found or any error.
+/// It does not match if `/` is found before ptn as an escape key.
+/// It start serching from search_start position of str
+fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, usize)> {
+    // Regular expression of ptn
+    let re_ptn = regex::Regex::new(&ptn).ok()?;
+
+    // Regular expression of backslash `\` continuing more than two.
+    let re_esc = regex::Regex::new(r"(\\+)$").ok()?;
 
     let mut index_start = search_start;
 
     loop {
+        // Serching reaced at the end and ptn was not found.
         if str.len() <= index_start {
-            // ptn was not found
-            break;
+            return None;
         }
 
         // Search ptn
-        let mat = match re_ptn.find(&str[index_start..]) {
-            Some(v) => v,
-            // ptn was not found
-            None => break,
-        };
+        let ptn_match = re_ptn.find(&str[index_start..])?;
 
         // index position of ptn starts.
-        let ptn_start = match index_start.checked_add(mat.start()) {
-            Some(v) => v,
-            None => break,
-        };
+        let ptn_start = index_start.checked_add(ptn_match.start())?;
 
         // Check if the ptn is escaped.
         // To do that, count number of \ before ptn.
         //
-        // \\\\ptn
+        // \\\\ptn (\ is more than one)
         // if \ exists just befor ptn
-        // it might be an escape code for ptn (\ptn)
-        // or just `\` charactor (\\ptn)
+        // it might be an escape code (\ptn)
+        // or just `\` charactor (\\ptn: `\` + ptn)
         //
-        // In case of `\` charactor,
+        // In case of single `\` charactor,
         // it should be escape code \ before `\` charactor
         // so \\ is a caractor `\` with escaped code.
         //
         // If number of continuous \ is odd, the last \ is escape code for ptn.
-        // eg "\\ \\ \\ \\ \ptn" (The parrern is escaped by \.)
-        // (consider as spaces are not exists, those are only for easy to see.)
+        // eg "\\ \\ \\ \\ \ptn" (The parrern is escaped by the last \.)
+        // (consider as spaces in above are not exists, those spaces are only for easy to see.)
         //
         // If number of continuous \ is even, those are some couple of
-        // escape code and `\` charactor.
+        // escape code and it means `\` charactors.
         // eg "\\ \\ \\ \\ ptn" (The parrern is not escaped by \.)
         //
         // If make some couple of \ (\\) and still remains one \
         // it means ptn is escaped.
-        // In case of html, it is not an element.
+        // In case of html, it is not an element since < is escaped with \.
         // eg: \<a\>
         //
-        // Find escap charactor befor ptn position.
-        // &str[index_start..ptn_start]: str before ptn
-        // Find \ at the end of &str[index_start..ptn_start]
-        if let Some(cap) = re_esc.captures(&str[index_start..ptn_start]) {
-            // escape charactor found
+        // Find `\` just befor ptn position.
+        // &str[index_start..ptn_start]: str just before ptn, just beforeptn_start
+        let escape_cap = re_esc.captures(&str[index_start..ptn_start]);
+
+        // Set index_start position to end of ptn.
+        index_start = index_start.checked_add(ptn_match.end())?;
+
+        if let Some(cap) = escape_cap {
+            // If number of `\` is odd, ptn is escaped.
             if &cap[1].len() % 2 == 1 {
-                // Number of charactor in cap is odd (ex: \\ \).
-                // ptn is escaped.
-                // skip escaped ptn and go further on.
-                // Add mat.end() to index_start.
-                match index_start.checked_add(mat.end()) {
-                    Some(v) => {
-                        index_start = v;
-                        continue;
-                    }
-                    None => break,
-                };
+                // Search ptn again after new index_start position
+                continue;
             }
         }
 
-        let ptn_end = match index_start.checked_add(mat.end()) {
-            Some(v) => v,
-            None => break,
-        };
-
-        // Return ptn position that is not escaped.
+        let ptn_end = index_start;
         return Some((ptn_start, ptn_end));
     }
-
-    // Reached at the end of str and ptn not escaped was not found.
-    None
 }
-
-/// Find ptn from str_hole.
-/// find_start: start position to find
-/// ptn: pattern to find
-fn _find_not_escaped_alt1(str_hole: &str, find_start: usize, ptn: &str) -> Option<(usize, usize)> {
-    // find_start is more than str_hole.
-    if str_hole.len() <= find_start {
-        return None;
-    }
-
-    let str = &str_hole[find_start..];
-
-    // Regular expression to find ptn
-    let re_ptn = regex::Regex::new(&ptn).unwrap();
-    // Regular expression to find backslash `\` continuing more than two.
-    // at the end of str.
-    let re_esc = regex::Regex::new(r"(\\+)$").unwrap();
-
-    // index_current: index position handling currently.
-    let mut index_current: usize = 0;
-
-    loop {
-        if str.len() <= index_current {
-            // ptn was not found
-            break;
-        }
-
-        let str_crt = &str[index_current..];
-
-        // find ptn
-        let mat = match re_ptn.find(&str_crt) {
-            Some(v) => v,
-            // ptn was not found
-            None => break,
-        };
-
-        // index position of ptn .
-        let ptn_index = mat.start();
-
-        // Check if the ptn is escaped.
-        // To do that, count number of \ before ptn.
-        //
-        // \ptn
-        // if \ exists just befor ptn
-        // it might be an escape code for ptn (\ptn)
-        // or just `\` charactor (\\ptn)
-        //
-        // In case of `\` charactor,
-        // it should be escape code \ before `\` charactor
-        // so \\ is a caractor `\` with escaped code.
-        //
-        // If number of continuous \ is odd, the last \ is escape code.
-        // eg "\\ \\ \\ \\ \ptn" (The parrern is escaped by \.)
-        // (consider as spaces are not exists, those are only for easy to see.)
-        //
-        // If number of continuous \ is even, those are some couple of
-        // escape code and `\` charactor.
-        // eg "\\ \\ \\ \\ ptn" (The parrern is not escaped by \.)
-        //
-        // If make some couple of \ (\\) and still remains one \
-        // it means ptn is escaped, that meas ptn is not an html element
-        //
-        // &str_crt[..ptn_index]: str before ptn
-        // Find \ at the end of &str_crt[..ptn_index].
-        //
-
-        // let cap_op = re_esc.captures(&str_crt[..ptn_index]);
-        // if let Some(cap) = cap_op {
-        //     // escaped
-        //     if &cap[1].len() % 2 == 1 {
-        //         // skip escaped ptn and go further on.
-        //         index_current += mat.end();
-        //         continue;
-        //     }
-        // }
-
-        // Find escap charactor befor ptn position.
-        if let Some(cap) = re_esc.captures(&str_crt[..ptn_index]) {
-            // escape charactor found
-            if &cap[1].len() % 2 == 1 {
-                // Number of charactor in cap is odd (ex: \\ \).
-                // ptn is escaped.
-                // skip escaped ptn and go further on.
-
-                // index_current += mat.end();
-
-                // Add mat.end() to index_current.
-                match index_current.checked_add(mat.end()) {
-                    Some(v) => {
-                        index_current = v;
-                        continue;
-                    }
-                    // index_current reaches usize::MAX.
-                    // Can not work further more.
-                    None => break,
-                }
-            }
-        }
-
-        // match re_esc.captures(&str_crt[..ptn_index]) {
-        //     Some(cap) => {
-        //         if &cap[1].len() % 2 == 1 {
-        //             // Number of charactor in cap is odd.
-        //             // skip escaped ptn and go further on.
-        //             index_current += mat.end();
-        //             continue;
-        //         }
-        //     }
-        //     // not escaped
-        //     None => (),
-        // }
-
-        // ptn was found and it is not escaped
-        return Some((
-            find_start + index_current + mat.start(),
-            find_start + index_current + mat.end(),
-        ));
-    }
-
-    // Reached at the end of str and str not escaped was not found.
-    None
-}
-
-/// Return href value position of <a href="href_value"> element
-/// in &str as Some((start, end)).
-/// It searches on &str[find_start..], &str[..find_start] is ignored.
-/// Start end end position are counted as &str[0] is 0.
-/// If href value is not found, or any err, returns None.
-fn href_pos(str: &str, find_start: usize) -> Option<(usize, usize)> {
-    // let mut index = 0;
-    // href=value
-    // let re_href = regex::Regex::new(r#"(?i)\s*href\s*=\s*["']"#).unwrap();
-
-    // Search <a, but not \<a: escaped
-    let (_a_start, a_end) = match find_not_escaped(&str, find_start, "<a") {
-        Some(v) => v,
-        // <a not found
-        None => return None,
-    };
-
-    // index += a_end;
-
-    // position end of <a
-    // let mut index = a_end;
-
-    // Find href="value or href='value
-    let re_href = regex::Regex::new(r#"(?i)\s*href\s*=\s*["']"#).unwrap();
-    let href_mat = match re_href.find(&str[a_end..]) {
-        Some(v) => v,
-        // href="value not found
-        None => return None,
-    };
-
-    // first quote`"` position of href="value"
-    // let q1_start = index + href_mat.end() - 1;
-    // q1_start = a_end + href_mat.end() - 1;
-    let q1_end = match a_end.checked_add(href_mat.end()) {
-        Some(v) => v,
-        None => return None,
-    };
-    let q1_start = match q1_end.checked_add_signed(-1) {
-        Some(v) => v,
-        None => return None,
-    };
-
-    // Get charactor of the quote, it is " or '.
-    // let quote = &str[q1_start..q1_start + 1];
-    let quote = &str[q1_start..q1_end];
-
-    // Set index at end of the first quote
-    // let index += href_mat.end();
-    // let q1_end = a_end + href_mat.end();
-
-    // Search second " (or ') from abc" of href="abc".
-    // let (q2_start, _q2_end) = match find_not_escaped(&str, index, quote) {
-    let (q2_start, _q2_end) = match find_not_escaped(&str, q1_end, quote) {
-        Some(v) => v,
-        // second quote not found.
-        None => return None,
-    };
-
-    // abc of href="abc"
-    Some((q1_end, q2_start))
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn find_not_escaped() {
-        // cargo test -- --nocapture
-        // println!("page_urility mod tests fn find_not_escaped");
-
-        // Case does not match.
-        let str = "abc";
-        let res = super::find_not_escaped(str, 0, "def");
-        assert_eq!(res, None);
-
-        // Case match whole.
-        let str = "abc";
-        let res = super::find_not_escaped(str, 0, "abc");
-        assert!(res.is_some());
-        if let Some(v) = res {
-            let (start, end) = v;
-            assert_eq!(start, 0);
-            assert_eq!(end, 3);
-        };
-
-        // Case match some part
-        let str = "abcdef";
-        let res = super::find_not_escaped(str, 0, "cde");
-        assert!(res.is_some());
-        if let Some(v) = res {
-            let (start, end) = v;
-            assert_eq!(start, 2);
-            assert_eq!(end, 5);
-        };
-
-        // Case match with escaped backslash
-        let str = r"ab\\cdef";
-        let res = super::find_not_escaped(str, 0, "cde");
-        assert!(res.is_some());
-        if let Some(v) = res {
-            let (start, end) = v;
-            assert_eq!(start, 4);
-            assert_eq!(end, 7);
-        };
-
-        // Case does not match escaped ptn
-        let str = r"ab\cdef";
-        let res = super::find_not_escaped(str, 0, "cde");
-        assert!(res.is_none());
-
-        // assert!(true);
-    }
-
-    #[test]
-    fn href_pos() {
-        let str = r#"abc<a href="a_b_c">abc</a>def<a href="a_b_c">abc</a>ghi"#;
-        //           01234567891123456789212345678931234567894123456789512345
-        let op = super::href_pos(str, 27);
-        assert!(op.is_some());
-        if let Some(v) = op {
-            let (start, end) = v;
-            assert_eq!(start, 38);
-            assert_eq!(end, 43);
-        }
-        // match op {
-        //     Some(v) => {}
-        //     None => (),
-        // }
-    }
-
-    #[test]
-    fn page_move_subsection_content_href_convert() {
-        // Case a page moves to different url.
-        // The href is link to nether fm_url nor dest_url, nor thorse children.
-        // Moving the page should not change href value.
-
-        let fm_url = "http://abc/abc.html";
-        let dest_url = "http://def/def.html";
-        let href1 = "http://page/data.html#d1";
-        let href2 = "http://page/data.html#d1";
-        let content1 = format!("ha ha ha <a href=\"{}\">data</a> he", href1);
-        let content2 = format!("ha ha ha <a href=\"{}\">data</a> he", href2);
-        page_move_subsection_content_href_convert_test(fm_url, dest_url, &content1, &content2);
-
-        if false {}
-
-        // Case href is link to fm_url's child.
-        let fm_url = "http://abc/abc.html";
-        let dest_url = "http://def/def.html";
-        let href1 = "http://abc/abc.html#d1";
-        let href2 = "#d1";
-        let content1 = format!("ha ha ha <a href=\"{}\">data</a> he", href1);
-        let content2 = format!("ha ha ha <a href=\"{}\">data</a> he", href2);
-        page_move_subsection_content_href_convert_test(fm_url, dest_url, &content1, &content2);
-
-        // println!("{}", content2);
-        // assert_eq!(str, &content);
-        // assert!(false);
-    }
-
-    fn page_move_subsection_content_href_convert_test(
-        fm_url: &str,
-        dest_url: &str,
-        content: &str,
-        content2: &str,
-    ) {
-        let fm_url = url::Url::parse(fm_url).unwrap();
-        let dest_url = url::Url::parse(dest_url).unwrap();
-        let content_converted =
-            super::page_move_subsection_content_href_convert(content, &fm_url, &dest_url);
-        assert_eq!(content_converted, content2);
-    }
-}
-
-// work note

@@ -7,7 +7,7 @@ use std::net::TcpStream;
 mod js_css;
 mod thread_pool;
 // mod wc_handler;
-mod wc_handler2;
+mod wc_handler;
 
 /// stor_root: root path for storeage of the pages
 // stor_root
@@ -51,7 +51,7 @@ fn handle_connection(mut stream: TcpStream, stor_root: String) {
     // Consider to reject access from wher not local
     // println!("lib.rs fn handle_connection cp0");
 
-    let response = wc_handler2::response(&mut stream, &stor_root);
+    let response = wc_handler::response(&mut stream, &stor_root);
 
     stream.write(&response).unwrap();
     stream.flush().unwrap();
