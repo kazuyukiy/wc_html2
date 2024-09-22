@@ -390,15 +390,16 @@ pub fn page_move(
 }
 
 struct PageMoving {
-    org_url_list: Vec<String>,
-    // <org_url, (org_url, dest_url, dest_json)>
+    org_path_list: Vec<String>,
+    // // <org_url, (org_url, dest_url, dest_json)>
+    // <org_path, (org_url, dest_url, dest_json)>
     data: HashMap<String, (url::Url, url::Url, json::JsonValue)>,
 }
 
 impl PageMoving {
     fn new() -> PageMoving {
         PageMoving {
-            org_url_list: vec![],
+            org_path_list: vec![],
             data: HashMap::new(),
         }
     }
@@ -409,31 +410,42 @@ impl PageMoving {
         dest_url: url::Url,
         json: json::JsonValue,
     ) -> Result<(), String> {
-        if self.data.contains_key(org_url.as_str()) {
-            return Err(format!("org_url recurred: {}", org_url).to_string());
+        // Use key of url.path().
+        // url.as_str() starts http or https those become different keys.
+        // if self.data.contains_key(org_url.as_str()) {
+        if self.data.contains_key(org_url.path()) {
+            // return Err(format!("org_url recurred: {}", org_url.path()).to_string());
+            return Err(format!("org_url recurred: {}", org_url.path()));
         }
 
-        self.org_url_list.push(org_url.to_string());
+        // self.org_path_list.push(org_url.to_string());
+        self.org_path_list.push(org_url.path().to_string());
         self.data
-            .insert(org_url.to_string(), (org_url, dest_url, json));
+            .insert(org_url.path().to_string(), (org_url, dest_url, json));
 
         Ok(())
     }
 
     fn contains_org_url(&self, org_url: &url::Url) -> bool {
-        self.data.contains_key(org_url.as_str())
+        // self.data.contains_key(org_url.as_str())
+        self.data.contains_key(org_url.path())
     }
 
-    fn get(&self, org_url: &str) -> Option<(url::Url, url::Url, &json::JsonValue)> {
-        if let Some((org_url, dest_url, dest_json)) = self.data.get(org_url) {
+    fn get(&self, org_path: &str) -> Option<(url::Url, url::Url, &json::JsonValue)> {
+        if let Some((org_url, dest_url, dest_json)) = self.data.get(org_path) {
             return Some((org_url.clone(), dest_url.clone(), dest_json));
         };
 
         None
     }
 
-    fn org_url_list(&self) -> Vec<&str> {
-        self.org_url_list.iter().map(|url| url.as_str()).collect()
+    fn org_path_list(&self) -> Vec<&str> {
+        // self.org_path_list.iter().map(|url| url.as_str()).collect()
+        // self.org_path_list.iter().map(|path| path).collect()
+        self.org_path_list
+            .iter()
+            .map(|path| path.as_str())
+            .collect()
     }
 }
 
@@ -748,11 +760,11 @@ fn page_move_subsection_content(
 }
 
 fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
-    for org_url in page_moving.org_url_list() {
-        let (_org_url, dest_url, dest_json) = match page_moving.get(org_url) {
+    for org_path in page_moving.org_path_list() {
+        let (_org_url, dest_url, dest_json) = match page_moving.get(org_path) {
             Some(v) => v,
             None => {
-                error!("{}", format!("No page2Moving for {}", org_url));
+                error!("{}", format!("No page2Moving for {}", org_path));
                 continue;
             }
         };
@@ -767,9 +779,9 @@ fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
 }
 
 fn org_page_save(stor_root: &str, page_moving: &PageMoving) {
-    for org_url in page_moving.org_url_list() {
+    for org_path in page_moving.org_path_list() {
         let (mut org_page, org_page_json) =
-            match page_org_page_moved(stor_root, org_url, &page_moving) {
+            match page_org_page_moved(stor_root, org_path, &page_moving) {
                 Ok(v) => v,
                 Err(e) => {
                     error!("{}", e);
@@ -798,12 +810,12 @@ fn org_page_save(stor_root: &str, page_moving: &PageMoving) {
 /// Set the page of org_url as moved.
 fn page_org_page_moved(
     stor_root: &str,
-    org_url: &str,
+    org_path: &str,
     page_moving: &PageMoving,
 ) -> Result<(super::Page, json::JsonValue), String> {
-    let (org_url, dest_url, _dest_json) = match page_moving.get(org_url) {
+    let (org_url, dest_url, _dest_json) = match page_moving.get(org_path) {
         Some(v) => v,
-        None => return Err(format!("No page2Moving for {}", org_url)),
+        None => return Err(format!("No page2Moving for {}", org_path)),
     };
 
     let mut org_page = super::Page::new(stor_root, org_url.path());
@@ -910,7 +922,9 @@ fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option
 
     // Case not child of the orig_url
     let org_href_url = org_url.join(org_href).unwrap();
-    println!("org_href_url: {}", org_href_url.as_str());
+
+    // println!("org_href_url: mk1 {}", org_href_url.as_str());
+
     let dest_href_url = org_href_url;
     let mut href = dest_href_url.path().to_string();
     if let Some(fragment) = dest_href_url.fragment() {

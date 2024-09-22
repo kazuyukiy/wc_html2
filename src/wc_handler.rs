@@ -220,58 +220,10 @@ fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>,
     Ok(http_ok(&res.as_bytes().to_vec()))
 }
 
-// fn handle_page_move_dbg(
-//     http_request: &http_request::HttpRequest,
-//     stor_root: &str,
-// ) -> Result<Vec<u8>, ()> {
-//     // DBG
-//     info!("DBG set parent_url, dest_url");
-//     let (parent_url, dest_url) = (
-//         "http://127.0.0.1:3000/Computing/computing_iroiro.html",
-//         "http://127.0.0.1:3000/Computing/move_to/move_to.html",
-//     );
-
-//     // //
-//     if dest_url.len() == 0 {
-//         return Err(());
-//     }
-
-//     // let mut page = page::Page::new(&stor_root, http_request.path());
-//     let mut page = page::Page::new(&stor_root, "/Computing/move_from/move_from.html");
-
-//     // let page_url = http_request.url().ok_or(())?;
-//     let page_url =
-//         url::Url::parse("http://127.0.0.1:3000/Computing/move_from/move_from.html").unwrap();
-
-//     let parent_url = if parent_url.len() == 0 {
-//         None
-//     } else {
-//         Some(page_url.join(parent_url).or(Err(()))?)
-//     };
-
-//     let dest_url = page_url.join(dest_url).or(Err(()))?;
-
-//     let res = match page.page_move(page_url, dest_url, parent_url) {
-//         // temp
-//         Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
-//         Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
-//     };
-
-//     // DBG
-//     info!("page_move_dbg: {}", &res);
-
-//     Ok(http_ok(&res.as_bytes().to_vec()))
-// }
-
 fn handle_page_move(
     http_request: &http_request::HttpRequest,
     stor_root: &str,
 ) -> Result<Vec<u8>, ()> {
-    // let json_post = http_request.body_json().ok_or(())?;
-
-    // DBG
-    // return handle_page_move_dbg(http_request, stor_root);
-
     let json_post = http_request.body_json().ok_or(())?;
     let parent_url = json_post["parent_url"].as_str().ok_or(())?.trim();
     let dest_url = json_post["dest_url"].as_str().ok_or(())?.trim();
@@ -282,6 +234,8 @@ fn handle_page_move(
 
     let mut page = page::Page::new(&stor_root, http_request.path());
     let page_url = http_request.url().ok_or(())?;
+
+    // info!("page_url: {}", page_url);
 
     let parent_url = if parent_url.len() == 0 {
         None
@@ -294,12 +248,16 @@ fn handle_page_move(
     let res = match page.page_move(page_url, dest_url, parent_url) {
         // temp
         // Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
-        Ok(_) => {
-            let res = format!(r#"{{"Ok":"ok"}}"#);
-            info!("page.page_move res: {}", res);
-            res
-        }
+        Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
+        // {
+        //     let res = format!(r#"{{"Ok":"ok"}}"#);
+        //     info!("page.page_move res: {}", res);
+        //     res
+        // }
         Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
     };
+
+    info!("{}", res);
+
     Ok(http_ok(&res.as_bytes().to_vec()))
 }

@@ -123,7 +123,8 @@ impl HttpRequest {
         let host = self.host.as_ref()?;
         let path = &self.path;
 
-        let url = format!("https://{}{}", host, path);
+        // let url = format!("https://{}{}", host, path);
+        let url = format!("http://{}{}", host, path);
         url::Url::parse(&url).ok()
     }
 }
