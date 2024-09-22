@@ -45,9 +45,9 @@ impl Page {
         self.stor_root.as_str()
     }
 
-    fn path(&self) -> &str {
-        self.page_path.as_str()
-    }
+    // fn path(&self) -> &str {
+    //     self.page_path.as_str()
+    // }
 
     fn file_path(&self) -> String {
         page_utility::file_path(&self.stor_root, &self.page_path)
@@ -253,30 +253,30 @@ impl Page {
         }
     }
 
-    fn json_title(&mut self) -> Option<String> {
-        let value = self.json().and_then(|page_json| page_json.value())?;
-        // let title = value["data"]["page"]["title"].as_str().ok_or(None)?;
-        let title = value["data"]["page"]["title"].as_str()?;
-        //
+    // fn json_title(&mut self) -> Option<String> {
+    //     let value = self.json().and_then(|page_json| page_json.value())?;
+    //     // let title = value["data"]["page"]["title"].as_str().ok_or(None)?;
+    //     let title = value["data"]["page"]["title"].as_str()?;
+    //     //
 
-        // Some(String::from(""))
-        Some(title.to_string())
-    }
+    //     // Some(String::from(""))
+    //     Some(title.to_string())
+    // }
 
     // pub fn json_navi(&mut self) -> Option<&json::object::Object> {
     // pub fn json_navi(&mut self) -> Option<&json::JsonValue> {
-    pub fn json_navi(&mut self) -> Option<&json::Array> {
-        self.json().and_then(|page_json| {
-            // dbg
-            // info!("page_json.navi(): {:?}", page_json.navi());
+    // pub fn json_navi(&mut self) -> Option<&json::Array> {
+    //     self.json().and_then(|page_json| {
+    //         // dbg
+    //         // info!("page_json.navi(): {:?}", page_json.navi());
 
-            page_json.navi()
-        })
-    }
+    //         page_json.navi()
+    //     })
+    // }
 
-    pub fn json_subsections(&mut self) -> Option<&json::object::Object> {
-        self.json().and_then(|page_json| page_json.subsections())
-    }
+    // pub fn json_subsections(&mut self) -> Option<&json::object::Object> {
+    //     self.json().and_then(|page_json| page_json.subsections())
+    // }
 
     pub fn json_subsections_data_exists(&mut self) -> bool {
         self.json()

@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use tracing::info;
+// use tracing::info;
 
 pub struct PageJson {
     data: Option<json::JsonValue>,
@@ -89,46 +89,46 @@ impl PageJson {
     // pub fn navi(&self) -> Option<&json::object::Object> {
     // pub fn navi(&self) -> Option<&json::JsonValue> {
     // pub fn navi(&self) -> Option<&json::JsonValue::Array> {
-    pub fn navi(&self) -> Option<&json::Array> {
-        // DBG
-        // info!("fn navi");
+    // pub fn navi(&self) -> Option<&json::Array> {
+    //     // DBG
+    //     // info!("fn navi");
 
-        // let data = self.data()?;
-        let value = self.value()?;
+    //     // let data = self.data()?;
+    //     let value = self.value()?;
 
-        // DBG
-        // info!("fn navi cp1");
+    //     // DBG
+    //     // info!("fn navi cp1");
 
-        if value["data"]["navi"].is_empty() {
-            return None;
-        }
+    //     if value["data"]["navi"].is_empty() {
+    //         return None;
+    //     }
 
-        // DBG
-        // info!("fn navi cp2 navi: {}", value["data"]["navi"]);
+    //     // DBG
+    //     // info!("fn navi cp2 navi: {}", value["data"]["navi"]);
 
-        match value["data"]["navi"] {
-            json::JsonValue::Array(ref vec) => Some(vec),
-            _ => None,
-        }
+    //     match value["data"]["navi"] {
+    //         json::JsonValue::Array(ref vec) => Some(vec),
+    //         _ => None,
+    //     }
 
-        // match value["data"]["navi"] {
-        //     json::JsonValue::Null => None,
-        //     _ => Some(&value["data"]["navi"]),
-        // }
+    //     // match value["data"]["navi"] {
+    //     //     json::JsonValue::Null => None,
+    //     //     _ => Some(&value["data"]["navi"]),
+    //     // }
 
-        // match value["data"]["navi"] {
-        //     json::JsonValue::Object(ref object) => Some(object),
-        //     _ => {
-        //         // DBG
-        //         info!(
-        //             "fn navi cp2 navi: {} -- But not Object, return None.",
-        //             value["data"]["navi"]
-        //         );
+    //     // match value["data"]["navi"] {
+    //     //     json::JsonValue::Object(ref object) => Some(object),
+    //     //     _ => {
+    //     //         // DBG
+    //     //         info!(
+    //     //             "fn navi cp2 navi: {} -- But not Object, return None.",
+    //     //             value["data"]["navi"]
+    //     //         );
 
-        //         None
-        //     }
-        // }
-    }
+    //     //         None
+    //     //     }
+    //     // }
+    // }
 
     // pub fn navi(&self) -> Option<&json::JsonValue> {
     //     let data = self.data()?;
@@ -165,6 +165,8 @@ impl PageJson {
             .is_some()
     }
 
+    /// Return where the page was moved to in some option.
+    /// Return None if not muved.
     pub fn moved_to(&self) -> Option<String> {
         let value = self.value()?;
         let moveto = &value["data"]["page"]["moved_to"];
@@ -173,8 +175,8 @@ impl PageJson {
         }
 
         // DBG (rmove the line below for production)
-        info!("DBG pass fn moved_to");
-        return None;
+        // info!("DBG pass fn moved_to");
+        // return None;
 
         moveto.as_str().and_then(|v| Some(v.to_string()))
     }
