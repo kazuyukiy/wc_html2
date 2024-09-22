@@ -18,24 +18,25 @@ impl PageJson {
 
     // pub fn data(&self) -> Option<&json::JsonValue> {
     pub fn value(&self) -> Option<&json::JsonValue> {
-        match self.data.as_ref() {
-            Some(v) => Some(v),
-            None => {
-                eprintln!("Failed to get data in json");
-                None
-            }
-        }
+        self.data.as_ref()
+        // match self.data.as_ref() {
+        //     Some(v) => Some(v),
+        //     None => {
+        //         eprintln!("Failed to get data in json");
+        //         None
+        //     }
+        // }
     }
 
-    pub fn value_mut(&mut self) -> Option<&mut json::JsonValue> {
-        match self.data.as_mut() {
-            Some(v) => Some(v),
-            None => {
-                eprintln!("Failed to get data in json as mutable");
-                None
-            }
-        }
-    }
+    // pub fn value_mut(&mut self) -> Option<&mut json::JsonValue> {
+    //     match self.data.as_mut() {
+    //         Some(v) => Some(v),
+    //         None => {
+    //             eprintln!("Failed to get data in json as mutable");
+    //             None
+    //         }
+    //     }
+    // }
 
     // pub fn data_mut(&mut self) -> Option<&mut json::JsonValue> {
     // pub fn data_mut(&mut self) -> Option<&mut json::JsonValue> {

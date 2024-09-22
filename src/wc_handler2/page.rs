@@ -6,7 +6,7 @@ use markup5ever_rcdom::RcDom;
 use std::fs;
 // use std::str::FromStr;
 // use tracing::{instrument, Level}; // event, info, , span , debug
-use tracing::info;
+use tracing::{error, info};
 // info!("hooll");
 
 mod page_json;
@@ -43,6 +43,10 @@ impl Page {
 
     fn stor_root(&self) -> &str {
         self.stor_root.as_str()
+    }
+
+    fn path(&self) -> &str {
+        self.page_path.as_str()
     }
 
     fn file_path(&self) -> String {
@@ -157,14 +161,26 @@ impl Page {
         self.json.as_ref().unwrap().as_ref()
     }
 
-    fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
-        if self.json.is_none() {
-            if let Err(_) = self.json_parse() {
-                return None;
-            }
-        }
+    // fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
+    //     if self.json.is_none() {
+    //         if let Err(_) = self.json_parse() {
+    //             return None;
+    //         }
+    //     }
 
-        self.json.as_mut().unwrap().as_mut()
+    //     self.json.as_mut().unwrap().as_mut()
+    // }
+
+    fn json_value(&mut self) -> Option<&json::JsonValue> {
+        self.json().and_then(|page_json| page_json.value())
+
+        // self.json()
+        //     .and_then(|page_json| page_json.value())
+        //     .or_else(|| {
+        //         error!("");
+        //         self.path();
+        //         None
+        //     })
     }
 
     /// Updata the page with json_data2
@@ -181,11 +197,12 @@ impl Page {
         let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
         json_data2["data"]["page"]["rev"] = rev_uped.into();
 
-        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2)
-            .or(Err(format!(
-                "Failed to create a page from json posted on {}.",
-                &self.page_path
-            )))?;
+        // let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2)
+        //     .or(Err(format!(
+        //         "Failed to create a page from json posted on {}.",
+        //         &self.page_path
+        //     )))?;
+        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
 
         page2
             .file_save_and_rev()

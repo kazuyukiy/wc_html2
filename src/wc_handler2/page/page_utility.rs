@@ -2,7 +2,7 @@ use html5ever::serialize;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle};
 use std::collections::HashMap;
-use std::collections::HashSet;
+// use std::collections::HashSet;
 use std::str::FromStr;
 use tracing::{error, info};
 // use tracing::{event, info, instrument, span, Level, Node};
@@ -24,9 +24,7 @@ pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
             Ok(())
         })
         .or_else(|e| {
-            info!("fn fs_write e: {:?}", e);
-            //
-
+            error!("fn fs_write e: {:?}", e);
             Err(())
         })
 
@@ -125,13 +123,15 @@ pub fn page_from_json(
     page_path: &str,
     // page_json: json::JsonValue,
     page_json: &json::JsonValue,
-) -> Result<super::Page, ()> {
+    // ) -> Result<super::Page, ()> {
+) -> super::Page {
     let source = source_from_json(page_json); // bytes
 
     let mut page = super::Page::new(stor_root, page_path);
     page.source.replace(Some(source));
 
-    Ok(page)
+    // Ok(page)
+    page
 }
 
 // pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> bool {
@@ -180,11 +180,11 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
     } else {
         // DBG
         // Remove a line blow for debug mode
-        error!(
-            "{}",
-            format!("DEB SKIP for rev not match {} : {}", rev, rev2)
-        );
-        return Ok(());
+        // error!(
+        //     "{}",
+        //     format!("DEB SKIP for rev not match {} : {}", rev, rev2)
+        // );
+        // return Ok(());
 
         Err(format!("rev not match {} : {}", rev, rev2))
     }
@@ -248,7 +248,9 @@ pub fn page_child_new(
 
     // return Ok(Page)
     // page_from_json(parent_page.stor_root(), child_path, child_json).or(Err(()))
-    page_from_json(parent_page.stor_root(), child_path, &child_json).or(Err(()))
+    // page_from_json(parent_page.stor_root(), child_path, &child_json).or(Err(()))
+    let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
+    Ok(child_page)
 }
 
 /// Check title and href
@@ -332,6 +334,16 @@ fn href_url(org_base: &url::Url, href: &str, new_base: &url::Url) -> Option<Stri
     }
 }
 
+// fn page_json(page: &super::Page) -> Option<&json::JsonValue> {
+//     page.json_value().or_else(|| {
+//         error!(
+//             "{}",
+//             format!("Failed to get page_json.data of {}", page.path())
+//         );
+//         None
+//     })
+// }
+
 /// Move org_page to dest_url as a child of dest_parent_url.
 /// dest_parent_url can be None in a case dest_url is the top page.
 pub fn page_move(
@@ -341,6 +353,10 @@ pub fn page_move(
     dest_parent_url: Option<&url::Url>,
 ) -> Result<(), String> {
     let mut org_page = super::Page::new(stor_root, org_url.path());
+
+    // if page_moved_to(&mut org_page).is_some() {
+    //     return Err(format!("Already moved : {}", org_page.path()));
+    // }
 
     let mut dest_parent_page = dest_parent_url.and_then(|url| {
         let dest_parent_page = super::Page::new(stor_root, url.path());
@@ -354,7 +370,7 @@ pub fn page_move(
 
     let dest_parent_json = dest_parent_page_json.and_then(|page_json| page_json.value());
 
-    let mut page2_moving = Page2Moving::new();
+    let mut page_moving = PageMoving::new();
 
     // let stor_root = org_page.stor_root().to_string();
     let org_json = org_page
@@ -363,7 +379,7 @@ pub fn page_move(
         .ok_or("Failed to get page_Json.")?;
 
     page_move_json(
-        &mut page2_moving,
+        &mut page_moving,
         stor_root,
         org_json,
         org_url,
@@ -372,8 +388,8 @@ pub fn page_move(
         dest_parent_json,
     )?;
 
-    page_moving_save(stor_root, &page2_moving);
-    page_org_save(stor_root, &page2_moving);
+    dest_page_save(stor_root, &page_moving);
+    org_page_save(stor_root, &page_moving);
 
     // temp
     // Err("".to_string())
@@ -381,15 +397,15 @@ pub fn page_move(
     Ok(())
 }
 
-struct Page2Moving {
+struct PageMoving {
     org_url_list: Vec<String>,
     // <org_url, (org_url, dest_url, dest_json)>
     data: HashMap<String, (url::Url, url::Url, json::JsonValue)>,
 }
 
-impl Page2Moving {
-    fn new() -> Page2Moving {
-        Page2Moving {
+impl PageMoving {
+    fn new() -> PageMoving {
+        PageMoving {
             org_url_list: vec![],
             data: HashMap::new(),
         }
@@ -430,7 +446,7 @@ impl Page2Moving {
 }
 
 fn page_move_json(
-    page2_moving: &mut Page2Moving,
+    page_moving: &mut PageMoving,
     stor_root: &str,
     org_json: &json::JsonValue,
     org_url: &url::Url,
@@ -438,15 +454,24 @@ fn page_move_json(
     dest_parent_url: Option<&url::Url>,
     dest_parent_json: Option<&json::JsonValue>,
 ) -> Result<(), String> {
+    // DBG
+    info!("\n org_url: {} to\ndest_url: {}", org_url, dest_url);
+
     // org_url duplication avoiding endlessloop
-    if page2_moving.contains_org_url(org_url) {
+    if page_moving.contains_org_url(org_url) {
         return Err(format!("Duplicated org_url: {}", org_url.as_str()));
     }
 
-    page_move_dest_already_data(stor_root, dest_url)?;
+    // Already moved page
+    if !org_json["data"]["page"]["moved_to"].is_empty() {
+        return Err(format!("Already moved : {}", org_url));
+    }
 
-    // DBG
-    // info!("\norg_url: {}\n to\ndest_url: {}", org_url, dest_url);
+    // if page_moved_to(&mut org_page).is_some() {
+    //     return Err(format!("Already moved : {}", org_page.path()));
+    // }
+
+    page_move_dest_already_data(stor_root, dest_url)?;
 
     let mut dest_json = super::page_json::page_json_plain();
 
@@ -456,10 +481,10 @@ fn page_move_json(
 
     let org_children_href = page_move_subsections(dest_url, &mut dest_json, org_json, &org_url)?;
 
-    page2_moving.insert(org_url.clone(), dest_url.clone(), dest_json.clone())?;
+    page_moving.insert(org_url.clone(), dest_url.clone(), dest_json.clone())?;
 
     page_move_children(
-        page2_moving,
+        page_moving,
         stor_root,
         org_children_href,
         org_url,
@@ -482,9 +507,10 @@ fn page_move_dest_already_data(
     // Case the page already has subsection data, abort moving.
     if dest_page.json_subsections_data_exists() {
         let err_msg = format!("The file data already exists: {}", dest_url.path());
+
         // DBG return Ok eventhow it exists.
-        info!("DBG return Ok even: {}", err_msg);
-        return Ok(());
+        // info!("DBG return Ok even: {}", err_msg);
+        // return Ok(());
 
         return Err(err_msg);
     }
@@ -626,7 +652,7 @@ fn page_move_subsection_title_and(
 
 /// Premise: all urls of org_children_url are children of parent_org_url.
 fn page_move_children(
-    page2_moving: &mut Page2Moving,
+    page_moving: &mut PageMoving,
     stor_root: &str,
     org_children_href: Vec<String>,
     parent_org_url: &url::Url,
@@ -647,7 +673,7 @@ fn page_move_children(
             }
         };
         page_move_json(
-            page2_moving,
+            page_moving,
             stor_root,
             &child_org_json,
             &child_org_url,
@@ -738,9 +764,9 @@ fn page_move_subsection_content(
     Ok(dest_contents)
 }
 
-fn page_moving_save(stor_root: &str, page2_moving: &Page2Moving) {
-    for org_url in page2_moving.org_url_list() {
-        let (_org_url, dest_url, dest_json) = match page2_moving.get(org_url) {
+fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
+    for org_url in page_moving.org_url_list() {
+        let (_org_url, dest_url, dest_json) = match page_moving.get(org_url) {
             Some(v) => v,
             None => {
                 error!("{}", format!("No page2Moving for {}", org_url));
@@ -748,20 +774,32 @@ fn page_moving_save(stor_root: &str, page2_moving: &Page2Moving) {
             }
         };
 
-        let mut dest_page = super::Page::new(stor_root, dest_url.path());
-        if let Err(e) = dest_page.json_replace_save(dest_json.clone()) {
-            error!("Failed to save : {}", dest_url);
-            error!("Err: {}", e);
-        }
+        // let mut dest_page = super::Page::new(stor_root, dest_url.path());
+        // if let Err(e) = dest_page.json_replace_save(dest_json.clone()) {
+        //     error!("Failed to save : {}", dest_url);
+        //     error!("Err: {}", e);
+        // }
+
+        // let mut dest_page = match page_from_json(stor_root, dest_url.path(), dest_json) {
+        //     Ok(v) => v,
+        //     Err(_) => continue,
+        // };
+
+        let mut dest_page = page_from_json(stor_root, dest_url.path(), dest_json);
+        // DBG
+        // info!("fn page_move_dest_save dest_page: {}", dest_page.page_path);
+
+        dest_page.dir_build();
+        dest_page.file_save_and_rev();
     }
 
     // Ok(())
 }
 
-fn page_org_save(stor_root: &str, page2_moving: &Page2Moving) {
-    for org_url in page2_moving.org_url_list() {
+fn org_page_save(stor_root: &str, page_moving: &PageMoving) {
+    for org_url in page_moving.org_url_list() {
         let (mut org_page, org_page_json) =
-            match page_org_page_moved(stor_root, org_url, &page2_moving) {
+            match page_org_page_moved(stor_root, org_url, &page_moving) {
                 Ok(v) => v,
                 Err(e) => {
                     error!("{}", e);
@@ -775,22 +813,44 @@ fn page_org_save(stor_root: &str, page2_moving: &Page2Moving) {
     }
 }
 
+// fn page_moved_to(page: &mut super::Page) -> Option<&str> {
+//     let json_value = page.json_value()?;
+//     json_value["data"]["page"]["moved_to"].as_str()
+
+//     // let mut org_page = super::Page::new(stor_root, org_url.path());
+//     // let org_json = org_page
+//     //     .json_value()
+//     //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
+
+//     //    org_json_uped["data"]["page"]["moved_to"] = dest_url.as_str().into();
+// }
+
+/// Set the page of org_url as moved.
 fn page_org_page_moved(
     stor_root: &str,
     org_url: &str,
-    page2_moving: &Page2Moving,
+    page_moving: &PageMoving,
 ) -> Result<(super::Page, json::JsonValue), String> {
-    let (org_url, dest_url, _dest_json) = match page2_moving.get(org_url) {
+    let (org_url, dest_url, _dest_json) = match page_moving.get(org_url) {
         Some(v) => v,
         None => return Err(format!("No page2Moving for {}", org_url)),
     };
 
     let mut org_page = super::Page::new(stor_root, org_url.path());
+    let org_json = org_page
+        .json_value()
+        .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
 
-    let org_json = match org_page.json().and_then(|page_json| page_json.value()) {
-        Some(v) => v,
-        None => return Err(format!("Failed to get page_json.data of {}", org_url)),
-    };
+    // let org_json = org_page
+    //     .json()
+    //     .and_then(|page_json| page_json.value())
+    //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
+
+    // let org_json = match org_page.json().and_then(|page_json| page_json.value()) {
+    //     Some(v) => v,
+    //     None => return Err(format!("Failed to get page_json.data of {}", org_url)),
+    // };
+
     let mut org_json_uped = org_json.clone();
 
     // moved_to
