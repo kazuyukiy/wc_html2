@@ -7,6 +7,7 @@ pub fn contents() -> &'static str {
     // in below
 
     r####"
+
 // class Blox ele, let targetNext;
 // it sometimes did refer old element that was deleted
 // and element to be drawn before the targetNext was not shown
@@ -21,6 +22,8 @@ let page_json;
 
 function bodyOnload () {
     // console.log("bodyOnload");
+
+    // if(true) { console.error("err test");}
     
     page_json = page_json_read();
 
@@ -342,10 +345,6 @@ class Blox {
 
     querySelectorBx(ele, name) {
 	const selectors = this.bloxPrefixEscaped(name);
-
-	// dbg
-	// console.log("wc.js class Blox querySelectorBx selectors:" + selectors);
-	
 	return ele.querySelector("." + selectors);
     } // end of class Blox querySelectorBx 
     
@@ -411,9 +410,10 @@ class Blox {
 	} else  {
 	    const eleTarget = this.eleTarget();
 	    if(eleTarget == undefined){
+		console.error("eleTarget is undefined");
 		// DBG
 		// it makes an err that may show err debug monitor
-		a = b;
+		// a = b;
 		
 		return;
 	    }
@@ -1827,24 +1827,11 @@ class Menu extends Blox {
 	const ele = arguments[0];
 
 	for(const fname of this.menuItem){
-	    // dbg
-	    // console.log("wc.js class Menu setEvent fname:" + fname);
-
-	    
-	    // let fname = "editor"+name;
 	    const eleSws = this.querySelectorAllBx(ele, fname);
-
-	    // dbg
-	    // console.log("wc.js class Menu setEvent eleSws.length:" + eleSws.length);
-	    
 	    if(eleSws.length == 0){ continue;}
 	    
 	    const that = this;
 	    for(const eleSw of eleSws){
-
-		// dbg
-		// console.log("wc.js class Menu setEvent eleSw:" + eleSw);
-		
 		eleSw.addEventListener('click', function(event){
 		    that.menuClick.apply(that, [event, fname]);
 		} );
@@ -1880,29 +1867,29 @@ class Menu extends Blox {
 	if(! this.changed()){ return; }
 	if(this.currentBlox()){ return; }
 
+	let req = "json_save";
 	const res = postData("json_save", this.bxCenter().bxTop().data());
-
+	if(!res) { return; }
 	res.then(
 	    data => {
-		console.log("wc.js function save res:" + data.res);
-		if(data.res == "post_handle page_json_save"){}
+		console.log("res: " + data.res);
+		if(data.res == "post_handle page_json_save"){
+		    // console.log("res: " + data.res);
+		}
 		else{
-		    alert(err + "\n Try to save again!");
+		    console.error("Failed to save.");
+		    alert("Failed to save.\nTry to save again!");
 		    return;
 		}
-		
+
 		this.changed(undefined);
 		this.editorClose();
+		
 	    }
 	)
-	    .catch((err) => {
-		alert(err + "\n Try to save again!");
-	    }
-		  )
-	;
-
-	// this.changed(undefined);
-	// this.editorClose();
+	    .catch((error) =>
+		{ alert(error + "\n(menuSave res.then)\n Try to save again!"); }
+	    )
 
     } // end of class Menu menuSave
 
@@ -2131,12 +2118,17 @@ class Menu extends Blox {
 	// link to out of the page
 	let data = {"href" : href};
 	let res = postData("href", data);
-	res.then(data => {
-	    if(data.dest){
-		location.href = data.dest;
-	    }
+	if(!res) { return; }
+	res.then(
+	    data => {
+		if(data.dest){
+		    console.log("href: " + data.dest);
+		    location.href = data.dest;
+		    return;
+		}
+	    });
+	console.error("Failed to get href for " + href);
 	
-	});
 
     } // end of class Menu hrefEventHandle
 
@@ -2315,11 +2307,20 @@ class MenuEditor extends Editor {
 	
 	let data = {"parent_url" : parentUrl, "dest_url" : destUrl};
 	let res = postData("page_move", data);
+	if(!res) { return; }
+	res.then(
+	    data => {
+		// Ok(_) => format!(r#"{{"res":"moved"}}"#),
+		if(data.res == "moved"){
+		    delete this.currentStatus().editType;
+		    // super: class Editor this class extends on.
+		    super.editorEnter();
+		    return;
+		}
+	    }
+	)
 
-	delete this.currentStatus().editType;
-
-	// super: class Editor this class extends on.
-	super.editorEnter();
+	console.error("Failed to move the pages.");
 	
     } // end of class MenuEditor editorEnterPageMove 
     
@@ -3616,10 +3617,17 @@ class IndexItemEditor extends Editor {
 	data["href"] = hrefNew;
 
 	const res = postData("page_new", data);
-	res.then(data => {
-	    console.log("wc.js newPage res:" + data.res);
+	if(!res) { return; }
+	res.then(
+	    data => {
+		// Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
+		if(data.res == "post_handle page_new") {
+		    console.log("wc.js newPage res:" + data.res);
+		    return;
+		}
 	});
-	
+
+	console.error("Failed to create a new page.");
 	
     } // end of class IndexItemEditor editorNewPage 
 
@@ -4479,18 +4487,35 @@ function scrollHash(id) {
 // data conflict might happen .
 //
 async function postData(req, data) {
-    const response = await fetch(
-	document.URL,
-	{
-	    method: 'POST',
-	    headers: {
-		'Content-Type': 'application/json',
-		'wc-request' : req,
-	    },
-	    body: JSON.stringify(data),
-	},
-    )
 
-    return response.json();
-} // end of function postData"####
+    try {
+	const response = await fetch(
+	    document.URL,
+	    {
+		method: 'POST',
+		headers: {
+		    'Content-Type': 'application/json',
+		    'wc-request' : req,
+		},
+		body: JSON.stringify(data),
+	    },
+	);
+	
+	if (!response.ok) {
+	    throw new Error(`Failed response.ok`);
+	}
+
+	let response_json = await response.json();
+	if(!response_json) { console.error("Failed to get response!"); }
+	return response_json;
+	// return await response.json();
+    }
+    catch (error) {
+	console.error(error.message + "\non function postData");
+    }
+
+} // end of function postData
+// end of function postData
+
+"####
 }
