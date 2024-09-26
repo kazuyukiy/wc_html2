@@ -152,6 +152,12 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
             format!("{{\"res\":\"{}\"}}", e).into()
         }
     };
+
+    if let Ok(v) = std::str::from_utf8(&res) {
+        info!("json_save: res: {}", v)
+    } else {
+    }
+
     Ok(http_ok(&res))
 }
 
@@ -248,7 +254,8 @@ fn handle_page_move(
     let res = match page.page_move(page_url, dest_url, parent_url) {
         // temp
         // Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
-        Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
+        // Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
+        Ok(_) => format!(r#"{{"res":"moved"}}"#),
         // {
         //     let res = format!(r#"{{"Ok":"ok"}}"#);
         //     info!("page.page_move res: {}", res);

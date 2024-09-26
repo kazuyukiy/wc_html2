@@ -9,8 +9,9 @@ mod thread_pool;
 // mod wc_handler;
 mod wc_handler;
 
+/// addr: host and port ex: "127.0.0.1:3000"
 /// stor_root: root path for storeage of the pages
-// stor_root
+/// capa: number of thread_pool
 pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> {
     // Copy wc.js, wc.css to ./page/
     // Do it only once when start main()
