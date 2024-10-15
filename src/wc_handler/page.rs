@@ -6,7 +6,9 @@ use markup5ever_rcdom::RcDom;
 use std::fs;
 // use std::str::FromStr;
 // use tracing::{instrument, Level}; // event, info, , span , debug
-use tracing::{error, info};
+// use tracing::{error, info};
+use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
+
 // info!("hooll");
 
 mod page_json;
@@ -61,12 +63,25 @@ impl Page {
         match fs::read(&file_path) {
             Ok(s) => {
                 self.source.replace(Some(s));
-                return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
+
+                // DBG
+                // info!("File readed successfully: {}", file_path);
+
+                // DBG comment out
+                // return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
+
+                let v = self.source.as_ref().unwrap().as_ref().unwrap();
+
+                // DBG
+                // info!("File source converted to Vec<u8>");
+
+                return Ok(v);
             }
             // file not found
             Err(e) => {
                 self.source.replace(None);
-                eprintln!("Faile to read: {}, {:?}", &file_path, e.kind());
+                // eprintln!("Faile to read: {}, {:?}", &file_path, e.kind());
+                error!("Faile to read: {}, {:?}", &file_path, e.kind());
                 return Err(());
             }
         }
@@ -115,16 +130,31 @@ impl Page {
     }
 
     fn dom_parse(&mut self) -> Result<(), ()> {
+        // DBG
+        // let _span_get = info_span!("dom_parse").entered();
+        // info!("dom_parse start");
+
         let source = match self.source() {
             Some(v) => v.to_owned(),
-            None => return Err(()),
+            None => {
+                // DBG
+                // info!("source is none, returning Err");
+
+                return Err(());
+            }
         };
 
         let source = String::from_utf8(source).or(Err(()))?;
         let dom =
             parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(source);
 
+        // DBG
+        // info!("dom set");
+
         self.dom.replace(Some(dom));
+
+        // DBG
+        // info!("dom_parse end");
 
         // temp
         Ok(())
@@ -138,15 +168,30 @@ impl Page {
     }
 
     fn json_parse(&mut self) -> Result<(), ()> {
+        // info_span!();
+        // let _span_get = info_span!("json_parse").entered();
+
+        // DBG
+        // info!("json_parse start");
+
         let dom = self.dom().ok_or(())?;
         match page_utility::json_from_dom(dom) {
             Some(v) => {
+                // info!("parse start");
+
                 let page_json = page_json::PageJson::from(v);
+
+                // info!("json_parse end");
+
                 self.json.replace(Some(page_json));
                 return Ok(());
             }
             None => {
                 self.json.replace(None);
+
+                // DBG
+                // info!("no json in dom, return err");
+
                 return Err(());
             }
         }
@@ -158,6 +203,9 @@ impl Page {
                 return None;
             }
         }
+
+        // DBG
+        // info!("fn json returning json");
 
         self.json.as_ref().unwrap().as_ref()
     }
@@ -172,7 +220,9 @@ impl Page {
     //     self.json.as_mut().unwrap().as_mut()
     // }
 
-    fn json_value(&mut self) -> Option<&json::JsonValue> {
+    // DBG
+    // fn json_value(&mut self) -> Option<&json::JsonValue> {
+    pub fn json_value(&mut self) -> Option<&json::JsonValue> {
         self.json().and_then(|page_json| page_json.value())
 
         // self.json()

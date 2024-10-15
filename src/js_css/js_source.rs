@@ -261,7 +261,10 @@ class Blox {
     eleTargetName() {
 	return this.bloxAddress() + "Target";
     } // end of class Blox eleTargetName 
-    
+
+    // bloxAddress is unique of this page.
+    // It works to identify the block elements.
+    //
     // if blox was moved, this.bloxAddress needs to be refreshed
     // and its children as well
     // to avoid repetitions of bloxAddress() each time,
@@ -355,13 +358,18 @@ class Blox {
     
     eleTargetChild() {} // end of class Blox eleTargetChild 
 
-    // To draw a node, git it as a parameter, eg: this.ele(ele_node);
-    // To get node that has been drawn, call this without parameter,
+    // To draw a node, give it as a parameter,
+    //  eg: this.ele(ele_node);
+    //
+    // To get node that has been drawn being displayed now,
+    // call this without parameter,
     // eg : ele_node = this.ele();
+    //
     // To delete node drawn, use undefined as a parameter
     // eg: this.ele(undefined);
     // if Blox.eleV has a node value, it was drawn,
     // otherwise nothing drawn of this in the page.
+    //
     ele() {
 	// this.log("ele()");	
 
@@ -390,6 +398,7 @@ class Blox {
 	    return;
 	}
 
+        // 
 	ele.setAttribute("data-bxAddress", this.bloxAddress());
 
 	let targetNext;
@@ -441,7 +450,7 @@ class Blox {
 	// and skip drawing if already drawn
 	// if this.eleDraw() is called directory,
 	// this.parentBx().bloxChildDrawn2() is empty
-	// in such case it does not check and skip whether it has been drawn
+	// in such case it does not check and skip whether if it has been drawn,
 	// otherwise, this.eleDraw() is called by bloxChildEleDraw of
 	// this.parentBx().eleDraw() and check if it already drawn
 	// set {} at here means it records what drawn in this.eleDrawInst
@@ -968,6 +977,15 @@ function log() {
     
 } // end of function log
 
+
+// Page - menu, navi, index, contents
+// class Menu: Editor menu
+// class Navi: Page navi, links for parents
+// class Index: links to this page's contents and children pages
+// class Item: index item and its content.
+//    If the content is of this page, the class is for the index and the contents.
+//    If it is a line to child page, the class is only for the index to the child.
+//
 class Page extends Blox {
 
     dataChild(child) {
@@ -979,6 +997,10 @@ class Page extends Blox {
 	
     } // end of class Page dataChild 
     
+
+    // 
+    // 
+    // 
     eleDrawInst() {
 	// this.log("eleDrawInst()");
 
@@ -4370,6 +4392,7 @@ function textAngleToEntity(str) {
 
 // const textAngleRegex = /(\\*)([<|>])/;
 const textAngleRegex = /(\\*)((?:\\<)|(?:\\>))/g;
+// \\< in code means '\' (escaped backslash: charactor '\') + '<', means "\<".
 function textAngleToEntityReplacer() {
 
     // arguments[0]: hole of the match
@@ -4426,7 +4449,7 @@ function text_to_html2(text) {
 	    // \n   : <br>
 	    // \n\n : <p></p>
 	    //
-	    // Next line is emply.
+	    // Next line is emply. (nothing between \n and \n)
 	    // Means \n\n
 	    if (list[0].length == 0) {
 		// Remove next one since empty.

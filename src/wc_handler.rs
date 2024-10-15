@@ -1,7 +1,7 @@
 use std::net::TcpStream;
 mod http_request;
 mod page;
-use tracing::info; //  event, instrument, span, Level debug,
+use tracing::{info, info_span}; //  error, event, instrument, span, Level debug,
 
 pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
     let http_request = match http_request::HttpRequest::from(stream) {
@@ -12,12 +12,16 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
     // info!("hots: {:?}", http_request.host.as_ref());
 
     let method = http_request.method();
-    info!("{} {}", method, http_request.path());
+
+    // let _span_get = info_span!("res").entered();
+
+    // info!("{} {}", method, http_request.path());
 
     // DBG
     // if http_request.path() == "/favicon.ico" {
     //     return http_404();
     // }
+
     // info!("DBG calling handle_post");
     // return handle_post(&http_request, stor_root).unwrap_or(http_404());
 
@@ -88,11 +92,49 @@ fn http_form(status: &str, contents: &Vec<u8>) -> Vec<u8> {
 }
 
 fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let _span_get = info_span!("GET").entered();
+    info!("{}", http_request.path());
+
     let mut page = page::Page::new(&stor_root, http_request.path());
+
+    // DBG
+    let mut debug_mode = false;
+    debug_mode = true;
+    if http_request.path() == "/wc.js" {
+        debug_mode = false;
+    }
+    if http_request.path() == "/wc.css" {
+        debug_mode = false;
+    }
+    // if debug_mode {
+    // }
+
+    if debug_mode {
+        info!("debug_mode: {}", debug_mode);
+        if let Some(page_json) = page.json_value() {
+            // an issue, wc.js containing html example makes parse error.
+            // needs tell difference html files and others.
+
+            // let page_dom = page::page_utility::page_dom_from_json::page_dom_from_json(&page_json);
+
+            // let _span_get = info_span!("Html").entered();
+
+            let vec = page::page_utility::source_from_json(&page_json);
+
+            return Ok(http_ok(&vec));
+        }
+    }
+
+    // let _span_get = info_span!("Not html").entered();
+
+    // // DBG comment out
     page.read().map_or(Err(()), |v| Ok(http_ok(v)))
 }
 
 fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let _span_get = info_span!("POST").entered();
+    info!("{}", http_request.path());
+
     let wc_request = if let Some(v) = http_request.wc_request() {
         v
     } else {
@@ -144,6 +186,11 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     // };
 
     let json_post = http_request.body_json().ok_or(())?;
+
+    // DBG
+    // pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<(), String> {
+    // page::page_utility::page_dom_from_json::page_dom_from_json(&json_post);
+    page::page_utility::page_dom_from_json::page_dom_from_json(&json_post);
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
         Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),

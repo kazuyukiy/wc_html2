@@ -182,6 +182,11 @@ impl PageJson {
     }
 }
 
+// index of json_value["data"]["subsection"]["data"] is string, eg "0"
+// but numbers are used in json_value["data"]["subsection"]["id"],
+// json_value["data"]["subsection"]["data"]["0"]["child"] = [1, 4, 5] are numbers.
+// So it is better to meke all same useing numbers in futer.
+//
 pub fn page_json_plain() -> json::JsonValue {
     // ~/projects/wc/wc/src/page_json_utility.rs
     json::object! {
@@ -199,7 +204,7 @@ pub fn page_json_plain() -> json::JsonValue {
                 "rev" : 0,
                 "rev_speculation" : 0,
                 "group_top" : false,
-        "moved_to" : "",
+                "moved_to" : "",
         // consider to add path , uri data
             },
 

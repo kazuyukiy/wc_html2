@@ -1,12 +1,14 @@
 use html5ever::serialize;
 use html5ever::serialize::SerializeOpts;
-use markup5ever_rcdom::{Handle, NodeData, RcDom, SerializableHandle};
+use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
 use std::collections::HashMap;
 // use std::collections::HashSet;
+use std::rc::Rc;
 use std::str::FromStr;
-use tracing::{error, info};
-// use tracing::{event, info, instrument, span, Level, Node};
+use tracing::{error, info}; // debug,
+                            // use tracing::{event, info, instrument, span, Level, Node};
 mod dom_utility;
+pub mod page_dom_from_json;
 
 pub fn file_path(stor_root: &str, page_path: &str) -> String {
     // String + "." + &str
@@ -36,9 +38,13 @@ pub fn to_dom(source: &str) -> RcDom {
     dom_utility::to_dom(source)
 }
 
+pub fn to_dom_parts(source: &str) -> Vec<Rc<Node>> {
+    dom_utility::to_dom_parts(source)
+}
+
 pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     // span node containing json data in text
-    let span = span_json_node(dom);
+    let span = span_json_node(dom)?;
     let children = span.children.borrow();
     if children.len() == 0 {
         eprintln!("Failed, json contents not found in the span element");
@@ -48,17 +54,22 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     let contents = match &children[0].data {
         NodeData::Text { contents } => contents,
         _ => {
-            eprintln!("Failed, json contents not found in the span element");
+            // eprintln!("Failed, json contents not found in the span element");
+            error!("Failed to get json data in the span element");
             return None;
         }
     };
 
     let json_str = contents.borrow().to_string();
 
+    // DBG
+    // info!("json_parse starg");
+
     let json_value = match json::parse(&json_str) {
-        Ok(page_json_parse) => page_json_parse,
+        Ok(v) => v,
         Err(e) => {
-            eprintln!("{:?}", e);
+            error!("Failed to parse json: {}", e);
+            // eprintln!("{:?}", e);
             return None;
         }
     };
@@ -68,16 +79,19 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
 
 // Get span node from page_dom
 // <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
-pub fn span_json_node(page_dom: &RcDom) -> Handle {
+// pub fn span_json_node(page_dom: &RcDom) -> Handle {
+pub fn span_json_node(page_dom: &RcDom) -> Option<Handle> {
     let attrs = &vec![("id", "page_json_str")];
     let ptn_span = dom_utility::node_element("span", &attrs);
-    dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
+    // dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
+    dom_utility::child_match_first(&page_dom, &ptn_span, true)
 }
 
 fn page_dom_plain() -> RcDom {
     to_dom(page_html_plain())
 }
 
+// Contains body onload="bodyOnload()"
 fn page_html_plain() -> &'static str {
     r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta><script src="/wc.js"></script>
     <link rel="stylesheet" href="/wc.css"></link>
@@ -87,7 +101,37 @@ fn page_html_plain() -> &'static str {
 }
 
 /// Create a page source from json value.
-fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
+pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
+    let mut debug_mode = false;
+    debug_mode = true;
+    if debug_mode {
+        info!("source_from_json debug_mode: {}", debug_mode);
+        let page_dom = page_dom_from_json::page_dom_from_json(page_json);
+        if page_dom.is_err() {
+            return vec![];
+        }
+
+        // DBG
+        // let page_dom: Result<RcDom, ()> = Ok(page_dom_plain());
+
+        // DBG
+        info!("fn source_from_json");
+
+        let v = match dom_serialize(page_dom.unwrap()) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Failed to get source from json: {}", e);
+                vec![]
+            }
+        };
+
+        // DBG
+
+        // info!("fn source_from_json returning :\n{}", v);
+
+        return v;
+    }
+
     let page_dom = page_dom_plain();
 
     // title
@@ -100,18 +144,54 @@ fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     }
 
     // put json value into span as str
-    let span = span_json_node(&page_dom);
+    // let span = span_json_node(&page_dom);
+    let span = match span_json_node(&page_dom) {
+        Some(v) => v,
+        None => {
+            error!("Failed to get element span.");
+            return vec![];
+        }
+    };
     let _ = &span.children.borrow_mut().clear();
     let json_str = page_json.dump();
     let json_node_text = dom_utility::node_text(&json_str);
     let _ = &span.children.borrow_mut().push(json_node_text);
 
-    //
-    let sh = SerializableHandle::from(page_dom.document);
-    let mut page_bytes = vec![];
-    let _r = serialize(&mut page_bytes, &sh, SerializeOpts::default());
+    match dom_serialize(page_dom) {
+        Ok(v) => v,
+        Err(e) => {
+            error!("Failed to get source from json: {}", e);
+            vec![]
+        }
+    }
 
-    page_bytes
+    //
+    // let sh = SerializableHandle::from(page_dom.document);
+    // let mut page_bytes = vec![];
+    // let _r = serialize(&mut page_bytes, &sh, SerializeOpts::default());
+
+    // page_bytes
+}
+
+// fn dom_serialize(dom: RcDom) -> Result<Vec<u8>, Error> {
+// fn dom_serialize<T, E>(dom: RcDom) -> std::result::Result<T, E> {
+fn dom_serialize(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
+    let sh = SerializableHandle::from(dom.document);
+    let mut page_bytes = vec![];
+
+    // DBG
+    info!("fn dom_serialize ze");
+
+    let r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
+    // if let Ok(html) = String::from_utf8(page_bytes) {
+    //     info!("html:\n{}", html);
+    // }
+
+    // DBG
+    info!("fn dom_serialize ze result: {:?}", r);
+    // info!("fn dom_serialize page_bytes: {:?}", page_bytes);
+
+    Ok(page_bytes)
 }
 
 /// Create `supser::Page` from json.
@@ -1021,7 +1101,7 @@ fn href_pos(str: &str, search_start: usize) -> Option<(usize, usize, usize, usiz
 
 /// Search ptn on str and return the first position of it as Some(start, end),
 /// or None if not found or any error.
-/// It does not match if `/` is found before ptn as an escape key.
+/// It does not match if `\` is found before ptn as an escape key.
 /// It start serching from search_start position of str
 fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, usize)> {
     // Regular expression of ptn

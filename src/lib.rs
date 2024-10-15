@@ -2,7 +2,7 @@ use std::io::Result;
 use std::io::Write;
 use std::net::TcpListener;
 use std::net::TcpStream;
-// use tracing::info; //  event, instrument, span, Level debug,
+use tracing::{info, info_span}; //  event, instrument, span, Level debug,
 
 mod js_css;
 mod thread_pool;
@@ -52,10 +52,16 @@ fn handle_connection(mut stream: TcpStream, stor_root: String) {
     // Consider to reject access from wher not local
     // println!("lib.rs fn handle_connection cp0");
 
+    // let _span_get = info_span!("HC").entered();
+
+    // info!("fn handle_connection start");
+
     let response = wc_handler::response(&mut stream, &stor_root);
 
     stream.write(&response).unwrap();
     stream.flush().unwrap();
+
+    // info!("fn handle_connection end");
 }
 
 // #[cfg(test)]
