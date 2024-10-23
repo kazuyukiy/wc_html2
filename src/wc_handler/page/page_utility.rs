@@ -1,12 +1,9 @@
-use html5ever::serialize;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
 use std::collections::HashMap;
-// use std::collections::HashSet;
 use std::rc::Rc;
 use std::str::FromStr;
-use tracing::{error, info}; // debug,
-                            // use tracing::{event, info, instrument, span, Level, Node};
+use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
 mod dom_utility;
 pub mod page_dom_from_json;
 
@@ -16,10 +13,6 @@ pub fn file_path(stor_root: &str, page_path: &str) -> String {
 }
 
 pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
-    // DBG
-    // info!("DBG save: {} (Not saved indeed, make DBG off)", file_path);
-    // return Ok(());
-
     std::fs::write(&file_path, contents)
         .and_then(|_| {
             info!("save: {}", file_path);
@@ -29,9 +22,6 @@ pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
             error!("fn fs_write e: {:?}", e);
             Err(())
         })
-
-    // DBG comment out
-    // .or(Err(()))
 }
 
 pub fn to_dom(source: &str) -> RcDom {
@@ -42,6 +32,7 @@ pub fn to_dom_parts(source: &str) -> Vec<Rc<Node>> {
     dom_utility::to_dom_parts(source)
 }
 
+/// Get json data from span element and return it as JsonValue
 pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
     // span node containing json data in text
     let span = span_json_node(dom)?;
@@ -60,12 +51,9 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
         }
     };
 
-    let json_str = contents.borrow().to_string();
-
-    // DBG
-    // info!("json_parse starg");
-
-    let json_value = match json::parse(&json_str) {
+    // let json_str = contents.borrow().to_string();
+    // let json_value = match json::parse(&json_str) {
+    let json_value = match json::parse(&contents.borrow()) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to parse json: {}", e);
@@ -79,11 +67,9 @@ pub fn json_from_dom(dom: &RcDom) -> Option<json::JsonValue> {
 
 // Get span node from page_dom
 // <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
-// pub fn span_json_node(page_dom: &RcDom) -> Handle {
 pub fn span_json_node(page_dom: &RcDom) -> Option<Handle> {
     let attrs = &vec![("id", "page_json_str")];
     let ptn_span = dom_utility::node_element("span", &attrs);
-    // dom_utility::child_match_first(&page_dom, &ptn_span, true).unwrap()
     dom_utility::child_match_first(&page_dom, &ptn_span, true)
 }
 
@@ -111,12 +97,6 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
             return vec![];
         }
 
-        // DBG
-        // let page_dom: Result<RcDom, ()> = Ok(page_dom_plain());
-
-        // DBG
-        info!("fn source_from_json");
-
         let v = match dom_serialize(page_dom.unwrap()) {
             Ok(v) => v,
             Err(e) => {
@@ -124,11 +104,6 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
                 vec![]
             }
         };
-
-        // DBG
-
-        // info!("fn source_from_json returning :\n{}", v);
-
         return v;
     }
 
@@ -164,57 +139,30 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
             vec![]
         }
     }
-
-    //
-    // let sh = SerializableHandle::from(page_dom.document);
-    // let mut page_bytes = vec![];
-    // let _r = serialize(&mut page_bytes, &sh, SerializeOpts::default());
-
-    // page_bytes
 }
 
-// fn dom_serialize(dom: RcDom) -> Result<Vec<u8>, Error> {
-// fn dom_serialize<T, E>(dom: RcDom) -> std::result::Result<T, E> {
 fn dom_serialize(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
     let sh = SerializableHandle::from(dom.document);
     let mut page_bytes = vec![];
 
-    // DBG
-    info!("fn dom_serialize ze");
-
     let r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
-    // if let Ok(html) = String::from_utf8(page_bytes) {
-    //     info!("html:\n{}", html);
-    // }
-
-    // DBG
-    info!("fn dom_serialize ze result: {:?}", r);
-    // info!("fn dom_serialize page_bytes: {:?}", page_bytes);
-
     Ok(page_bytes)
 }
 
-/// Create `supser::Page` from json.
-/// // If a file exists, open the file and overwrite page_json.
-/// // If no file exists, create a `super::Page` from page_json.
-///
+/// Create `super::Page` from json.
 pub fn page_from_json(
     stor_root: &str,
     page_path: &str,
-    // page_json: json::JsonValue,
     page_json: &json::JsonValue,
-    // ) -> Result<super::Page, ()> {
 ) -> super::Page {
     let source = source_from_json(page_json); // bytes
 
     let mut page = super::Page::new(stor_root, page_path);
     page.source.replace(Some(source));
 
-    // Ok(page)
     page
 }
 
-// pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> bool {
 pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> Result<(), String> {
     if page.json().is_none() {
         // return false;
@@ -231,26 +179,19 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
         json::JsonValue::Number(number) => match number.try_into() {
             Ok(rev2) => rev2,
             Err(_) => {
-                // eprintln!("Failed to get rev");
-                // return false;
-
                 return Err(format!("Failed to get rev from json_data2"));
             }
         },
         // case: rev="12" ( with "" )
         json::JsonValue::Short(short) => {
             let rev2 = short.as_str();
-            match u32::from_str(rev2) {
+            match usize::from_str(rev2) {
                 Ok(rev2) => rev2,
                 Err(_) => {
                     return Err(format!("Failed to get rev2"));
-
-                    // eprintln!("Failed to get rev");
-                    // return false;
                 }
             }
         }
-        // _ => return false,
         _ => return Err(format!("Failed to get rev2")),
     };
 
@@ -258,14 +199,6 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
     if rev == rev2 {
         Ok(())
     } else {
-        // DBG
-        // Remove a line blow for debug mode
-        // error!(
-        //     "{}",
-        //     format!("DEB SKIP for rev not match {} : {}", rev, rev2)
-        // );
-        // return Ok(());
-
         Err(format!("rev not match {} : {}", rev, rev2))
     }
 }
@@ -1168,3 +1101,116 @@ fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, 
         return Some((ptn_start, ptn_end));
     }
 }
+
+/// Upgrade old page system version
+pub fn page_system_version_upgrade(page: &mut super::Page) -> Result<(), String> {
+    // except not html page, eg wc.js, wc.css
+
+    // page.file_path().end_with("")
+    page_system_update_json_script_to_body_span(page);
+    // let Some(mut page2) = page_system_update_json_script_to_body_span(page) else {
+    //     return Err("Failed to get page from  json in script.".to_string());
+    // };
+
+    // temp
+    Err("".to_string())
+}
+
+/// Page that has json value in the head as javascript.
+/// <script type="text/javascript">let page_json = {}</script>
+fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
+    // fn page_system_update_json_script_to_body_span(page: &mut super::Page) -> Option<super::Page> {
+    // info!("page_system_update_json_script_to_body_span");
+
+    let Some(page_dom) = page.dom() else {
+        error!("Failed to get dom from the page");
+        return;
+    };
+
+    // let Some(mut json_data) = json_script_parse(page) else {
+    let Some(mut json_data) = json_script_parse(page_dom) else {
+        error!("Failed to parse json from the script");
+        return;
+    };
+
+    // last_rev_used is maximum 100
+    let Some(last_rev_used) = last_rev_used(page) else {
+        error!("Failed to get last rev");
+        return;
+    };
+    json_data["data"]["page"]["rev"] = last_rev_used.into();
+
+    // page.json_replace_save(json_data) does not work
+    // because it needs original json value of the page
+    // in span element of the body that does not exists.
+    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_data);
+    let _ = page2.file_save_and_rev();
+}
+
+/// Parse page_json from page content at
+/// <script type="text/javascript" class="page_json">let page_json = {}</script>
+/// as JaonValue and return it.
+/// Some old pages contain json data in script as javascript value.
+// fn json_script_parse(page: &mut super::Page) -> Option<json::JsonValue> {
+pub fn json_script_parse(page_dom: &RcDom) -> Option<json::JsonValue> {
+    // let page_dom = page.dom()?;
+
+    let attrs = &vec![("type", "text/javascript")];
+    let ptn = dom_utility::node_element("script", &attrs);
+    let script_node = dom_utility::child_match_first(&page_dom, &ptn, true)?;
+    for child in script_node.children.borrow().iter() {
+        let content = match &child.data {
+            NodeData::Text { contents } => contents.borrow(),
+            _ => {
+                continue;
+            }
+        };
+        // (?s) includes new line.
+        let reg = regex::Regex::new(r#"(?s)\s*page_json\s*=\s*(\{.+\})\s*$"#).unwrap();
+        let Some(caps) = reg.captures(&content) else {
+            continue;
+        };
+        let Ok(page_json) = json::parse(&caps[1]) else {
+            continue;
+        };
+        return Some(page_json);
+    }
+    None
+}
+
+/// Find max rev number.
+fn last_rev_used(page: &mut super::Page) -> Option<usize> {
+    let mut rev_last = 0;
+    for rev in 0..100 {
+        rev_last = rev;
+        // next to rev_last
+        let path_rev = page.file_path() + "." + (rev + 1).to_string().as_str();
+
+        // DBG
+        // info!("last_rev_used path_rev: {}", path_rev);
+
+        if let Ok(exists) = std::fs::exists(&path_rev) {
+            if exists {
+                continue;
+            }
+        }
+        break;
+    }
+    Some(rev_last)
+}
+
+// fn update_old_to_003(page_json: &json::JsonValue) -> Option<()> {
+//     // value for system is not null
+//     if page_json["system"].is_null() == false {
+//         return None;
+//     }
+
+//     // Since wrong spel "syttem" was use.
+//     // value for syttem is not null
+//     if page_json["syttem"].is_null() == false {
+//         return None;
+//     }
+
+//     // temp
+//     Some(())
+// }

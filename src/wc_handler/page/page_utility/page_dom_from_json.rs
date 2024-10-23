@@ -1,6 +1,7 @@
-use html5ever::serialize;
-use html5ever::serialize::SerializeOpts;
-use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
+// use html5ever::serialize;
+// use html5ever::serialize::SerializeOpts;
+use markup5ever_rcdom::{Node, RcDom}; // Handle, , NodeData, SerializableHandle
+use std::collections::HashSet;
 use std::rc::Rc;
 use tracing::{error, info, warn}; // ,
                                   // use tracing::info; // ,
@@ -10,12 +11,9 @@ pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> 
     // let html_plain = super::page_html_plain();
 
     // DBG
-    info!("fn page_dom_from_json");
+    // info!("fn page_dom_from_json");
 
     let page_dom = super::to_dom(html_plain());
-
-    // DBG
-    // return Ok(page_dom);
 
     page_title_set(&page_dom, page_json);
 
@@ -29,32 +27,16 @@ pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> 
     Ok(page_dom)
 }
 
-// fn page_html_plain() -> &'static str {
-
 fn html_plain() -> &'static str {
     r#"<html>
-<header>
-<title></title><meta charset="UTF-8"></header>
+<head>
+<title></title><meta charset="UTF-8"></head>
 <script src="/wc.js"></script>
 <link rel="stylesheet" href="/wc.css"></link>
 <style type="text/css"></style>
 <body onload="bodyOnload()">
 <span id="page_json_str" style="display: none"></span>
 </body></html>"#
-    //""
-
-    // let html_plain = r#"<html><body></body></html>"#;
-    // let html_plain = r#"<html><body>hee</body></html>"#;
-
-    // <script src="/wc.js"></script>
-    // <body onload="bodyOnload()">
-    // <span id="page_json_str" style="display: none"></span>
-
-    //     let html_plain = r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta>
-    //     <link rel="stylesheet" href="/wc.css"></link>
-    //     <style type="text/css"></style>
-    // </head><body>hee</body></html>
-    // "#;
 }
 
 // Get page title from page_json and
@@ -95,8 +77,11 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
         .ok_or("Failedto get body element".to_string())?;
 
     // top_node <div id="page_static">
-    let attrs = &vec![("id", "page_static")];
+    let attrs = &vec![("id", "page_top_node")];
     let top_node = super::dom_utility::node_element("div", attrs);
+
+    let title_text = super::dom_utility::node_text("page_html_static_set");
+    top_node.children.borrow_mut().push(title_text);
 
     // navi
     let navi_node = navi(page_json)?;
@@ -119,7 +104,10 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     warn!("Consider to check dublication of subsection no to avoid endless loop");
 
     // subsections(page_json, &subsections_node, 0)?;
-    subsections(subsections_json, &subsections_node, &0)?;
+
+    // Check dublication of parent_index_key to avoid endlessloop.
+    let mut parent_handled = HashSet::new();
+    subsections(subsections_json, &subsections_node, &mut parent_handled, &0)?;
     top_node.children.borrow_mut().push(subsections_node);
 
     // temporary space
@@ -190,6 +178,7 @@ fn index(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
         return Err("Failed to get subsection data!".to_string());
     }
 
+    // ul / li
     let index_ul = index_ul(subsections_json, &0)?;
     // let index_ul = index_ul(page_json, 0)?;
     Ok(index_ul)
@@ -200,27 +189,7 @@ fn index(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 // but children index type is number :page_json["data"]["subsection"]["data"]["0"]["child"] = [1, 3, 4];
 // It is better all those to be numbers in future.
 //
-// fn index_ul(page_json: &json::JsonValue, index_key: usize) -> Result<Rc<Node>, String> {
 fn index_ul(subsections_json: &json::JsonValue, index_key: &usize) -> Result<Rc<Node>, String> {
-    // let subsections_json = &page_json["data"]["subsection"]["data"];
-    // if subsections_json.is_null() {
-    //     return Err("Failed to get subsection data!".to_string());
-    // }
-
-    // let key = index_key.to_string();
-    // let parent_json = &subsections_json[&key];
-    // if parent_json.is_null() {
-    //     return Err(format!("Failed to get subsection in key: {}", index_key));
-    // }
-    // ul / li
-    // let children_i = match &parent_json["child"] {
-    //     json::JsonValue::Array(ref vec) => vec,
-    //     _ => {
-    //         return Err(format!("Failed to get child of subsection {}", index_key));
-    //     }
-    // };
-
-    // let children_i = subsection_children_indexes(page_json, index_key)?;
     let children_i = subsection_children_indexes(subsections_json, index_key)?;
 
     let ul = super::dom_utility::node_element("ul", &vec![]);
@@ -233,16 +202,9 @@ fn index_ul(subsections_json: &json::JsonValue, index_key: &usize) -> Result<Rc<
 }
 
 fn subsection_children_indexes(
-    // page_json: &json::JsonValue,
     subsections_json: &json::JsonValue,
     index_key: &usize,
-    // ) -> Result<&Vec<json::JsonValue>, String> {
 ) -> Result<Vec<usize>, String> {
-    // let subsections_json = &page_json["data"]["subsection"]["data"];
-    // if subsections_json.is_null() {
-    //     return Err("Failed to get subsection data!".to_string());
-    // }
-
     let key = index_key.to_string();
     let parent_json = &subsections_json[&key];
     if parent_json.is_null() {
@@ -266,37 +228,13 @@ fn subsection_children_indexes(
             return Err(format!("Failed to get number of: {}", child_i));
         };
 
-        let ii: usize = i;
-
         children_i2.push(i);
     }
-
-    // children_i.iter().map(|json_value| {
-    //     if json_value.is_number() {
-    //         json_value.as_usize().unwrap()
-    //     } else if json_value.is_string() {
-    //         json_value.as_usize().unwrap()
-    //     } else {
-    //         return Err("".to_string());
-    //     }
-    //     //
-    //     //        1
-    // });
 
     Ok(children_i2)
 }
 
-fn index_li(
-    subsections_json: &json::JsonValue,
-    // child_i: &json::JsonValue,
-    child_i: &usize,
-) -> Result<Rc<Node>, String> {
-    // let child_i = match json_value_to_number(child_i) {
-    //     Some(v) => v,
-    //     None => return Err(format!("Failed to get number from : {:?}", child_i)),
-    // };
-
-    // let child_i = child_i.to_string();
+fn index_li(subsections_json: &json::JsonValue, child_i: &usize) -> Result<Rc<Node>, String> {
     let subsection_json = &subsections_json[child_i.to_string().as_str()];
 
     let li = super::dom_utility::node_element("li", &vec![]);
@@ -323,21 +261,17 @@ fn index_li(
     Ok(li)
 }
 
-fn json_value_to_number(json_value: &json::JsonValue) -> Option<usize> {
-    if json_value.is_number() {
-        Some(json_value.as_usize().unwrap())
-    } else if json_value.is_string() {
-        Some(json_value.as_usize().unwrap())
-    } else {
-        None
-    }
-}
-
 fn subsections(
     subsections_json: &json::JsonValue,
     subsections_node: &Rc<Node>,
+    parent_handled: &mut HashSet<usize>,
     parent_index_key: &usize,
 ) -> Result<(), String> {
+    if parent_handled.contains(parent_index_key) {
+        return Err(format!("Key duplicated {}", parent_index_key));
+    }
+    parent_handled.insert(*parent_index_key);
+
     let key = parent_index_key.to_string();
     // indexing in string
     let parent_json = &subsections_json[&key];
@@ -352,7 +286,7 @@ fn subsections(
 
     let subsection_children_i = subsection_children_indexes(subsections_json, &parent_index_key)?;
     for child_i in subsection_children_i.iter() {
-        subsection(subsections_json, &subsections_node, child_i)?;
+        subsection(subsections_json, &subsections_node, parent_handled, child_i)?;
     }
 
     Ok(())
@@ -362,8 +296,8 @@ fn subsections(
 fn subsection(
     subsections_json: &json::JsonValue,
     subsections_node: &Rc<Node>,
+    parent_handled: &mut HashSet<usize>,
     id: &usize,
-    // ) -> Result<Option<Rc<Node>>, String> {
 ) -> Result<(), String> {
     let subsection_json = &subsections_json[id.to_string().as_str()];
 
@@ -411,16 +345,9 @@ fn subsection(
     subsections_node.children.borrow_mut().push(subsection_node);
 
     // children
-    subsections(subsections_json, &subsections_node, &id)?;
+    subsections(subsections_json, &subsections_node, parent_handled, &id)?;
 
     return Ok(());
-
-    subsections_node.children.borrow_mut().push(navi_back());
-
-    // temp
-    // Err("".to_string())
-    // Ok(Some(subsection_node))
-    Ok(())
 }
 
 fn subsection_start_with_sharp(
@@ -662,16 +589,16 @@ fn text_whitespace_pre(hay: &str) -> String {
 // wondering if this is necessary?
 /// Remove spaces between > and < if there are only spaces.
 /// eg: <...>\n</...> to <...></...>
-fn text_remove_newline_between_elements(hay: &str) -> String {
-    // whitespace: \s
-    let reg = regex::Regex::new(r#">\s+<"#).unwrap();
-    let hay = reg.replace_all(hay, r#"><"#);
+// fn text_remove_newline_between_elements(hay: &str) -> String {
+//     // whitespace: \s
+//     let reg = regex::Regex::new(r#">\s+<"#).unwrap();
+//     let hay = reg.replace_all(hay, r#"><"#);
 
-    // DBG temp
-    "".to_string()
+//     // DBG temp
+//     "".to_string()
 
-    //
-}
+//     //
+// }
 
 fn navi_back() -> Rc<Node> {
     let navi_back_node = super::dom_utility::node_element("div", &vec![]);

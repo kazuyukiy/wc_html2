@@ -89,15 +89,15 @@ impl HttpRequest {
     }
 
     // pub fn path_contains_rev(&self) -> bool {
-    pub fn path_ends_with_rev(&self) -> bool {
-        // abc.html.003
-        let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
-        reg.is_match(self.path())
-        // self.path();
+    // pub fn _path_ends_with_rev(&self) -> bool {
+    //     // abc.html.003
+    //     let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+    //     reg.is_match(self.path())
+    //     // self.path();
 
-        // temp
-        // balse
-    }
+    //     // temp
+    //     // balse
+    // }
 
     pub fn wc_request(&self) -> Option<&str> {
         self.wc_request.as_ref().map(|v| v.as_str())
