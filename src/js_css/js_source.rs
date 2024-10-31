@@ -50,19 +50,25 @@ function bodyOnload () {
 
     const bxCenter = new BxCenter();
 
-    // top_node <div id="page_top_node">
+    // top_node for the page.
+    // <div id="page_top_node">
     let eleBloxTarget = document.getElementById("page_top_node");
+    // top_node exists
     if(eleBloxTarget) {
+        // clear the contents
         eleBloxTarget.innerHTML = "";
         // console.log("eleBloxTarget found, cleared");
     } else {
+        // create a new element for top_node.
         eleBloxTarget = document.createElement("div");
         document.body.appendChild(eleBloxTarget);
         // console.log("eleBloxTarget created");
     }
     // const eleBloxTarget = document.createElement("div");
     // document.body.appendChild(eleBloxTarget);
-    
+
+    // Blox is a unit that create the page as a part of it.
+    // page: BxCenter is the top part of Bloxes.
     const page = bxCenter.bxTop("Page");
     page.data(page_json);
     page.eleTarget(eleBloxTarget);
@@ -1027,7 +1033,6 @@ class Page extends Blox {
 	}
 	
     } // end of class Page dataChild 
-    
 
     // 
     // 

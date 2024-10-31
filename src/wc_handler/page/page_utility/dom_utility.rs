@@ -30,7 +30,8 @@ pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
     // get body
     let body_ptn = node_element("body", &vec![]);
     // Rx<Node>
-    let body = child_match_first(&parsed, &body_ptn, true).unwrap();
+    // let body = child_match_first(&parsed, &body_ptn, true).unwrap();
+    let body = child_match_first(&parsed.document, &body_ptn, true).unwrap();
 
     // take is essential to get elements deep in children recursively.
     // Otherwise clone does take shalow copy without its child elements.
@@ -178,8 +179,10 @@ pub fn child_match_list(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> 
     node_list
 }
 
-pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-    let list = child_match_list(&dom.document, node_ptn, recursive);
+// pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
+pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
+    // let list = child_match_list(&dom.document, node_ptn, recursive);
+    let list = child_match_list(&dom, node_ptn, recursive);
 
     if list.len() < 1 {
         return None;

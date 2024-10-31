@@ -49,7 +49,10 @@ fn page_title_set(page_dom: &RcDom, page_json: &json::JsonValue) {
         .unwrap();
 
     let title_ptn = super::dom_utility::node_element("title", &vec![]);
-    if let Some(title_node) = super::dom_utility::child_match_first(&page_dom, &title_ptn, true) {
+    // if let Some(title_node) = super::dom_utility::child_match_first(&page_dom, &title_ptn, true) {
+    if let Some(title_node) =
+        super::dom_utility::child_match_first(&page_dom.document, &title_ptn, true)
+    {
         let title_text = super::dom_utility::node_text(title_str);
         title_node.children.borrow_mut().push(title_text);
     }
@@ -60,7 +63,10 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
     let attrs = &vec![("id", "page_json_str")];
     let span_ptn = super::dom_utility::node_element("span", &attrs);
 
-    if let Some(span_node) = super::dom_utility::child_match_first(&page_dom, &span_ptn, true) {
+    // if let Some(span_node) = super::dom_utility::child_match_first(&page_dom, &span_ptn, true) {
+    if let Some(span_node) =
+        super::dom_utility::child_match_first(&page_dom.document, &span_ptn, true)
+    {
         let json_str = page_json.dump();
         let json_node_text = super::dom_utility::node_text(&json_str);
         span_node.children.borrow_mut().push(json_node_text);
@@ -73,7 +79,8 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     // let attrs = &vec![("id", "page_json_str")];
     let body_ptn = super::dom_utility::node_element("body", &vec![]);
 
-    let body_node = super::dom_utility::child_match_first(&page_dom, &body_ptn, true)
+    // let body_node = super::dom_utility::child_match_first(&page_dom, &body_ptn, true)
+    let body_node = super::dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
 
     // top_node <div id="page_static">

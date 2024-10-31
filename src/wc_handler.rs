@@ -11,29 +11,9 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
 
     let method = http_request.method();
 
-    // DBG
-    // if http_request.path() == "/favicon.ico" {
-    //     return http_404();
-    // }
-
     if method == "GET" {
         let _span_get = info_span!("GET").entered();
         info!("{}", http_request.path());
-
-        // DBG
-        // test to see doc in not html
-        // let mut page = page::Page::new(&stor_root, http_request.path());
-        // let dom = page.dom();
-        // if dom.is_none() {
-        //     return http_404();
-        // }
-
-        // DBG
-        // page upgrade
-        // let dbg_path = "/Computing/Html/html_index.html";
-        // let mut page = page::Page::new(&stor_root, http_request.path());
-        // let mut page = page::Page::new(&stor_root, dbg_path);
-        // page::page_utility::page_system_version_upgrade(&mut page);
 
         // DBG
         let mut debug_mode = false;
@@ -43,34 +23,17 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
         } else {
             info!("path not contains htm");
         }
-        // debug_mode = true;
-        // if http_request.path() == "/wc.js" {
-        //     debug_mode = false;
-        // }
-        // if http_request.path() == "/wc.css" {
-        //     debug_mode = false;
-        // }
+        // "/wc.js", "/wc.css", "/favicon.ico"
         if debug_mode {
             info!("debug_mode: {}", debug_mode);
-
             // Create the page with contents in html previously
             // before drawn by javascript.
             // in debug mode
             let mut page = page::Page::new(&stor_root, http_request.path());
-            // page_json in span element as a text
             if let Some(page_json) = page.json_value() {
-                // DBG
-                // info!("page_json: {}", page_json);
                 let vec = page::page_utility::source_from_json(&page_json);
                 return http_ok(&vec);
             }
-            // page_json in script element of the page as a javascript value.
-            if let Some(page_dom) = page.dom() {
-                if let Some(page_json) = page::page_utility::json_script_parse(page_dom) {
-                    let vec = page::page_utility::source_from_json(&page_json);
-                    return http_ok(&vec);
-                }
-            };
         }
 
         return handle_get(&http_request, stor_root).unwrap_or(http_404());
@@ -102,10 +65,6 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
     // temp
     http_hello()
 }
-
-// fn path(stor_root: &str, path: &str) -> String {
-//     stor_root.to_string() + path
-// }
 
 fn http_ok(contents: &Vec<u8>) -> Vec<u8> {
     http_form("200 OK", contents)
