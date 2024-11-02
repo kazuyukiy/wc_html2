@@ -160,7 +160,8 @@ impl Page {
 
     fn json_parse(&mut self) -> Result<(), ()> {
         let dom = self.dom().ok_or(())?;
-        match page_utility::json_from_dom(dom) {
+        // match page_utility::json_from_dom(dom) {
+        match page_utility::json_from_dom(&dom.document) {
             Some(v) => {
                 let page_json = page_json::PageJson::from(v);
                 self.json.replace(Some(page_json));

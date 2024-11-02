@@ -33,6 +33,38 @@ pub fn to_dom_parts(source: &str) -> Vec<Rc<Node>> {
     dom_utility::to_dom_parts(source)
 }
 
+fn json_parse(str: &str) -> Option<json::JsonValue> {
+    match json::parse(str) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            error!("Failed to parse json: {}", e);
+            None
+        }
+    }
+}
+
+/// Get json text data from span element and return it as JsonValue
+/// If span with json data is not found, get data from script element (old style)
+pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
+    // current page stype
+    let mut json_value = json_from_dom_span(page_node);
+    if json_value.is_none() {
+        // old page stype
+        json_value = json_from_dom_script(page_node);
+    }
+    if json_value.is_none() {
+        // old page stype
+        json_value = json_from_dom_html(page_node);
+    }
+    json_value
+}
+
+fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
+    // json in span
+    let json_str = span_json_str(page_node)?;
+    json_parse(&json_str)
+}
+
 /// Get page_json in string from span element
 fn span_json_str(page_node: &Rc<Node>) -> Option<String> {
     let span = span_json_node(page_node)?;
@@ -52,6 +84,20 @@ fn span_json_str(page_node: &Rc<Node>) -> Option<String> {
     };
     let str = json_str.borrow().to_string();
     Some(str)
+}
+
+/// Get span node from page_dom
+/// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
+pub fn span_json_node(page_node: &Rc<Node>) -> Option<Handle> {
+    let attrs = &vec![("id", "page_json_str")];
+    let ptn_span = dom_utility::node_element("span", &attrs);
+    dom_utility::child_match_first(&page_node, &ptn_span, true)
+}
+
+fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
+    // json in script
+    let json_str = script_json_str(page_node)?;
+    json_parse(&json_str)
 }
 
 fn script_json_str(page_dom: &Rc<Node>) -> Option<String> {
@@ -75,190 +121,12 @@ fn script_json_str(page_dom: &Rc<Node>) -> Option<String> {
     None
 }
 
-/// Get json text data from span element and return it as JsonValue
-/// If span with json data is not found, get data from script element (old style)
-pub fn json_from_dom(page_dom: &RcDom) -> Option<json::JsonValue> {
-    let page_node = &page_dom.document;
-
-    // json in span
-    let mut json_str = span_json_str(page_node);
-    // json in script
-    if json_str.is_none() {
-        match script_json_str(page_node) {
-            Some(v) => {
-                json_str.replace(v);
-            }
-            // None => return None,
-            None => (),
-        }
-    }
-
-    if json_str.is_some() {
-        //
-        let json_value = match json::parse(&json_str.unwrap()) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to parse json: {}", e);
-                return None;
-            }
-        };
-        return Some(json_value);
-    }
-
-    // DBG
-    return json_from_dom_html(page_dom);
-
-    if json_str.is_none() {
-        return None;
-    }
-
-    // json_str is some at here.
-    let json_value = match json::parse(&json_str.unwrap()) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("Failed to parse json: {}", e);
-            return None;
-        }
-    };
-    Some(json_value)
-}
-
-// Get span node from page_dom
-// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
-pub fn span_json_node(page_node: &Rc<Node>) -> Option<Handle> {
-    let attrs = &vec![("id", "page_json_str")];
-    let ptn_span = dom_utility::node_element("span", &attrs);
-    dom_utility::child_match_first(&page_node, &ptn_span, true)
-}
-
 /// Convert page_dom that represent page contents, not page data in json as text,
 /// to page_json data
-fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
-    return json_from_dom_html::json_from_dom_html(page_dom);
-
-    // let page_node = &page_dom.document;
-    // let mut page_json = super::page_json::page_json_plain();
-
-    // json_html_title(page_node, &mut page_json)?;
-    // json_html_navi(page_node, &mut page_json)?;
-    // json_html_subsections(page_node, &mut page_json)?;
-
-    // Some(page_json)
+// fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
+fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
+    json_from_dom_html::json_from_dom_html(page_node)
 }
-
-// <title>title_name</title>
-// fn json_html_title(page_node: &Rc<Node>, page_json: &mut json::JsonValue) -> Option<()> {
-//     let ptn = dom_utility::node_element("title", &vec![]);
-//     let title_node = dom_utility::child_match_first(&page_node, &ptn, true)?;
-//     for child in title_node.children.borrow().iter() {
-//         if let NodeData::Text { contents } = &child.data {
-//             let value = contents.borrow().to_string();
-//             page_json["data"]["page"]["title"] = value.into();
-//             break;
-//         }
-//     }
-
-//     Some(())
-// }
-
-// fn json_html_navi(page_node: &Rc<Node>, page_json: &mut json::JsonValue) -> Option<()> {
-//     page_json["data"]["navi"] = json::JsonValue::Array(vec![]);
-//     let navis_json = &mut page_json["data"]["navi"];
-//     // div for navi
-//     let ptn = dom_utility::node_element("div", &vec![]);
-//     let div = dom_utility::child_match_first(&page_node, &ptn, true)?;
-//     let ptn = dom_utility::node_element("a", &vec![]);
-//     let a_list = dom_utility::child_match_list(&div, &ptn, false);
-//     let mut navi_list = vec![];
-//     for a_node in a_list {
-//         let (href, text) = a_node_href_title(&a_node);
-//         navi_list.push((href, text));
-//     }
-
-//     for navi in navi_list {
-//         // let href = match navi.0 {
-//         //     Some(ref v) => v.as_ref(),
-//         //     None => "",
-//         // };
-//         // let text = match navi.1 {
-//         //     Some(ref v) => v.as_ref(),
-//         //     None => "",
-//         // };
-//         // info!("navi: {}, {}", text, href);
-//         let mut navi_json = json::JsonValue::Array(vec![]);
-//         // let _ = navi_json.push::<json::JsonValue>(text.into());
-//         // let _ = navi_json.push::<json::JsonValue>(href.into());
-//         let _ = navi_json.push::<json::JsonValue>(navi.1.into());
-//         let _ = navi_json.push::<json::JsonValue>(navi.0.into());
-
-//         let _ = navis_json.push(navi_json);
-//     }
-//     Some(())
-// }
-
-// /// Get href and text content of a node;
-// // fn a_node_href_title(a_node: &Rc<Node>) -> (Option<String>, Option<String>) {
-// fn a_node_href_title(a_node: &Rc<Node>) -> (String, String) {
-//     //
-
-//     let mut href = None;
-//     if let NodeData::Element { attrs, .. } = &a_node.data {
-//         for attr in attrs.borrow().iter() {
-//             if &attr.name.local == "href" {
-//                 // info!("attr {:?}:{:?}", &attr.name, &attr.value)
-//                 // info!("href value: {:?}", &attr.value);
-//                 let value = String::from(&attr.value);
-//                 // info!("href value(str): {}", &value);
-//                 // navi_list.push(value);
-//                 // &attr.value.as_str();
-//                 href.replace(value);
-//                 break;
-//             }
-//         }
-//     }
-//     let href = href.or(Some("".to_string())).unwrap();
-
-//     let mut text = None;
-//     for child in a_node.children.borrow().iter() {
-//         if let NodeData::Text { contents } = &child.data {
-//             let value = contents.borrow().to_string();
-//             text.replace(value);
-//             break;
-//         }
-//     }
-//     let text = text.or(Some("".to_string())).unwrap();
-
-//     (href, text)
-// }
-
-// fn json_html_subsections(page_node: &Rc<Node>, page_json: &mut json::JsonValue) -> Option<()> {
-//     let ptn = dom_utility::node_element("ul", &vec![]);
-//     let ul_node = dom_utility::child_match_first(&page_node, &ptn, true)?;
-
-//     let ptn = dom_utility::node_element("li", &vec![]);
-//     let li_list = dom_utility::child_match_list(&ul_node, &ptn, false);
-//     for li in li_list {
-//         json_html_subsection_li(&li);
-//     }
-
-//     // page_json["data"]["navi"] = json::JsonValue::Array(vec![]);
-//     // let navis_json = &mut page_json["data"]["navi"];
-
-//     //
-//     Some(())
-// }
-
-// fn json_html_subsection_li(li_node: &Rc<Node>) -> Option<()> {
-//     //
-//     let ptn = dom_utility::node_element("a", &vec![]);
-//     let a_node = dom_utility::child_match_first(&li_node, &ptn, false)?;
-
-//     let (href, text) = a_node_href_title(&a_node);
-//     info!("subsections a_node: {}, {}", href, text);
-
-//     // temp
-//     Some(())
-// }
 
 fn page_dom_plain() -> RcDom {
     to_dom(page_html_plain())
@@ -448,9 +316,6 @@ pub fn page_child_new(
 
     child_json["data"]["navi"] = child_navi;
 
-    // return Ok(Page)
-    // page_from_json(parent_page.stor_root(), child_path, child_json).or(Err(()))
-    // page_from_json(parent_page.stor_root(), child_path, &child_json).or(Err(()))
     let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
     Ok(child_page)
 }
@@ -1316,10 +1181,7 @@ fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
         return;
     };
 
-    // let Some(mut json_data) = json_script_parse(page) else {
-    // let Some(mut json_data) = json_script_parse(page_dom) else {
-    let Some(mut json_data) = json_from_dom(page_dom) else {
-        // let Some(mut json_data) = json_from_dom(&page_dom.document) else {
+    let Some(mut json_data) = json_from_dom(&page_dom.document) else {
         error!("Failed to parse json from the script");
         return;
     };
@@ -1337,37 +1199,6 @@ fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
     let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_data);
     let _ = page2.file_save_and_rev();
 }
-
-// /// Parse page_json from page content at
-// /// <script type="text/javascript" class="page_json">let page_json = {}</script>
-// /// as JaonValue and return it.
-// /// Some old pages contain json data in script as javascript value.
-// // fn json_script_parse(page: &mut super::Page) -> Option<json::JsonValue> {
-// pub fn json_script_parse_(page_dom: &RcDom) -> Option<json::JsonValue> {
-//     // let page_dom = page.dom()?;
-
-//     let attrs = &vec![("type", "text/javascript")];
-//     let ptn = dom_utility::node_element("script", &attrs);
-//     let script_node = dom_utility::child_match_first(&page_dom, &ptn, true)?;
-//     for child in script_node.children.borrow().iter() {
-//         let content = match &child.data {
-//             NodeData::Text { contents } => contents.borrow(),
-//             _ => {
-//                 continue;
-//             }
-//         };
-//         // (?s) includes new line.
-//         let reg = regex::Regex::new(r#"(?s)\s*page_json\s*=\s*(\{.+\})\s*$"#).unwrap();
-//         let Some(caps) = reg.captures(&content) else {
-//             continue;
-//         };
-//         let Ok(page_json) = json::parse(&caps[1]) else {
-//             continue;
-//         };
-//         return Some(page_json);
-//     }
-//     None
-// }
 
 /// Find max rev number.
 fn last_rev_used(page: &mut super::Page) -> Option<usize> {

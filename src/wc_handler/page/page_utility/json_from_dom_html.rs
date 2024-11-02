@@ -2,7 +2,7 @@ use super::super::page_json::PageJson;
 use super::dom_utility;
 use html5ever::serialize::SerializeOpts;
 use html5ever::tendril::Tendril; // Default::default()).one needs this.
-use markup5ever_rcdom::{Node, NodeData, RcDom, SerializableHandle}; // Handle,
+use markup5ever_rcdom::{Handle, Node, NodeData, SerializableHandle}; // Handle, RcDom
 use std::cell::RefCell;
 use std::rc::Rc;
 use tendril::fmt::UTF8;
@@ -10,8 +10,9 @@ use tendril::fmt::UTF8;
 
 /// Convert page_dom that represent page contents, not page data in json as text,
 /// to page_json data
-pub fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
-    let page_node = &page_dom.document;
+pub fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
+    // pub fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
+    // let page_node = &page_dom.document;
     let mut page_json = PageJson::new();
     let page_json_data = page_json.value_mut()?;
 

@@ -1,12 +1,129 @@
+// use std::io::Write;
 use std::net::TcpStream;
+// use std::thread;
+// use std::time::Duration;
 mod http_request;
-mod page;
+pub mod page;
 use tracing::{error, info, info_span}; //  error, event, instrument, span, Level debug,
 
+// pub fn stream_handle(stream: &mut TcpStream, stor_root: &str) {
+//     //
+
+//     // stream_handle2(stream, stor_root);
+//     // stream.flush().unwrap();
+//     // return;
+
+//     // info!("stream_handle");
+//     let response = response(stream, stor_root);
+//     stream.write(&response).unwrap();
+//     stream.flush().unwrap();
+//     // info!("flush unwrapped");
+// }
+
+// fn stream_handle2(stream: &mut TcpStream, stor_root: &str) {
+//     //
+
+//     let http_request = match http_request::HttpRequest::from(stream) {
+//         Ok(v) => v,
+//         _ => {
+//             // DBG
+//             error!("Failed to get http_request");
+//             stream.write(&http_404()).unwrap();
+//             return;
+//             // return http_404();
+//         }
+//     };
+
+//     let method = http_request.method();
+
+//     if method == "GET" {
+//         let _span_get = info_span!("GET").entered();
+//         info!("{}", http_request.path());
+
+//         // DBG
+//         let mut debug_mode = false;
+//         if http_request.path().contains(".htm") {
+//             debug_mode = true;
+//             info!("path contains htm");
+//         } else {
+//             info!("path not contains htm");
+//         }
+//         // "/wc.js", "/wc.css", "/favicon.ico"
+//         if debug_mode {
+//             info!("debug_mode: {}", debug_mode);
+//             // Create the page with contents in html previously
+//             // before drawn by javascript.
+//             // in debug mode
+//             let mut page = page::Page::new(&stor_root, http_request.path());
+//             if let Some(page_json) = page.json_value() {
+//                 let vec = page::page_utility::source_from_json(&page_json);
+
+//                 // return http_ok(&vec);
+//                 stream.write(&http_ok(&vec)).unwrap();
+//                 stream.flush().unwrap();
+
+//                 // DBG
+//                 info!("wait for 10sec.");
+
+//                 // DBG
+//                 thread::sleep(Duration::from_millis(500));
+
+//                 // DBG
+//                 info!("after write and 10sec.");
+
+//                 return;
+//             }
+//         }
+
+//         // return handle_get(&http_request, stor_root).unwrap_or(http_404());
+//         let res = handle_get(&http_request, stor_root).unwrap_or(http_404());
+//         stream.write(&res).unwrap();
+//         return;
+//     }
+
+//     // Case http_request.path() ends with rev eg; abc.html.003
+//     // Ignore POST from page with rev no, those are backup file.
+//     //
+
+//     // Case http_request.path() ends with rev eg; abc.html.003
+//     // that is a backup file,
+//     // inore POST request from the page,
+//     //
+//     // (old) http_request.path_ends_with_rev()
+//     // let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+//     // if reg.is_match(http_request.path()) {
+//     //     info!("contains rev: {}", http_request.path());
+//     //     return http_404();
+//     // }
+//     let page = page::Page::new(stor_root, http_request.path());
+//     if page.is_end_with_rev() {
+//         // return http_404();
+//         stream.write(&http_404()).unwrap();
+//         return;
+//     }
+
+//     if method == "POST" {
+//         // return handle_post(&http_request, stor_root).unwrap_or(http_404());
+//         let res = handle_post(&http_request, stor_root).unwrap_or(http_404());
+//         stream.write(&res).unwrap();
+//         return;
+//     }
+
+//     // temp
+//     // http_hello()
+//     stream.write(&http_hello()).unwrap();
+// }
+
 pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
+    // info!("response");
+
     let http_request = match http_request::HttpRequest::from(stream) {
         Ok(v) => v,
-        _ => return http_404(),
+        _ => {
+            // DBG
+            info!("Failed to get http_request");
+            return http_404();
+        }
     };
 
     let method = http_request.method();
@@ -39,20 +156,8 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
         return handle_get(&http_request, stor_root).unwrap_or(http_404());
     }
 
-    // Case http_request.path() ends with rev eg; abc.html.003
-    // Ignore POST from page with rev no, those are backup file.
-    //
-
-    // Case http_request.path() ends with rev eg; abc.html.003
-    // that is a backup file,
-    // inore POST request from the page,
-    //
-    // (old) http_request.path_ends_with_rev()
-    // let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
-    // if reg.is_match(http_request.path()) {
-    //     info!("contains rev: {}", http_request.path());
-    //     return http_404();
-    // }
+    // Case http_request.path() ends with rev eg; abc.html.003 (backup file)
+    // Ignore POST from those pages.
     let page = page::Page::new(stor_root, http_request.path());
     if page.is_end_with_rev() {
         return http_404();

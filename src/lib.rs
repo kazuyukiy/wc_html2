@@ -5,6 +5,7 @@ use std::net::TcpStream;
 // use tracing::{info, info_span}; //  event, instrument, span, Level debug,
 
 mod js_css;
+mod page_upgrade;
 mod thread_pool;
 // mod wc_handler;
 mod wc_handler;
@@ -17,6 +18,15 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
     // Do it only once when start main()
     // if you change wc.js or wc.css, you may restart main() or copy it manulally
     js_css::setup();
+
+    // page type upgrade
+    let stor_root2 = stor_root.to_string();
+    std::thread::spawn(|| {
+        let stor_root2 = stor_root2;
+        page_upgrade::page_upgrade(&stor_root2, "wc_top.html");
+    })
+    .join()
+    .unwrap();
 
     // wc_handler::system_ini();
 
@@ -56,8 +66,11 @@ fn handle_connection(mut stream: TcpStream, stor_root: String) {
 
     // info!("fn handle_connection start");
 
-    let response = wc_handler::response(&mut stream, &stor_root);
+    // wc_handler::stream_handle(&mut stream, &stor_root);
+    // stream.flush().unwrap();
+    // return;
 
+    let response = wc_handler::response(&mut stream, &stor_root);
     stream.write(&response).unwrap();
     stream.flush().unwrap();
 
