@@ -1,45 +1,165 @@
+// use std::io::Write;
 use std::net::TcpStream;
+// use std::thread;
+// use std::time::Duration;
 mod http_request;
-mod page;
-use tracing::info; //  event, instrument, span, Level debug,
+pub mod page;
+use tracing::{error, info, info_span}; //  error, event, instrument, span, Level debug,
+
+// pub fn stream_handle(stream: &mut TcpStream, stor_root: &str) {
+//     //
+
+//     // stream_handle2(stream, stor_root);
+//     // stream.flush().unwrap();
+//     // return;
+
+//     // info!("stream_handle");
+//     let response = response(stream, stor_root);
+//     stream.write(&response).unwrap();
+//     stream.flush().unwrap();
+//     // info!("flush unwrapped");
+// }
+
+// fn stream_handle2(stream: &mut TcpStream, stor_root: &str) {
+//     //
+
+//     let http_request = match http_request::HttpRequest::from(stream) {
+//         Ok(v) => v,
+//         _ => {
+//             // DBG
+//             error!("Failed to get http_request");
+//             stream.write(&http_404()).unwrap();
+//             return;
+//             // return http_404();
+//         }
+//     };
+
+//     let method = http_request.method();
+
+//     if method == "GET" {
+//         let _span_get = info_span!("GET").entered();
+//         info!("{}", http_request.path());
+
+//         // DBG
+//         let mut debug_mode = false;
+//         if http_request.path().contains(".htm") {
+//             debug_mode = true;
+//             info!("path contains htm");
+//         } else {
+//             info!("path not contains htm");
+//         }
+//         // "/wc.js", "/wc.css", "/favicon.ico"
+//         if debug_mode {
+//             info!("debug_mode: {}", debug_mode);
+//             // Create the page with contents in html previously
+//             // before drawn by javascript.
+//             // in debug mode
+//             let mut page = page::Page::new(&stor_root, http_request.path());
+//             if let Some(page_json) = page.json_value() {
+//                 let vec = page::page_utility::source_from_json(&page_json);
+
+//                 // return http_ok(&vec);
+//                 stream.write(&http_ok(&vec)).unwrap();
+//                 stream.flush().unwrap();
+
+//                 // DBG
+//                 info!("wait for 10sec.");
+
+//                 // DBG
+//                 thread::sleep(Duration::from_millis(500));
+
+//                 // DBG
+//                 info!("after write and 10sec.");
+
+//                 return;
+//             }
+//         }
+
+//         // return handle_get(&http_request, stor_root).unwrap_or(http_404());
+//         let res = handle_get(&http_request, stor_root).unwrap_or(http_404());
+//         stream.write(&res).unwrap();
+//         return;
+//     }
+
+//     // Case http_request.path() ends with rev eg; abc.html.003
+//     // Ignore POST from page with rev no, those are backup file.
+//     //
+
+//     // Case http_request.path() ends with rev eg; abc.html.003
+//     // that is a backup file,
+//     // inore POST request from the page,
+//     //
+//     // (old) http_request.path_ends_with_rev()
+//     // let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+//     // if reg.is_match(http_request.path()) {
+//     //     info!("contains rev: {}", http_request.path());
+//     //     return http_404();
+//     // }
+//     let page = page::Page::new(stor_root, http_request.path());
+//     if page.is_end_with_rev() {
+//         // return http_404();
+//         stream.write(&http_404()).unwrap();
+//         return;
+//     }
+
+//     if method == "POST" {
+//         // return handle_post(&http_request, stor_root).unwrap_or(http_404());
+//         let res = handle_post(&http_request, stor_root).unwrap_or(http_404());
+//         stream.write(&res).unwrap();
+//         return;
+//     }
+
+//     // temp
+//     // http_hello()
+//     stream.write(&http_hello()).unwrap();
+// }
 
 pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
+    // info!("response");
+
     let http_request = match http_request::HttpRequest::from(stream) {
         Ok(v) => v,
-        _ => return http_404(),
+        _ => {
+            // DBG
+            info!("Failed to get http_request");
+            return http_404();
+        }
     };
 
-    // info!("hots: {:?}", http_request.host.as_ref());
-
     let method = http_request.method();
-    info!("{} {}", method, http_request.path());
-
-    // DBG
-    // if http_request.path() == "/favicon.ico" {
-    //     return http_404();
-    // }
-    // info!("DBG calling handle_post");
-    // return handle_post(&http_request, stor_root).unwrap_or(http_404());
-
-    // DBG
-    // if http_request.path() == "/Computing/go_move/go_move.html" {
-    //     info!("DBG calling handle_page_move");
-    //     handle_page_move(&http_request, stor_root);
-    // }
-
-    // DBG
-    // if http_request.path_contains_rev() {
-    //     info!("contains rev: {}", http_request.path());
-    // }
 
     if method == "GET" {
+        let _span_get = info_span!("GET").entered();
+        info!("{}", http_request.path());
+
+        // DBG
+        let mut debug_mode = false;
+        if http_request.path().contains(".htm") {
+            debug_mode = true;
+            info!("path contains htm");
+        } else {
+            info!("path not contains htm");
+        }
+        // "/wc.js", "/wc.css", "/favicon.ico"
+        if debug_mode {
+            info!("debug_mode: {}", debug_mode);
+            // Create the page with contents in html previously
+            // before drawn by javascript.
+            // in debug mode
+            let mut page = page::Page::new(&stor_root, http_request.path());
+            if let Some(page_json) = page.json_value() {
+                let vec = page::page_utility::source_from_json(&page_json);
+                return http_ok(&vec);
+            }
+        }
+
         return handle_get(&http_request, stor_root).unwrap_or(http_404());
     }
 
-    // Case http_request.path() ends with rev: abc.html.003
-    // Ignore POST from page with rev no, those are backup file.
-    if http_request.path_ends_with_rev() {
-        info!("contains rev: {}", http_request.path());
+    // Case http_request.path() ends with rev eg; abc.html.003 (backup file)
+    // Ignore POST from those pages.
+    let page = page::Page::new(stor_root, http_request.path());
+    if page.is_end_with_rev() {
         return http_404();
     }
 
@@ -50,10 +170,6 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
     // temp
     http_hello()
 }
-
-// fn path(stor_root: &str, path: &str) -> String {
-//     stor_root.to_string() + path
-// }
 
 fn http_ok(contents: &Vec<u8>) -> Vec<u8> {
     http_form("200 OK", contents)
@@ -93,6 +209,9 @@ fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Resu
 }
 
 fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
+    let _span_get = info_span!("POST").entered();
+    info!("{}", http_request.path());
+
     let wc_request = if let Some(v) = http_request.wc_request() {
         v
     } else {
@@ -116,6 +235,10 @@ fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Res
         return handle_page_move(http_request, stor_root);
     }
 
+    if wc_request == "page_upgrade" {
+        return handle_page_upgrade(http_request, stor_root);
+    }
+
     // temp
     Ok(http_hello())
 }
@@ -128,22 +251,12 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
         return Err(());
     }
 
-    // let json_post = http_request.body_string().ok_or(())?;
-
-    // // &str to JsonValue
-    // // let json_post = json::parse(&json_post).or_else(|_| {
-    // //     eprintln!("Failed to parse to json");
-    // //     Err(())
-    // // })?;
-    // let json_post = match json::parse(&json_post) {
-    //     Ok(v) => v,
-    //     Err(_) => {
-    //         eprintln!("Failed to parse to json");
-    //         return Err(());
-    //     }
-    // };
-
     let json_post = http_request.body_json().ok_or(())?;
+
+    // // Create static html
+    // if let Err(e) = page::page_utility::page_dom_from_json::page_dom_from_json(&json_post) {
+    //     error!("{}", e);
+    // };
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
         Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),
@@ -153,10 +266,10 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
         }
     };
 
-    if let Ok(v) = std::str::from_utf8(&res) {
-        info!("json_save: res: {}", v)
-    } else {
-    }
+    // if let Ok(v) = std::str::from_utf8(&res) {
+    //     info!("json_save: res: {}", v)
+    // } else {
+    // }
 
     Ok(http_ok(&res))
 }
@@ -171,7 +284,6 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
     let json_post = http_request.body_json().ok_or(())?;
 
     // title
-    // json_post["title"].as_str();
     let title = match json_post["title"].as_str() {
         Some(s) => s,
         None => {
@@ -189,7 +301,6 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
         }
     };
 
-    // let mut child_page = page::page_utility::child_page_new(&mut parent_page, url, title, href)?;
     let mut child_page = page::page_utility::page_child_new(&mut parent_page, url, title, href)?;
 
     child_page.dir_build()?;
@@ -265,6 +376,42 @@ fn handle_page_move(
     };
 
     info!("{}", res);
+
+    Ok(http_ok(&res.as_bytes().to_vec()))
+}
+
+fn handle_page_upgrade(
+    http_request: &http_request::HttpRequest,
+    stor_root: &str,
+) -> Result<Vec<u8>, ()> {
+    let json_post = http_request.body_json().ok_or(())?;
+
+    let url_str = json_post["upgrade_url"].as_str().ok_or(())?.trim();
+    // DBG
+    info!("url_str: {}", url_str);
+    let url = match url::Url::parse(&url_str) {
+        Ok(v) => v,
+        Err(e) => {
+            error!("Failed to parse url: {:?}", e);
+
+            let res = format!(r#"{{"res":"{:?}"}}"#, e);
+            return Ok(http_ok(&res.as_bytes().to_vec()));
+            // return Ok(http_ok(&e.to_string().as_bytes().to_vec()));
+        }
+    };
+
+    // info!("upgrade url.path: {}", url.path());
+    let mut page = page::Page::new(stor_root, url.path());
+    let res = match page.upgrade() {
+        Ok(_) => "upgraded".to_string(),
+        // Err(e) => e.to_string(),
+        Err(e) => e,
+    };
+
+    //    fn page_system_version_upgrade(&mut self, url: url::Url) -> Result<(), String> {
+
+    // let res = format!(r#"{{"res":"upgraded"}}"#);
+    let res = format!(r#"{{"res":"{}"}}"#, res);
 
     Ok(http_ok(&res.as_bytes().to_vec()))
 }

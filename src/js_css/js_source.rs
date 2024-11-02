@@ -18,20 +18,57 @@ pub fn contents() -> &'static str {
 
 'use strict';
 
+console.log("hajime!");
+page_json_ini();
+// console.log("typeof page_json: " + typeof page_json);
+// if(page_json) {
+// console.log("typeof page_json: " + typeof page_json);
+// }
+
+function page_json_ini() {
+console.log("page_json_ini!");
+
+let eles = document.getElementsByTagName("script");
+console.log("eles: " + eles.length);
+
+console.log("eles.0.src: " + eles[0].src);
+// chrome-extension://mopnmbcafieddcagagdcbnhejhlodfdd/page.js
+
+console.log("eles.1.src: " + eles[1].src);
+// http://127.0.0.1:3000/wc.js
+
+console.log("eles.0.innerHTML: " + eles[0].innerHTML);
+console.log("eles.1.innerHTML: " + eles[1].innerHTML);
+
+}
+
 let page_json;
 
 function bodyOnload () {
-    // console.log("bodyOnload");
-
-    // if(true) { console.error("err test");}
-    
+   console.log("bodyOnload");
     page_json = page_json_read();
 
     const bxCenter = new BxCenter();
-    
-    const eleBloxTarget = document.createElement("div");
-    document.body.appendChild(eleBloxTarget);
-    
+
+    // top_node for the page.
+    // <div id="page_top_node">
+    let eleBloxTarget = document.getElementById("page_top_node");
+    // top_node exists
+    if(eleBloxTarget) {
+        // clear the contents
+        eleBloxTarget.innerHTML = "";
+        // console.log("eleBloxTarget found, cleared");
+    } else {
+        // create a new element for top_node.
+        eleBloxTarget = document.createElement("div");
+        document.body.appendChild(eleBloxTarget);
+        // console.log("eleBloxTarget created");
+    }
+    // const eleBloxTarget = document.createElement("div");
+    // document.body.appendChild(eleBloxTarget);
+
+    // Blox is a unit that create the page as a part of it.
+    // page: BxCenter is the top part of Bloxes.
     const page = bxCenter.bxTop("Page");
     page.data(page_json);
     page.eleTarget(eleBloxTarget);
@@ -261,7 +298,10 @@ class Blox {
     eleTargetName() {
 	return this.bloxAddress() + "Target";
     } // end of class Blox eleTargetName 
-    
+
+    // bloxAddress is unique of this page.
+    // It works to identify the block elements.
+    //
     // if blox was moved, this.bloxAddress needs to be refreshed
     // and its children as well
     // to avoid repetitions of bloxAddress() each time,
@@ -355,13 +395,18 @@ class Blox {
     
     eleTargetChild() {} // end of class Blox eleTargetChild 
 
-    // To draw a node, git it as a parameter, eg: this.ele(ele_node);
-    // To get node that has been drawn, call this without parameter,
+    // To draw a node, give it as a parameter,
+    //  eg: this.ele(ele_node);
+    //
+    // To get node that has been drawn being displayed now,
+    // call this without parameter,
     // eg : ele_node = this.ele();
+    //
     // To delete node drawn, use undefined as a parameter
     // eg: this.ele(undefined);
     // if Blox.eleV has a node value, it was drawn,
     // otherwise nothing drawn of this in the page.
+    //
     ele() {
 	// this.log("ele()");	
 
@@ -390,6 +435,7 @@ class Blox {
 	    return;
 	}
 
+        // 
 	ele.setAttribute("data-bxAddress", this.bloxAddress());
 
 	let targetNext;
@@ -441,7 +487,7 @@ class Blox {
 	// and skip drawing if already drawn
 	// if this.eleDraw() is called directory,
 	// this.parentBx().bloxChildDrawn2() is empty
-	// in such case it does not check and skip whether it has been drawn
+	// in such case it does not check and skip whether if it has been drawn,
 	// otherwise, this.eleDraw() is called by bloxChildEleDraw of
 	// this.parentBx().eleDraw() and check if it already drawn
 	// set {} at here means it records what drawn in this.eleDrawInst
@@ -968,6 +1014,15 @@ function log() {
     
 } // end of function log
 
+
+// Page - menu, navi, index, contents
+// class Menu: Editor menu
+// class Navi: Page navi, links for parents
+// class Index: links to this page's contents and children pages
+// class Item: index item and its content.
+//    If the content is of this page, the class is for the index and the contents.
+//    If it is a line to child page, the class is only for the index to the child.
+//
 class Page extends Blox {
 
     dataChild(child) {
@@ -978,7 +1033,10 @@ class Page extends Blox {
 	}
 	
     } // end of class Page dataChild 
-    
+
+    // 
+    // 
+    // 
     eleDrawInst() {
 	// this.log("eleDrawInst()");
 
@@ -1801,6 +1859,7 @@ class Menu extends Blox {
 
 (
 	  <input type="button" value="Page Move" class="{BXPF=menuPageMoveReq}">
+	  <input type="button" value="Page Upgrade" class="{BXPF=menuPageUpgradeReq}">
 	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference}">
 	  <input type="button" value="page_json" class="{BXPF=menupage_json_open}">
 
@@ -1819,6 +1878,7 @@ class Menu extends Blox {
 	"menuExit"
 	,"menuSave"
 	,"menuPageMoveReq"
+	,"menuPageUpgradeReq"
 	,"menuGroupTop"
 	// ,""
     ];
@@ -1868,9 +1928,9 @@ class Menu extends Blox {
 	if(this.currentBlox()){ return; }
 
 	let req = "json_save";
-	const res = postData("json_save", this.bxCenter().bxTop().data());
-	if(!res) { return; }
-	res.then(
+	let req_data = this.bxCenter().bxTop().data();
+	postData(req, req_data)
+	.then(
 	    data => {
 		console.log("res: " + data.res);
 		if(data.res == "post_handle page_json_save"){
@@ -1886,20 +1946,24 @@ class Menu extends Blox {
 		this.editorClose();
 		
 	    }
-	)
-	    .catch((error) =>
-		{ alert(error + "\n(menuSave res.then)\n Try to save again!"); }
-	    )
-
+	);
     } // end of class Menu menuSave
 
     menuPageMoveReq() {
 	// this.log2("menuPageMoveReq()","");
 
 	this.editor().currentStatus().editType = "pageMove";
-	alert("Close the current editor, then Page Momve menu is comming up!");
+	alert("Close the current editor, then Page Move menu is comming up!");
 	
     } // end of class Menu menuPageMoveOpen
+
+    menuPageUpgradeReq() {
+	// this.log2("menuPageUpgradeReq()","");
+
+	this.editor().currentStatus().editType = "pageUpgrade";
+	alert("Close the current editor, then Page Upgrade menu is comming up!");
+	
+    } // end of class Menu menuPageUpgradeOpen
 
     // Flip group_top value.
     menuGroupTop() {
@@ -2068,6 +2132,11 @@ class Menu extends Blox {
 	    return;
 	}
 
+	if(this.editor().currentStatus().editType == "pageUpgrade"){
+	    this.editorOpen(this);
+	    return;
+	}
+
 	// this.editorOpen() do this.hrefListenerRemove()
 	// So do this.hrefListenerAdd() when this.editorClose()
 	this.hrefListenerAdd();
@@ -2093,7 +2162,7 @@ class Menu extends Blox {
     } // end of class Menu menuVisibleSet 
 
     hrefEventHandle(event) {
-	// this.log("hrefEventHandle()");
+	this.log("hrefEventHandle() ttotto");
 
 	// prevent to move to href
 	// espacialy avoid to move to another page without saveing editing
@@ -2117,19 +2186,17 @@ class Menu extends Blox {
 
 	// link to out of the page
 	let data = {"href" : href};
-	let res = postData("href", data);
-	if(!res) { return; }
-	res.then(
+	postData("href", data)
+	.then(
 	    data => {
 		if(data.dest){
 		    console.log("href: " + data.dest);
 		    location.href = data.dest;
 		    return;
+		} else {
+	 	  console.error("Failed to get href for " + href);
 		}
 	    });
-	console.error("Failed to get href for " + href);
-	
-
     } // end of class Menu hrefEventHandle
 
     // Move to a local part if href is # and something,
@@ -2241,6 +2308,10 @@ class MenuEditor extends Editor {
 	    return this.eleDrawInstPageMove();
 	}
 	
+	if(this.currentStatus().editType == "pageUpgrade"){
+	    return this.eleDrawInstPageUpgrade();
+	}
+	
     } // end of class MenuEditor eleDrawInst()
 
     eleDrawInstPageMove() {
@@ -2257,6 +2328,20 @@ class MenuEditor extends Editor {
 	
     } // end of eleDrawInstPageMove
 
+    eleDrawInstPageUpgrade() {
+
+	let html = this.htmlEditorBox;
+	html = this.htmlPhReplace(html, this.htmlEditorUpgrade);
+	html = this.htmlPhReplace(html, this.htmlEditorEnter);
+	
+	let ele = this.eleFromHtml(html);
+	
+	this.eleVisibleSet(ele, {"editorNewPage" : 0});
+	
+	this.ele(ele);
+	
+    } // end of eleDrawInstPageUpgrade
+
     htmlEditorURL = (`
       <tr>
       <td>Parent URL</td>
@@ -2265,6 +2350,18 @@ class MenuEditor extends Editor {
       <tr>
       <td>Destination URL</td>
 	<td><input class="{BXPF=destUrl}"></td>
+      </tr>
+      <tr>
+      <td></td>
+	<td></td>
+      </tr>
+	<!--placeHolder-->
+`); // end of class MenuEditor htmlEditorURL
+
+    htmlEditorUpgrade = (`
+      <tr>
+      <td>URL to upgrade</td>
+      <td><input class="{BXPF=urlToUpgrade}"></td>	
       </tr>
       <tr>
       <td></td>
@@ -2283,6 +2380,10 @@ class MenuEditor extends Editor {
 
 	if(this.currentStatus().editType == "pageMove"){
 	    return this.editorEnterPageMove();
+	}
+	
+	if(this.currentStatus().editType == "pageUpgrade"){
+	    return this.editorEnterPageUpgrade();
 	}
 	
     } // end of class MenuEditor editorEnter
@@ -2306,9 +2407,8 @@ class MenuEditor extends Editor {
 	}
 	
 	let data = {"parent_url" : parentUrl, "dest_url" : destUrl};
-	let res = postData("page_move", data);
-	if(!res) { return; }
-	res.then(
+	postData("page_move", data)
+	.then(
 	    data => {
 		// Ok(_) => format!(r#"{{"res":"moved"}}"#),
 		if(data.res == "moved"){
@@ -2316,13 +2416,47 @@ class MenuEditor extends Editor {
 		    // super: class Editor this class extends on.
 		    super.editorEnter();
 		    return;
+		} else {
+		    console.error("Failed to move the pages.");
 		}
 	    }
 	)
-
-	console.error("Failed to move the pages.");
-	
     } // end of class MenuEditor editorEnterPageMove 
+
+     editorEnterPageUpgrade() {
+         console.log("editorEnterPageUpgrade");
+
+	const urlEle = this.querySelectorBx(this.ele(), "urlToUpgrade");
+	const upgradeUrl = urlEle.value;
+	if(upgradeUrl.length == 0){
+	    this.result("err","URL to upgrade is emply!");
+	}	
+
+	if(0 < this.result().err.length){
+	    this.eleDraw();
+	    return;
+	}
+
+	let data = {"upgrade_url" : upgradeUrl};
+	postData("page_upgrade", data)
+	.then(
+	    data => {
+		// Ok(_) => format!(r#"{{"res":"upgraded"}}"#),
+		if(data.res == "upgraded"){
+		    delete this.currentStatus().editType;
+		    // super: class Editor this class extends on.
+		    super.editorEnter();
+		    console.log(data.res);
+		    return;
+		}
+                else {
+		    let err_message = "Failed to upgrade." + data.res;
+		    console.error(err_message);
+		    alert(err_message);
+                }
+	    }
+	);
+    } // end of class MenuEditor editorEnterPageUpgrade 
     
 } // end of class MenuEditor end  
 
@@ -3616,19 +3750,17 @@ class IndexItemEditor extends Editor {
 	data["title"] = titleNew;
 	data["href"] = hrefNew;
 
-	const res = postData("page_new", data);
-	if(!res) { return; }
-	res.then(
+	postData("page_new", data)
+	.then(
 	    data => {
 		// Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
 		if(data.res == "post_handle page_new") {
 		    console.log("wc.js newPage res:" + data.res);
 		    return;
+		} else {
+		    console.error("Failed to create a new page.");
 		}
 	});
-
-	console.error("Failed to create a new page.");
-	
     } // end of class IndexItemEditor editorNewPage 
 
 } // end of class IndexItemEditor end 
@@ -4370,6 +4502,7 @@ function textAngleToEntity(str) {
 
 // const textAngleRegex = /(\\*)([<|>])/;
 const textAngleRegex = /(\\*)((?:\\<)|(?:\\>))/g;
+// \\< in code means '\' (escaped backslash: charactor '\') + '<', means "\<".
 function textAngleToEntityReplacer() {
 
     // arguments[0]: hole of the match
@@ -4426,7 +4559,7 @@ function text_to_html2(text) {
 	    // \n   : <br>
 	    // \n\n : <p></p>
 	    //
-	    // Next line is emply.
+	    // Next line is emply. (nothing between \n and \n)
 	    // Means \n\n
 	    if (list[0].length == 0) {
 		// Remove next one since empty.
@@ -4486,9 +4619,7 @@ function scrollHash(id) {
 // If rev no sent by posData and the rev no of file are not same,
 // data conflict might happen .
 //
-async function postData(req, data) {
-
-    try {
+async function postData (req, data) {
 	const response = await fetch(
 	    document.URL,
 	    {
@@ -4508,6 +4639,25 @@ async function postData(req, data) {
 	let response_json = await response.json();
 	if(!response_json) { console.error("Failed to get response!"); }
 	return response_json;
+} // end of function postData
+
+async function postData_(req, data) {
+
+
+let postReq = postReauest(data, req); 
+
+    try {
+	const response = await fetch(
+postReq
+	);
+	
+	if (!response.ok) {
+	    throw new Error(`Failed response.ok`);
+	}
+
+	let response_json = await response.json();
+	if(!response_json) { console.error("Failed to get response!"); }
+	return response_json;
 	// return await response.json();
     }
     catch (error) {
@@ -4515,7 +4665,25 @@ async function postData(req, data) {
     }
 
 } // end of function postData
-// end of function postData
+
+function postReauest(data, req) {
+
+// dbg
+// console.log("document.URL: " + document.URL);
+
+    return new Request(
+        document.URL,
+        {
+            method: "POST",
+            headers: {
+		    'Content-Type': 'application/json',
+		    'wc-request' : req,
+            },
+            body: JSON.stringify(data),
+        }
+    );
+} // end of function postReauest
+
 
 "####
 }

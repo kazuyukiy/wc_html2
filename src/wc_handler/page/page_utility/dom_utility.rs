@@ -1,22 +1,51 @@
 use html5ever::parse_document; // , serialize
-use html5ever::tendril::TendrilSink;
+use html5ever::tendril::TendrilSink; // Default::default()).one needs this.
 use markup5ever::interface::Attribute;
 use markup5ever::{namespace_url, ns};
 use markup5ever::{tendril::Tendril, LocalName, QualName};
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom}; // , SerializableHandle
 use std::cell::RefCell;
 use std::rc::Rc;
+// use tracing::{error, info}; // debug,
 // use tendril::Tendril;
 
-// convert source in str to node
+/// Parse html source in str into page node
+/// eg; <html><body></body></html>
 pub fn to_dom(source: &str) -> RcDom {
     parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(source)
 }
 
+/// Parse parts of html in str into Nodes
+/// eg; <div><div>contents</div></div>
+pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
+    // let parsed =
+    //     parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(html_text);
+
+    // This inserts html_text into body.
+    // eg;
+    //  if html_text = "<div><div>contents</div></div>";
+    //  becomes "<html><body><div><div>contents</div></div></body></html>"
+    let parsed = to_dom(html_text);
+
+    // get body
+    let body_ptn = node_element("body", &vec![]);
+    // Rx<Node>
+    // let body = child_match_first(&parsed, &body_ptn, true).unwrap();
+    let body = child_match_first(&parsed.document, &body_ptn, true).unwrap();
+
+    // take is essential to get elements deep in children recursively.
+    // Otherwise clone does take shalow copy without its child elements.
+    body.children.take()
+}
+
 pub fn qual_name(name: &str) -> QualName {
+    // DBG
+    // info!("qual_name: {}", name);
+
     QualName::new(
         None,
         // ns!(html), // <script unknown_namespace:type="text/javascript">
+        // ns!(html), // <a unknown_namespace:href="./../wc_top.html">Top</a>
         ns!(), // <script type="text/javascript">
         // Namespace::from("http://abc.rs"),
         LocalName::from(name),
@@ -97,19 +126,6 @@ fn element_match(node: &Handle, node_ptn: &Node) -> bool {
                 } => {
                     // both node and node_ptn are Element
                     if name_obj.local == name.local {
-                        // dbg
-                        // println!(
-                        //     "dom_urility fn element_match matched name: {:?}",
-                        //     name.local
-                        // );
-
-                        // see if all attrs of node_ptn match attrs of node
-
-                        // dbg
-                        // if attrs_match(attrs_obj.clone(), attrs.clone()) {
-                        //     println!("dom_urility fn element_match attrs matched");
-                        // }
-
                         return attrs_match(attrs_obj.clone(), attrs.clone());
                     }
                     // names do not match
@@ -163,13 +179,10 @@ pub fn child_match_list(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> 
     node_list
 }
 
-// pub fn child_match_first(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-    // let list = child_match_list(node_obj, node_ptn, recursive);
-    let list = child_match_list(&dom.document, node_ptn, recursive);
-
-    // dbg
-    // println!("dom_urility fn child_match_first length: {}", list.len());
+// pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
+pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
+    // let list = child_match_list(&dom.document, node_ptn, recursive);
+    let list = child_match_list(&dom, node_ptn, recursive);
 
     if list.len() < 1 {
         return None;

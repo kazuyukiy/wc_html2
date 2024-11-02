@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
+use tracing::{info, info_span}; //  event, instrument, span, Level debug,
+
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,
@@ -81,12 +83,20 @@ impl Worker {
 
             match message {
                 Message::NewJob(job) => {
-                    println!("  (worker {} got a job: executing.)", id);
+                    // info_span!();
+                    let _span_get = info_span!("WK", id).entered();
+                    // info!("Worker {} executing", id);
+                    // info!("job starting");
+                    // println!("  (worker {} got a job: executing.)", id);
 
                     job();
+
+                    // info!("worker {} executed", id);
+                    info!("job finished");
                 }
                 Message::Terminate => {
-                    println!("Worker {} was told to terminate.", id);
+                    // println!("Worker {} was told to terminate.", id);
+                    info!("Worker {} was told to terminate.", id);
 
                     break;
                 }

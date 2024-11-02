@@ -6,7 +6,9 @@ use markup5ever_rcdom::RcDom;
 use std::fs;
 // use std::str::FromStr;
 // use tracing::{instrument, Level}; // event, info, , span , debug
-use tracing::{error, info};
+// use tracing::{error, info};
+use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
+
 // info!("hooll");
 
 mod page_json;
@@ -22,7 +24,6 @@ pub struct Page {
     page_path: String,
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
-    // json: Option<Option<json::JsonValue>>,
     json: Option<Option<page_json::PageJson>>,
 }
 
@@ -41,32 +42,41 @@ impl Page {
         }
     }
 
-    fn stor_root(&self) -> &str {
+    //     fn
+
+    pub fn stor_root(&self) -> &str {
         self.stor_root.as_str()
     }
 
-    // fn path(&self) -> &str {
-    //     self.page_path.as_str()
-    // }
+    pub fn page_path(&self) -> &str {
+        self.page_path.as_str()
+    }
 
-    fn file_path(&self) -> String {
+    pub fn file_path(&self) -> String {
         page_utility::file_path(&self.stor_root, &self.page_path)
-        // String + "." + &str
-        // self.stor_root.to_string() + self.page_path.as_str()
+    }
+
+    pub fn is_end_with_rev(&self) -> bool {
+        let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
+        // if reg.is_match(&self.page_path) {}
+        reg.is_match(&self.page_path)
     }
 
     pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
         let file_path = &self.file_path();
-        // let file_path = page_utility::file_path(&self.stor_root, &self.page_path);
         match fs::read(&file_path) {
             Ok(s) => {
-                self.source.replace(Some(s));
+                // self.source.replace(Some(s));
+                self.source_replace_some(s);
                 return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
+                // let v = self.source.as_ref().unwrap().as_ref().unwrap();
+                // return Ok(v);
             }
             // file not found
             Err(e) => {
                 self.source.replace(None);
-                eprintln!("Faile to read: {}, {:?}", &file_path, e.kind());
+                self.source_origined_clear();
+                error!("Faile to read: {}, {:?}", &file_path, e.kind());
                 return Err(());
             }
         }
@@ -114,10 +124,22 @@ impl Page {
         self.source.as_ref().unwrap().as_ref()
     }
 
+    fn source_replace_some(&mut self, source: Vec<u8>) {
+        self.source.replace(Some(source));
+        self.source_origined_clear();
+    }
+
+    fn source_origined_clear(&mut self) {
+        self.dom = None;
+        self.json = None;
+    }
+
     fn dom_parse(&mut self) -> Result<(), ()> {
         let source = match self.source() {
             Some(v) => v.to_owned(),
-            None => return Err(()),
+            None => {
+                return Err(());
+            }
         };
 
         let source = String::from_utf8(source).or(Err(()))?;
@@ -126,11 +148,10 @@ impl Page {
 
         self.dom.replace(Some(dom));
 
-        // temp
         Ok(())
     }
 
-    fn dom(&mut self) -> Option<&RcDom> {
+    pub fn dom(&mut self) -> Option<&RcDom> {
         if self.dom.is_none() {
             let _ = self.dom_parse().ok()?;
         };
@@ -139,7 +160,8 @@ impl Page {
 
     fn json_parse(&mut self) -> Result<(), ()> {
         let dom = self.dom().ok_or(())?;
-        match page_utility::json_from_dom(dom) {
+        // match page_utility::json_from_dom(dom) {
+        match page_utility::json_from_dom(&dom.document) {
             Some(v) => {
                 let page_json = page_json::PageJson::from(v);
                 self.json.replace(Some(page_json));
@@ -158,7 +180,6 @@ impl Page {
                 return None;
             }
         }
-
         self.json.as_ref().unwrap().as_ref()
     }
 
@@ -168,41 +189,25 @@ impl Page {
     //             return None;
     //         }
     //     }
-
+    //
     //     self.json.as_mut().unwrap().as_mut()
     // }
 
-    fn json_value(&mut self) -> Option<&json::JsonValue> {
+    ///
+    pub fn json_value(&mut self) -> Option<&json::JsonValue> {
         self.json().and_then(|page_json| page_json.value())
-
-        // self.json()
-        //     .and_then(|page_json| page_json.value())
-        //     .or_else(|| {
-        //         error!("");
-        //         self.path();
-        //         None
-        //     })
     }
 
     /// Updata the page with json_data2
     /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
     pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<(), String> {
         page_utility::json_rev_match(self, &json_data2)?;
-        // if !page_utility::json_rev_match(self, &json_data2) {
-        //     info!("rev not match on {}.", &self.page_path);
-        //     return Err(format!("rev not match on {}.", &self.page_path));
-        // }
 
         // Updata rev no.
         let page_json = self.json().ok_or("Failed to get page_json.")?;
         let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
         json_data2["data"]["page"]["rev"] = rev_uped.into();
 
-        // let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2)
-        //     .or(Err(format!(
-        //         "Failed to create a page from json posted on {}.",
-        //         &self.page_path
-        //     )))?;
         let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
 
         page2
@@ -214,10 +219,6 @@ impl Page {
     pub fn file_save(&mut self) -> Result<(), ()> {
         let file_path = &self.file_path();
         let source = self.source().ok_or(())?;
-
-        // DBG
-        info!("fn file_save source exists: {}", file_path);
-
         page_utility::fs_write(file_path, source)
     }
 
@@ -253,31 +254,6 @@ impl Page {
         }
     }
 
-    // fn json_title(&mut self) -> Option<String> {
-    //     let value = self.json().and_then(|page_json| page_json.value())?;
-    //     // let title = value["data"]["page"]["title"].as_str().ok_or(None)?;
-    //     let title = value["data"]["page"]["title"].as_str()?;
-    //     //
-
-    //     // Some(String::from(""))
-    //     Some(title.to_string())
-    // }
-
-    // pub fn json_navi(&mut self) -> Option<&json::object::Object> {
-    // pub fn json_navi(&mut self) -> Option<&json::JsonValue> {
-    // pub fn json_navi(&mut self) -> Option<&json::Array> {
-    //     self.json().and_then(|page_json| {
-    //         // dbg
-    //         // info!("page_json.navi(): {:?}", page_json.navi());
-
-    //         page_json.navi()
-    //     })
-    // }
-
-    // pub fn json_subsections(&mut self) -> Option<&json::object::Object> {
-    //     self.json().and_then(|page_json| page_json.subsections())
-    // }
-
     pub fn json_subsections_data_exists(&mut self) -> bool {
         self.json()
             .is_some_and(|page_json| page_json.subsections_data_exists())
@@ -288,6 +264,14 @@ impl Page {
         // }
 
         // self.json().and_then(|page_json| page_json.subsections_no_data())
+    }
+
+    // /// Upgrade the page of url, not self.
+    // fn page_system_version_upgrade(&mut self, url: url::Url) -> Result<(), String> {
+
+    /// Upgrade the page of url, not self.
+    pub fn upgrade(&mut self) -> Result<(), String> {
+        page_utility::page_system_version_upgrade(self)
     }
 
     /// Move this page to dest_url as a child of parent_url.
