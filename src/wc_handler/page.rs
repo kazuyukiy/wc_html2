@@ -1,5 +1,5 @@
 use html5ever::driver::parse_document; // , serialize
-use html5ever::tendril::TendrilSink;
+use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
 // use std::collections::HashMap;
 // use std::collections::HashSet;
@@ -271,7 +271,8 @@ impl Page {
 
     /// Upgrade the page of url, not self.
     pub fn upgrade(&mut self) -> Result<(), String> {
-        page_utility::page_system_version_upgrade(self)
+        // page_utility::page_system_version_upgrade(self)
+        page_utility::page_type_upgrade(self)
     }
 
     /// Move this page to dest_url as a child of parent_url.

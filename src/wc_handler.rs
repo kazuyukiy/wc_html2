@@ -136,10 +136,11 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
         let mut debug_mode = false;
         if http_request.path().contains(".htm") {
             debug_mode = true;
-            info!("path contains htm");
+            // info!("path contains htm");
         } else {
             info!("path not contains htm");
         }
+
         // "/wc.js", "/wc.css", "/favicon.ico"
         if debug_mode {
             info!("debug_mode: {}", debug_mode);
@@ -235,9 +236,9 @@ fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Res
         return handle_page_move(http_request, stor_root);
     }
 
-    if wc_request == "page_upgrade" {
-        return handle_page_upgrade(http_request, stor_root);
-    }
+    // if wc_request == "page_upgrade" {
+    //     return handle_page_upgrade(http_request, stor_root);
+    // }
 
     // temp
     Ok(http_hello())

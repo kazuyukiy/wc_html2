@@ -1,8 +1,8 @@
 // use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
 // use std::collections::HashMap;
 use std::str::FromStr;
-use tracing::info; // {error, event, info, instrument, span, Level, Node}
-                   // use tracing::info;
+// use tracing::info; // {error, event, info, instrument, span, Level, Node}
+// use tracing::info;
 
 pub struct PageJson {
     data: Option<json::JsonValue>,
@@ -153,7 +153,7 @@ impl PageJson {
 
         if let Some(id_str) = id_str_match {
             let id = usize::from_str_radix(id_str, 10).ok()?;
-            info!("id: {}", id);
+            // info!("id: {}", id);
             return Some(Subsection {
                 page_json: self.data.as_mut().unwrap(),
                 id,

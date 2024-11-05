@@ -1,5 +1,11 @@
+// use html5ever::driver::parse_document; // , serialize
 use html5ever::serialize::SerializeOpts;
+// use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
+// use markup5ever::interface::Attribute;
+// use markup5ever::{local_name, tendril::Tendril, LocalName, QualName};
+// use markup5ever::{namespace_url, ns, Namespace};
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
+// use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -59,7 +65,7 @@ pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
     json_value
 }
 
-fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
+pub fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
     // json in span
     let json_str = span_json_str(page_node)?;
     json_parse(&json_str)
@@ -94,7 +100,7 @@ pub fn span_json_node(page_node: &Rc<Node>) -> Option<Handle> {
     dom_utility::child_match_first(&page_node, &ptn_span, true)
 }
 
-fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
+pub fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
     // json in script
     let json_str = script_json_str(page_node)?;
     json_parse(&json_str)
@@ -145,6 +151,13 @@ fn page_html_plain() -> &'static str {
 pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     // let debug_mode = false;
     let debug_mode = true;
+
+    // DBG
+    // let page_dom = page_dom_from_json::page_dom_from_json(page_json);
+    // info!("fn source_from_json got page_dom");
+    // dom_serialize(page_dom.unwrap());
+    // info!("fn source_from_json serialized");
+
     if debug_mode {
         info!("source_from_json debug_mode: {}", debug_mode);
         let page_dom = page_dom_from_json::page_dom_from_json(page_json);
@@ -1156,6 +1169,57 @@ fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, 
     }
 }
 
+// Upgrade old page type.
+pub fn page_type_upgrade(page: &mut super::Page) -> Result<(), String> {
+    let page_dom = match page.dom() {
+        Some(v) => v,
+        None => {
+            return Err(format!("Failed to get page_dom of {}", &page.file_path()));
+        }
+    };
+
+    let page_node = &page_dom.document;
+
+    // check if page type is the latest or to be upgraded.
+    // page_utility::json_from_dom(&page_node)
+
+    // json_value found in the current page style, not for upgrade
+    if json_from_dom_span(page_node).is_some() {
+        // DBG
+        info!("The latest page type: {}", page.page_path());
+
+        return Ok(());
+    }
+
+    // Get json_value from script element.
+    let mut json_value = json_from_dom_script(page_node);
+
+    // json_value not found in the page, create it from page html.
+    if json_value.is_none() {
+        // old page stype
+        json_value = json_from_dom_html(page_node);
+    }
+
+    if json_value.is_none() {
+        return Err(format!("Failed to get page_json: {}", page.page_path()));
+    }
+    let mut json_value = json_value.unwrap();
+
+    // Set last rev not to overwrite on old file.
+    // Otherwise set 1
+    // last_rev_of_files is maximum 100
+    let last_rev = last_rev_of_files(page).or(Some(1)).unwrap();
+    json_value["data"]["page"]["rev"] = last_rev.into();
+
+    // page.json_replace_save(json_data) does not work
+    // because it needs original json value of the page
+    // in span element of the body that does not exists.
+    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_value);
+    let _ = page2.file_save_and_rev();
+
+    Ok(())
+}
+
 /// Upgrade old page system version
 pub fn page_system_version_upgrade(page: &mut super::Page) -> Result<(), String> {
     // except not html page, eg wc.js, wc.css
@@ -1186,12 +1250,12 @@ fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
         return;
     };
 
-    // last_rev_used is maximum 100
-    let Some(last_rev_used) = last_rev_used(page) else {
+    // last_rev_of_files is maximum 100
+    let Some(last_rev_of_files) = last_rev_of_files(page) else {
         error!("Failed to get last rev");
         return;
     };
-    json_data["data"]["page"]["rev"] = last_rev_used.into();
+    json_data["data"]["page"]["rev"] = last_rev_of_files.into();
 
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
@@ -1200,8 +1264,9 @@ fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
     let _ = page2.file_save_and_rev();
 }
 
-/// Find max rev number.
-fn last_rev_used(page: &mut super::Page) -> Option<usize> {
+/// Find max rev number of the page in existing files.
+// fn last_rev_used(page: &mut super::Page) -> Option<usize> {
+fn last_rev_of_files(page: &mut super::Page) -> Option<usize> {
     let mut rev_last = 0;
     for rev in 0..100 {
         rev_last = rev;
@@ -1209,7 +1274,7 @@ fn last_rev_used(page: &mut super::Page) -> Option<usize> {
         let path_rev = page.file_path() + "." + (rev + 1).to_string().as_str();
 
         // DBG
-        // info!("last_rev_used path_rev: {}", path_rev);
+        // info!("last_rev_of_files path_rev: {}", path_rev);
 
         if let Ok(exists) = std::fs::exists(&path_rev) {
             if exists {

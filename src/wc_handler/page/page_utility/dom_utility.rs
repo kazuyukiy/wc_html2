@@ -2,7 +2,7 @@ use html5ever::parse_document; // , serialize
 use html5ever::tendril::TendrilSink; // Default::default()).one needs this.
 use markup5ever::interface::Attribute;
 use markup5ever::{namespace_url, ns};
-use markup5ever::{tendril::Tendril, LocalName, QualName};
+use markup5ever::{tendril::Tendril, LocalName, QualName}; // local_name,
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom}; // , SerializableHandle
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -38,21 +38,6 @@ pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
     body.children.take()
 }
 
-pub fn qual_name(name: &str) -> QualName {
-    // DBG
-    // info!("qual_name: {}", name);
-
-    QualName::new(
-        None,
-        // ns!(html), // <script unknown_namespace:type="text/javascript">
-        // ns!(html), // <a unknown_namespace:href="./../wc_top.html">Top</a>
-        ns!(), // <script type="text/javascript">
-        // Namespace::from("http://abc.rs"),
-        LocalName::from(name),
-        // local_name!(name),
-    )
-} // end of fn qual_name
-
 pub fn attrs(attrs_vec: &Vec<(&str, &str)>) -> RefCell<Vec<Attribute>> {
     let mut attr_list: Vec<Attribute> = vec![];
     for (name, value) in attrs_vec {
@@ -62,15 +47,25 @@ pub fn attrs(attrs_vec: &Vec<(&str, &str)>) -> RefCell<Vec<Attribute>> {
 } // end of fn attrs
 
 pub fn attr(name: &str, value: &str) -> Attribute {
+    // ns!(html) for attribute name causes
+    // WARN html5ever::serialize: attr with weird namespace Atom('http://www.w3.org/1999/xhtml' type=static)
+
     Attribute {
-        name: qual_name(&name),
+        name: QualName::new(
+            None,
+            ns!(), // <script type="text/javascript">
+            LocalName::from(name),
+        ),
         value: Tendril::from(value.to_string()),
     }
 } // end of fn attr
 
 pub fn node_element(ele_name: &str, attrs_vec: &Vec<(&str, &str)>) -> Rc<Node> {
+    // QualName ns!() causes
+    // WARN html5ever::serialize: node with weird namespace Atom('' type=static)
+
     Node::new(NodeData::Element {
-        name: qual_name(ele_name),
+        name: QualName::new(None, ns!(html), LocalName::from(ele_name)),
         attrs: attrs(&attrs_vec),
         template_contents: None.into(),
         mathml_annotation_xml_integration_point: false,

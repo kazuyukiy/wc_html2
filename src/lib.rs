@@ -10,6 +10,9 @@ mod thread_pool;
 // mod wc_handler;
 mod wc_handler;
 
+// #[macro_use]
+// extern crate markup5ever;
+
 /// addr: host and port ex: "127.0.0.1:3000"
 /// stor_root: root path for storeage of the pages
 /// capa: number of thread_pool
@@ -23,12 +26,11 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
     let stor_root2 = stor_root.to_string();
     std::thread::spawn(|| {
         let stor_root2 = stor_root2;
-        page_upgrade::page_upgrade(&stor_root2, "wc_top.html");
+        // page_upgrade::pages_upgrade(&stor_root2, "wc_top.html");
+        page_upgrade::pages_upgrade(&stor_root2);
     })
     .join()
     .unwrap();
-
-    // wc_handler::system_ini();
 
     let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
