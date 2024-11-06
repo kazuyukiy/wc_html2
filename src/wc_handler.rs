@@ -138,7 +138,7 @@ pub fn response(stream: &mut TcpStream, stor_root: &str) -> Vec<u8> {
             debug_mode = true;
             // info!("path contains htm");
         } else {
-            info!("path not contains htm");
+            info!("DBG path not contains htm");
         }
 
         // "/wc.js", "/wc.css", "/favicon.ico"
@@ -403,7 +403,7 @@ fn handle_page_upgrade(
 
     // info!("upgrade url.path: {}", url.path());
     let mut page = page::Page::new(stor_root, url.path());
-    let res = match page.upgrade() {
+    let res = match page.upgrade(false) {
         Ok(_) => "upgraded".to_string(),
         // Err(e) => e.to_string(),
         Err(e) => e,

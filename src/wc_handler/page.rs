@@ -216,9 +216,15 @@ impl Page {
     }
 
     /// Save self.source data to the file.
-    pub fn file_save(&mut self) -> Result<(), ()> {
+    // pub fn file_save(&mut self) -> Result<(), ()> {
+    // pub fn file_save(&mut self) -> Result<(), String> {
+    pub fn file_save(&mut self) -> Result<String, String> {
         let file_path = &self.file_path();
-        let source = self.source().ok_or(())?;
+        // let source = self.source().ok_or(())?;
+        let source = match self.source() {
+            Some(v) => v,
+            None => return Err(format!("Failed to get source: {}", &self.file_path())),
+        };
         page_utility::fs_write(file_path, source)
     }
 
@@ -231,21 +237,53 @@ impl Page {
         Ok(self.file_path() + "." + &rev)
     }
 
-    pub fn file_save_rev(&mut self) -> Result<(), ()> {
-        let path_rev = self.path_rev()?;
-        let source = self.source().ok_or(())?;
+    // pub fn file_save_rev(&mut self) -> Result<(), ()> {
+    // pub fn file_save_rev(&mut self) -> Result<(), String> {
+    ///
+    /// Save self.source value to self.path_rev().
+    /// Return self.path_revp() on sucsess as Ok
+    /// Return Err in fail.
+    pub fn file_save_rev(&mut self) -> Result<String, String> {
+        // let path_rev = self.path_rev()?;
+        let path_rev = match self.path_rev() {
+            Ok(v) => v,
+            Err(()) => return Err(format!("Failed to get path_ref: {}", &self.file_path())),
+        };
+
+        // let source = self.source().ok_or(())?;
+        let source = match self.source() {
+            Some(v) => v,
+            None => return Err(format!("Failed to get source: {}", &self.file_path())),
+        };
+
         page_utility::fs_write(&path_rev, source)
     }
 
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
         let mut saved = true;
 
-        if self.file_save().is_err() {
+        if let Err(emsg) = self.file_save() {
+            error!("{}", emsg.as_str());
             saved = false;
         }
-        if self.file_save_rev().is_err() {
+
+        // if self.file_save().is_err() {
+        //     saved = false;
+        // }
+
+        match self.file_save_rev() {
+            Ok(v) => info!("Saved: {}", v),
+            Err(e) => error!("{}", e),
+        }
+
+        if let Err(emsg) = self.file_save_rev() {
+            error!("{}", emsg.as_str());
             saved = false;
         }
+
+        // if self.file_save_rev().is_err() {
+        //     saved = false;
+        // }
 
         if saved {
             Ok(())
@@ -270,9 +308,10 @@ impl Page {
     // fn page_system_version_upgrade(&mut self, url: url::Url) -> Result<(), String> {
 
     /// Upgrade the page of url, not self.
-    pub fn upgrade(&mut self) -> Result<(), String> {
+    // pub fn upgrade(&mut self, res: Option<Vec<()>>, recursive: bool) -> Result<(), String> {
+    pub fn upgrade(&mut self, recursive: bool) -> Result<(), String> {
         // page_utility::page_system_version_upgrade(self)
-        page_utility::page_type_upgrade(self)
+        page_utility::page_type_upgrade(self, recursive)
     }
 
     /// Move this page to dest_url as a child of parent_url.

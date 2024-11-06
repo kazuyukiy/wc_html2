@@ -5,7 +5,7 @@ use std::net::TcpStream;
 // use tracing::{info, info_span}; //  event, instrument, span, Level debug,
 
 mod js_css;
-mod page_upgrade;
+// mod page_upgrade;
 mod thread_pool;
 // mod wc_handler;
 mod wc_handler;
@@ -26,8 +26,14 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
     let stor_root2 = stor_root.to_string();
     std::thread::spawn(|| {
         let stor_root2 = stor_root2;
+        // let page_path = "wc_top.html";
+        let page_path = "/Computing/Html/html_basic.html";
+        let mut page = wc_handler::page::Page::new(&stor_root2, page_path);
+        page.upgrade(true);
+        // if let Err(e) = page.upgrade() {
+
         // page_upgrade::pages_upgrade(&stor_root2, "wc_top.html");
-        page_upgrade::pages_upgrade(&stor_root2);
+        // page_upgrade::pages_upgrade(&stor_root2);
     })
     .join()
     .unwrap();

@@ -19,17 +19,32 @@ pub fn file_path(stor_root: &str, page_path: &str) -> String {
     stor_root.to_string() + page_path
 }
 
-pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
+// pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> std::io::Result<()> {
+// pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), String> {
+pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<String, String> {
     std::fs::write(&file_path, contents)
-        .and_then(|_| {
-            info!("save: {}", file_path);
-            Ok(())
-        })
+        // .and_then(|_| {
+        //     // info!("save: {}", file_path);
+        //     Ok(())
+        // })
+        .and(Ok(file_path.to_string()))
         .or_else(|e| {
-            error!("fn fs_write e: {:?}", e);
-            Err(())
+            // error!("fn fs_write e: {:?}", e);
+            Err(e.to_string())
         })
 }
+
+// pub fn fs_write_(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
+//     std::fs::write(&file_path, contents)
+//         .and_then(|_| {
+//             // info!("save: {}", file_path);
+//             Ok(())
+//         })
+//         .or_else(|e| {
+//             error!("fn fs_write e: {:?}", e);
+//             Err(())
+//         })
+// }
 
 pub fn to_dom(source: &str) -> RcDom {
     dom_utility::to_dom(source)
@@ -1170,7 +1185,7 @@ fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, 
 }
 
 // Upgrade old page type.
-pub fn page_type_upgrade(page: &mut super::Page) -> Result<(), String> {
+pub fn page_type_upgrade(page: &mut super::Page, recursive: bool) -> Result<(), String> {
     let page_dom = match page.dom() {
         Some(v) => v,
         None => {
