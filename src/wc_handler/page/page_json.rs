@@ -1,8 +1,6 @@
-// use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
-// use std::collections::HashMap;
 use std::str::FromStr;
-// use tracing::info; // {error, event, info, instrument, span, Level, Node}
 // use tracing::info;
+// {error, event, info, instrument, span, Level, Node}
 
 pub struct PageJson {
     data: Option<json::JsonValue>,
@@ -37,16 +35,6 @@ impl PageJson {
         self.data.take()
     }
 
-    // pub fn data_mut(&mut self) -> Option<&mut json::JsonValue> {
-    //     match self.data.as_mut() {
-    //         Some(v) => Some(v),
-    //         None => {
-    //             eprintln!("Failed to get mutable data in json");
-    //             None
-    //         }
-    //     }
-    // }
-
     pub fn rev(&self) -> Option<usize> {
         // case rev=10: Number(Number { category: 1, exponent: 0, mantissa: 10 })
         if let Ok(rev) = to_usize(&self.value()?["data"]["page"]["rev"]) {
@@ -79,7 +67,6 @@ impl PageJson {
     }
 
     pub fn subsection_id_next(&self) -> Option<usize> {
-        // return to_usize(&self.data.as_ref()?["data"]["subsection"]["id"]["id_next"]).ok();
         to_usize(&self.data.as_ref()?["data"]["subsection"]["id"]["id_next"]).ok()
     }
 
@@ -101,25 +88,26 @@ impl PageJson {
         let id = self.subsection_id_new()?;
         let id_str = id.to_string();
 
+        let subsections = self.subsections_mut()?;
+
         // subsection for paren_id must exists.
-        let page_json = self.data.as_mut()?;
-        if page_json["data"]["subsection"]["data"][parent_id_str.as_str()].is_null() {
+        if subsections[parent_id_str.as_str()].is_null() {
             return None;
         }
 
         // already exists
-        if !page_json["data"]["subsection"]["data"][id_str.as_str()].is_null() {
+        if !subsections[id_str.as_str()].is_null() {
             return None;
         }
 
-        page_json["data"]["subsection"]["data"][id_str.as_str()] = json::object! {
+        subsections[id_str.as_str()] = json::object! {
             "parent_id" : *parent_id,
             "id":  id,
         };
 
         // Set new subsection's id to parent subsection
         {
-            let parent = &mut page_json["data"]["subsection"]["data"][parent_id_str.as_str()];
+            let parent = &mut subsections[parent_id_str.as_str()];
             let _ = parent["child"].push(id);
         }
 
@@ -130,30 +118,30 @@ impl PageJson {
     }
 
     pub fn subsection_by_name(&mut self, href_arg: &str) -> Option<Subsection> {
-        let page_json = self.data.as_mut()?;
+        // DBG
+        // info!("fn subsection_by_name");
+
+        let subsections = self.subsections()?;
 
         // Search subsection that has the href_arg value.
         let mut id_str_match = None;
-        if let json::JsonValue::Object(object) = &page_json["data"]["subsection"]["data"] {
-            for (id_str, subsection) in object.iter() {
-                // `(&str, &JsonValue)`
-                if let json::JsonValue::Object(object) = subsection {
-                    let href = match object.get("href") {
-                        Some(v) => v,
-                        None => continue,
-                    };
 
-                    if href == href_arg {
-                        id_str_match.replace(id_str);
-                        break;
-                    }
+        for (id_str, subsection) in subsections.iter() {
+            if let json::JsonValue::Object(object) = subsection {
+                let href = match object.get("href") {
+                    Some(v) => v,
+                    None => continue,
                 };
-            }
-        };
+
+                if href == href_arg {
+                    id_str_match.replace(id_str);
+                    break;
+                }
+            };
+        }
 
         if let Some(id_str) = id_str_match {
             let id = usize::from_str_radix(id_str, 10).ok()?;
-            // info!("id: {}", id);
             return Some(Subsection {
                 page_json: self.data.as_mut().unwrap(),
                 id,
@@ -163,13 +151,23 @@ impl PageJson {
     }
 
     pub fn subsections(&self) -> Option<&json::object::Object> {
-        // let data = self.data()?;
         let value = self.value()?;
         if value["data"]["subsection"]["data"].is_empty() {
             return None;
         }
         match value["data"]["subsection"]["data"] {
             json::JsonValue::Object(ref object) => Some(object),
+            _ => None,
+        }
+    }
+
+    pub fn subsections_mut(&mut self) -> Option<&mut json::object::Object> {
+        let value = self.value_mut()?;
+        if value["data"]["subsection"]["data"].is_empty() {
+            return None;
+        }
+        match value["data"]["subsection"]["data"] {
+            json::JsonValue::Object(ref mut object) => Some(object),
             _ => None,
         }
     }
@@ -223,33 +221,15 @@ pub struct Subsection<'a> {
 }
 
 impl Subsection<'_> {
-    //     fn from_id(page_json: &PageJson, id: usize) -> Subsection {
-    //         // Subsection { page_json, id }
-    //     }
-
     pub fn id(&self) -> usize {
         // index of json_value["data"]["subsection"]["data"] is string, eg "0"
         self.id
-    }
-
-    pub fn _title(&self) -> Option<String> {
-        let id_str = self.id.to_string();
-        self.page_json["data"]["subsection"]["data"][id_str.as_str()]["title"]
-            .as_str()
-            .and_then(|str| Some(str.to_string()))
     }
 
     pub fn title_set(&mut self, title: &str) {
         let id_str = self.id.to_string();
         self.page_json["data"]["subsection"]["data"][id_str.as_str()]["title"] =
             json::value!(title.into());
-    }
-
-    pub fn _href(&self) -> Option<String> {
-        let id_str = self.id.to_string();
-        self.page_json["data"]["subsection"]["data"][id_str.as_str()]["href"]
-            .as_str()
-            .and_then(|str| Some(str.to_string()))
     }
 
     pub fn href_set(&mut self, href: &str) {
@@ -290,7 +270,8 @@ pub fn page_json_plain() -> json::JsonValue {
         "data" : {
             "page" : {
                 "title" : "",
-                "rev" : 0,
+                // "rev" : 0,
+                "rev" : 1,
                 "rev_speculation" : 0,
                 "group_top" : false,
                 "moved_to" : "",

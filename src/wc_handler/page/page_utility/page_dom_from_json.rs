@@ -1,18 +1,16 @@
-// use html5ever::serialize;
-// use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Node, RcDom}; // Handle, , NodeData, SerializableHandle
 use std::collections::HashSet;
 use std::rc::Rc;
 use tracing::{error, info}; // ,, warn
 
-// pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<(), String> {
 pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> {
     // let html_plain = super::page_html_plain();
 
     // DBG
     // info!("fn page_dom_from_json");
 
-    let page_dom = super::to_dom(html_plain());
+    // let page_dom = super::to_dom(html_plain());
+    let page_dom = super::to_dom(super::page_html_plain());
 
     page_title_set(&page_dom, page_json);
 
@@ -29,17 +27,30 @@ pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> 
     Ok(page_dom)
 }
 
-fn html_plain() -> &'static str {
-    r#"<html>
-<head>
-<title></title><meta charset="UTF-8"></head>
-<script src="/wc.js"></script>
-<link rel="stylesheet" href="/wc.css"></link>
-<style type="text/css"></style>
-<body onload="bodyOnload()">
-<span id="page_json_str" style="display: none"></span>
-</body></html>"#
-}
+// fn html_plain() -> &'static str {
+//     r#"<html>
+// <head>
+// <title></title><meta charset="UTF-8">
+// <script src="/wc.js"></script>
+// <link rel="stylesheet" href="/wc.css"></link>
+// <style type="text/css"></style>
+// </head>
+// <body onload="bodyOnload()">
+// <span id="page_json_str" style="display: none"></span>
+// </body></html>"#
+// }
+
+// fn _html_plain_() -> &'static str {
+//     r#"<html>
+// <head>
+// <title></title><meta charset="UTF-8"></head>
+// <script src="/wc.js"></script>
+// <link rel="stylesheet" href="/wc.css"></link>
+// <style type="text/css"></style>
+// <body onload="bodyOnload()">
+// <span id="page_json_str" style="display: none"></span>
+// </body></html>"#
+// }
 
 // Get page title from page_json and
 // set it to page_dom.
@@ -51,7 +62,6 @@ fn page_title_set(page_dom: &RcDom, page_json: &json::JsonValue) {
         .unwrap();
 
     let title_ptn = super::dom_utility::node_element("title", &vec![]);
-    // if let Some(title_node) = super::dom_utility::child_match_first(&page_dom, &title_ptn, true) {
     if let Some(title_node) =
         super::dom_utility::child_match_first(&page_dom.document, &title_ptn, true)
     {
@@ -65,7 +75,6 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
     let attrs = &vec![("id", "page_json_str")];
     let span_ptn = super::dom_utility::node_element("span", &attrs);
 
-    // if let Some(span_node) = super::dom_utility::child_match_first(&page_dom, &span_ptn, true) {
     if let Some(span_node) =
         super::dom_utility::child_match_first(&page_dom.document, &span_ptn, true)
     {
@@ -78,10 +87,8 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
 }
 
 fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
-    // let attrs = &vec![("id", "page_json_str")];
     let body_ptn = super::dom_utility::node_element("body", &vec![]);
 
-    // let body_node = super::dom_utility::child_match_first(&page_dom, &body_ptn, true)
     let body_node = super::dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
 
@@ -102,17 +109,11 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
 
     // subsection
     let subsections_node = super::dom_utility::node_element("div", &vec![]);
-    // let subsections_node = subsections(page_json)?;
-    // subsections_node.children.borrow_mut().push(navi_back());
 
     let subsections_json = &page_json["data"]["subsection"]["data"];
     if subsections_json.is_null() {
         return Err("Failed to get subsection data!".to_string());
     }
-
-    // warn!("Consider to check dublication of subsection no to avoid endless loop");
-
-    // subsections(page_json, &subsections_node, 0)?;
 
     // Check dublication of parent_index_key to avoid endlessloop.
     let mut parent_handled = HashSet::new();
@@ -146,8 +147,6 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
     let mut navi_json_iter = navis_json.iter();
     loop {
-        // info!("hint: {:?}", navi_json_iter.size_hint());
-
         let navi_item_json = match navi_json_iter.next() {
             Some(v) => v,
             None => break,
@@ -168,8 +167,6 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
         ele_top.children.borrow_mut().push(navi_item);
 
-        // info!("hint(after): {:?}", navi_json_iter.size_hint());
-
         if navi_json_iter.size_hint().0 < 1 {
             continue;
         }
@@ -189,7 +186,6 @@ fn index(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
     // ul / li
     let index_ul = index_ul(subsections_json, &0)?;
-    // let index_ul = index_ul(page_json, 0)?;
     Ok(index_ul)
 }
 
@@ -227,11 +223,9 @@ fn subsection_children_indexes(
         // case parent_json["child"] is not defined
         _ => {
             return Ok(children_i2);
-            // return Err(format!("Failed to get child of subsection {}", index_key));
         }
     };
 
-    // let mut children_i2 = vec![];
     for child_i in children_i.iter() {
         let i = if child_i.is_number() {
             child_i.as_usize().unwrap()
@@ -363,12 +357,7 @@ fn subsection_start_with_sharp(
 
     let href = href.unwrap();
 
-    // DBG
-    // info!("subsection href: {}", href);
-
     if href.starts_with("#") {
-        // DBG
-
         return Ok(true);
     }
 
@@ -397,37 +386,14 @@ fn content(content_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 }
 
 fn content_html(content_value: &str) -> Result<Rc<Node>, String> {
-    //    let value = content_value_json
-    //         .as_str()
-    //         .ok_or("Failed to get content value".to_string())?;
-    // ;
-
-    // info!("content_value: {}", content_value);
-
     let attrs = &vec![("class", "html subsectionContent")];
     let content_node = super::dom_utility::node_element("div", &attrs);
-
-    // let dbg_text = super::dom_utility::node_text("content_html");
-    // content_node.children.borrow_mut().push(dbg_text);
-
-    // DBG
-    // return Ok(content_node);
-
-    // info!("fn content_html to_dom calling");
-
-    // let value_dom = super::to_dom(content_value);
-    // content_node.children.borrow_mut().push(value_dom.document);
 
     let value_doms = super::to_dom_parts(content_value);
     // to_dom_parts always returns in vec even one node.
     for value_dom in value_doms.into_iter() {
         content_node.children.borrow_mut().push(value_dom);
     }
-
-    // info!("fn content_html to_dom end content_node: {:?}", content_node);
-
-    // let content_dom = super::to_dom(value);
-    // Ok(super::to_dom(value))
     Ok(content_node)
 }
 
@@ -652,93 +618,3 @@ fn text_spread_parts(content_value: &str) -> String {
     // close p element. And return it.
     html + "</p>"
 }
-
-// fn text_spread_parts_(content_value: &str) -> String {
-//     if content_value.len() == 0 {
-//         return "".to_string();
-//     }
-
-//     // Starts with "<p>".
-//     // let mut html = String::from(P_PRE);
-//     let mut html = String::from("<p>");
-
-//     let mut prev_empty = false;
-//     // let mut lines = content_value.split("\n");
-
-//     for line in content_value.split("\n") {
-//         // previous content is empty.
-//         if prev_empty {
-//             // case \n\n; \n(prev line)\n(this line)
-//             if line.len() == 0 {
-//                 html = html + "</p><p>";
-//             }
-//             // case \n(prev line) some contents \n(this line)
-//             // handle previous \n
-//             else {
-//                 html = html + "<br>"
-//             }
-
-//             // clear
-//             prev_empty = false;
-//         } else {
-//             // for next iterator
-//             // entrust on next loop
-//             if line.len() == 0 {
-//                 prev_empty = true;
-//             }
-//         }
-
-//         // // for next iterator
-//         // if line.len() == 0 {
-//         //     prev_empty = true;
-//         // } else {
-//         //     prev_empty = false;
-//         // }
-
-//         // even line.len() == 0
-//         html = html + line;
-//     }
-
-//     // close p element. And return it.
-//     html + "</p>"
-// }
-
-// keyDelimiter = "._.";
-// classDelimiter = ".__.";
-// bloxAddress() {
-// 	// this.log("bloxAddress");
-
-// 	let address = "";
-// 	if(this.parentBx()){
-// 	    address += this.parentBx().bloxAddress() + this.classDelimiter;
-// 	}
-// 	address += this.constructor.name + this.keyDelimiter + this.key();
-// 	return address;
-
-// } // end of class Blox bloxAddress
-
-/*
-{"system":{"version":"0.0.4"},
- "data":{
-     "page":{"title":"Html Basic","rev":0,"rev_speculation":0,"group_top":false,"moved_to":""},
-     "navi":[["Top","../../WC_top.html"],["Computing","../computing_index.html"],["HTML","./html_index.html"]],
-     "subsection":{
-     "id":{"id_next":3,"id_notinuse":[]},
-     "data":{
-         "0":{"parent":0,"id":0,"title":"","href":"","content":[],"child":[1,2]},
-         "1":{"parent_id":0,"id":1,"title":"構造","href":"#structure","content":[{"type":"text","value":"\n"},{"type":"script","value":"\\&lt;html\\&gt;\n\\&lt;head\\&gt;\n\\&lt;title\\&gt;タイトル\\&lt;/title\\&gt;\n\\&lt;/head\\&gt;\n\\&lt;body\\&gt;\n\\&lt;/body\\&gt;\n\\&lt;/html\\&gt;\n"},{"type":"html","value":""},{"type":"text","value":"\n"}]},
-         "2":{"parent_id":0,"id":2,"title":"メタ情報","href":"#meta","content":[{"type":"text","value":"\n"},{"type":"script","value":"\\&lt;meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"\\&gt;\n"},{"type":"html","value":""},{"type":"text","value":"\n"}]}
-     }
-     }}}
-
-
-
-<html><head>
-<title>Html Basic</title><meta charset="UTF-8"><script src="/wc.js"></script><link rel="stylesheet" href="/wc.css"><style type="text/css"></style></head>
-
-
-
-<body onload="bodyOnload()">
-<span id="page_json_str" style="display: none">{"system":{"version":"0.0.4"},"data":{"page":{"title":"Html Basic","rev":0,"rev_speculation":0,"group_top":false,"moved_to":""},"navi":[["Top","../../WC_top.html"],["Computing","../computing_index.html"],["HTML","./html_index.html"]],"subsection":{"id":{"id_next":3,"id_notinuse":[]},"data":{"0":{"parent":0,"id":0,"title":"","href":"","content":[],"child":[1,2]},"1":{"parent_id":0,"id":1,"title":"構造","href":"#structure","content":[{"type":"text","value":"\n"},{"type":"script","value":"\\&lt;html\\&gt;\n\\&lt;head\\&gt;\n\\&lt;title\\&gt;タイトル\\&lt;/title\\&gt;\n\\&lt;/head\\&gt;\n\\&lt;body\\&gt;\n\\&lt;/body\\&gt;\n\\&lt;/html\\&gt;\n"},{"type":"html","value":""},{"type":"text","value":"\n"}]},"2":{"parent_id":0,"id":2,"title":"メタ情報","href":"#meta","content":[{"type":"text","value":"\n"},{"type":"script","value":"\\&lt;meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"\\&gt;\n"},{"type":"html","value":""},{"type":"text","value":"\n"}]}}}}}</span>
-</body></html>
-*/

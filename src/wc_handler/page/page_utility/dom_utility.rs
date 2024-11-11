@@ -7,7 +7,6 @@ use markup5ever_rcdom::{Handle, Node, NodeData, RcDom}; // , SerializableHandle
 use std::cell::RefCell;
 use std::rc::Rc;
 // use tracing::{error, info}; // debug,
-// use tendril::Tendril;
 
 /// Parse html source in str into page node
 /// eg; <html><body></body></html>
@@ -18,9 +17,6 @@ pub fn to_dom(source: &str) -> RcDom {
 /// Parse parts of html in str into Nodes
 /// eg; <div><div>contents</div></div>
 pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
-    // let parsed =
-    //     parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(html_text);
-
     // This inserts html_text into body.
     // eg;
     //  if html_text = "<div><div>contents</div></div>";
@@ -73,9 +69,6 @@ pub fn node_element(ele_name: &str, attrs_vec: &Vec<(&str, &str)>) -> Rc<Node> {
 } // end of fn node_element
 
 pub fn node_text(contents: &str) -> Rc<Node> {
-    // Tendril::from(value.to_string())
-
-    // let contents = Tendril::from(contents.to_string());
     let contents = Tendril::from(contents);
     let node_data = NodeData::Text {
         contents: RefCell::new(contents),
@@ -92,9 +85,6 @@ fn node_child_match(
 ) {
     for child in node_obj.children.borrow().iter() {
         if element_match(child, node_ptn) {
-            // dbg
-            // println!("dom_urility node_child_match matched");
-
             node_list.push(Rc::clone(child));
         }
 
@@ -174,9 +164,7 @@ pub fn child_match_list(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> 
     node_list
 }
 
-// pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
 pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-    // let list = child_match_list(&dom.document, node_ptn, recursive);
     let list = child_match_list(&dom, node_ptn, recursive);
 
     if list.len() < 1 {

@@ -11,8 +11,6 @@ use tendril::fmt::UTF8;
 /// Convert page_dom that represent page contents, not page data in json as text,
 /// to page_json data
 pub fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
-    // pub fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
-    // let page_node = &page_dom.document;
     let mut page_json = PageJson::new();
     let page_json_data = page_json.value_mut()?;
 
@@ -90,13 +88,6 @@ fn a_node_href_title(a_node: &Rc<Node>) -> (String, String) {
 
     (href, title)
 }
-
-// struct Subsection {
-//     parent_id: usize,
-//     id: usize,
-//     href: String,
-//     title: String,
-// }
 
 fn json_html_ul(parent_node: &Rc<Node>, page_json: &mut PageJson, parent_id: &usize) {
     let ptn = dom_utility::node_element("ul", &vec![]);

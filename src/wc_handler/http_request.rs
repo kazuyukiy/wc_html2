@@ -3,8 +3,6 @@ use std::net::TcpStream;
 // use tracing::info; //  event, instrument, span, Level
 
 pub struct HttpRequest {
-    // method: Option<String>,
-    // path: Option<String>,
     method: String,
     path: String,
     wc_request: Option<String>,
@@ -15,7 +13,7 @@ pub struct HttpRequest {
 impl HttpRequest {
     pub fn from(stream: &mut TcpStream) -> Result<HttpRequest, ()> {
         let stream_data = stream_read(stream);
-        // info!("fn from");
+
         let mut headers = [httparse::EMPTY_HEADER; 64];
         let mut request = httparse::Request::new(&mut headers);
 
@@ -63,9 +61,7 @@ impl HttpRequest {
 
         // Host // ex.: 127.0.0.1:3000
         if let Some(v) = head_value(&request, "Host") {
-            // let vu8 = v.to_vec();
             let v = v.to_vec();
-            // if let Ok(v) = String::from_utf8(vu8) {
             if let Ok(v) = String::from_utf8(v) {
                 http_request.host.replace(v);
             }
@@ -87,17 +83,6 @@ impl HttpRequest {
     pub fn path(&self) -> &str {
         &self.path
     }
-
-    // pub fn path_contains_rev(&self) -> bool {
-    // pub fn _path_ends_with_rev(&self) -> bool {
-    //     // abc.html.003
-    //     let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
-    //     reg.is_match(self.path())
-    //     // self.path();
-
-    //     // temp
-    //     // balse
-    // }
 
     pub fn wc_request(&self) -> Option<&str> {
         self.wc_request.as_ref().map(|v| v.as_str())
