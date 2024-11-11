@@ -45,7 +45,8 @@ console.log("eles.1.innerHTML: " + eles[1].innerHTML);
 let page_json;
 
 function bodyOnload () {
-   console.log("bodyOnload");
+    // console.log("bodyOnload");
+
     page_json = page_json_read();
 
     const bxCenter = new BxCenter();

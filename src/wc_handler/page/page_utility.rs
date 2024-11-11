@@ -1,3 +1,6 @@
+use super::super::super::page_upgrade::Upres;
+use std::cell::RefCell;
+// use html5ever::driver::parse_document; // , serialize
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
 use std::collections::HashMap;
@@ -13,16 +16,17 @@ pub fn file_path(stor_root: &str, page_path: &str) -> String {
     stor_root.to_string() + page_path
 }
 
-pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<(), ()> {
+pub fn page_url(page: &mut super::Page) -> Result<url::Url, String> {
+    let local_host = "127.0.0.1";
+    let page_path = page.page_path();
+    let url = format!("http://{}{}", local_host, page_path);
+    url::Url::parse(&url).or_else(|e| Err(format!("{}", e)))
+}
+
+pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<String, String> {
     std::fs::write(&file_path, contents)
-        .and_then(|_| {
-            info!("save: {}", file_path);
-            Ok(())
-        })
-        .or_else(|e| {
-            error!("fn fs_write e: {:?}", e);
-            Err(())
-        })
+        .and(Ok(file_path.to_string()))
+        .or_else(|e| Err(e.to_string()))
 }
 
 pub fn to_dom(source: &str) -> RcDom {
@@ -59,7 +63,7 @@ pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
     json_value
 }
 
-fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
+pub fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
     // json in span
     let json_str = span_json_str(page_node)?;
     json_parse(&json_str)
@@ -94,7 +98,7 @@ pub fn span_json_node(page_node: &Rc<Node>) -> Option<Handle> {
     dom_utility::child_match_first(&page_node, &ptn_span, true)
 }
 
-fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
+pub fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
     // json in script
     let json_str = script_json_str(page_node)?;
     json_parse(&json_str)
@@ -123,7 +127,6 @@ fn script_json_str(page_dom: &Rc<Node>) -> Option<String> {
 
 /// Convert page_dom that represent page contents, not page data in json as text,
 /// to page_json data
-// fn json_from_dom_html(page_dom: &RcDom) -> Option<json::JsonValue> {
 fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
     json_from_dom_html::json_from_dom_html(page_node)
 }
@@ -163,13 +166,11 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     }
 
     let page_dom = page_dom_plain();
-
     let page_node = &page_dom.document;
 
     // title
     if let Some(title_str) = page_json["data"]["page"]["title"].as_str() {
         let title_ptn = dom_utility::node_element("title", &vec![]);
-        // if let Some(title_node) = dom_utility::child_match_first(&page_dom, &title_ptn, true) {
         if let Some(title_node) = dom_utility::child_match_first(&page_node, &title_ptn, true) {
             let title_text = dom_utility::node_text(title_str);
             title_node.children.borrow_mut().push(title_text);
@@ -222,13 +223,11 @@ pub fn page_from_json(
 
 pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> Result<(), String> {
     if page.json().is_none() {
-        // return false;
         return Err(format!("Failed to get json of {}", page.page_path));
     }
 
     let rev = match page.json().unwrap().rev() {
         Some(rev) => rev,
-        // None => return false,
         None => return Err(format!("Failed to get rev of {}", page.page_path)),
     };
 
@@ -277,15 +276,23 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
 ///
 pub fn page_child_new(
     parent_page: &mut super::Page,
-    parent_url: url::Url,
+    // parent_url: url::Url,
     child_title: &str,
     child_href: &str,
 ) -> Result<super::Page, ()> {
     // If no parent json, no file or no data, return Err(())
     let _parent_json = parent_page.json().ok_or(())?;
 
+    let parent_url = page_url(parent_page).or(Err(()))?;
+
     let (child_title, child_href) = title_href_check(child_title, child_href)?;
-    let child_url = child_url(&parent_url, child_href).or(Err(()))?;
+
+    // let child_url = url_on(&parent_url, child_href).or(Err(()))?;
+    let child_url = parent_url.join(child_href).or_else(|_| {
+        eprintln!("parent_url.join failed");
+        Err(())
+    })?;
+
     let child_path = child_url.path();
 
     // child_href might be a relative: ex: ./move2/move2.html, not for Page::new()
@@ -341,13 +348,6 @@ fn title_href_check<'a>(title: &'a str, href: &'a str) -> Result<(&'a str, &'a s
     Ok((title, href))
 }
 
-fn child_url(parent_url: &url::Url, child_href: &str) -> Result<url::Url, ()> {
-    parent_url.join(&child_href).or_else(|_| {
-        eprintln!("parent_url.join failed");
-        Err(())
-    })
-}
-
 /// Create a navi data from parent_page except child_url and its title.
 /// Convert href based on child_url as relative if possible.
 fn child_navi(
@@ -356,7 +356,6 @@ fn child_navi(
     child_url: &url::Url,
 ) -> Result<json::JsonValue, ()> {
     let parent_json = parent_page.json().ok_or(())?;
-    // let parent_json = parent_json.data().ok_or(())?;
     let parent_json = parent_json.value().ok_or(())?;
 
     let parent_navi = match &parent_json["data"]["navi"] {
@@ -400,16 +399,6 @@ fn href_url(org_base: &url::Url, href: &str, new_base: &url::Url) -> Option<Stri
         Err(_) => None,
     }
 }
-
-// fn page_json(page: &super::Page) -> Option<&json::JsonValue> {
-//     page.json_value().or_else(|| {
-//         error!(
-//             "{}",
-//             format!("Failed to get page_json.data of {}", page.path())
-//         );
-//         None
-//     })
-// }
 
 /// Move org_page to dest_url as a child of dest_parent_url.
 /// dest_parent_url can be None in a case dest_url is the top page.
@@ -485,7 +474,6 @@ impl PageMoving {
             return Err(format!("org_url recurred: {}", org_url.path()));
         }
 
-        // self.org_path_list.push(org_url.to_string());
         self.org_path_list.push(org_url.path().to_string());
         self.data
             .insert(org_url.path().to_string(), (org_url, dest_url, json));
@@ -494,7 +482,6 @@ impl PageMoving {
     }
 
     fn contains_org_url(&self, org_url: &url::Url) -> bool {
-        // self.data.contains_key(org_url.as_str())
         self.data.contains_key(org_url.path())
     }
 
@@ -507,8 +494,6 @@ impl PageMoving {
     }
 
     fn org_path_list(&self) -> Vec<&str> {
-        // self.org_path_list.iter().map(|url| url.as_str()).collect()
-        // self.org_path_list.iter().map(|path| path).collect()
         self.org_path_list
             .iter()
             .map(|path| path.as_str())
@@ -546,7 +531,7 @@ fn page_move_json(
 
     page_move_navi(&mut dest_json, dest_parent_url, dest_parent_json);
 
-    let org_children_href = page_move_subsections(dest_url, &mut dest_json, org_json, &org_url)?;
+    let org_children_href = page_move_subsections(&mut dest_json, org_json, &org_url)?;
 
     page_moving.insert(org_url.clone(), dest_url.clone(), dest_json.clone())?;
 
@@ -559,7 +544,6 @@ fn page_move_json(
         &dest_json,
     )?;
 
-    // temp
     Ok(())
 }
 
@@ -574,8 +558,6 @@ fn page_move_dest_already_data(
     // Case the page already has subsection data, abort moving.
     if dest_page.json_subsections_data_exists() {
         return Err(format!("The file data already exists: {}", dest_url.path()));
-        // let err_msg = format!("The file data already exists: {}", dest_url.path());
-        // return Err(err_msg);
     }
     return Ok(());
 }
@@ -643,8 +625,9 @@ fn page_move_navi_parent(
     Some(())
 }
 
+///
 fn page_move_subsections(
-    dest_url: &url::Url,
+    // dest_url: &url::Url,
     dest_json: &mut json::JsonValue,
     org_json: &json::JsonValue,
     org_url: &url::Url,
@@ -659,18 +642,18 @@ fn page_move_subsections(
     let mut children_href: Vec<String> = vec![];
 
     for (id, org_subsection) in subsections.iter() {
-        dest_subsections[id] =
-            page_move_subsection(dest_url, org_url, org_subsection, &mut children_href)?;
+        dest_subsections[id] = page_move_subsection(org_url, org_subsection, &mut children_href)?;
     }
 
     dest_json["data"]["subsection"]["data"] = dest_subsections;
 
-    // temp
     Ok(children_href)
 }
 
+/// Create subsection in Json converting href values based on dest_url.
+/// Push href into children_href if the href is a link to a child of org_url.
 fn page_move_subsection(
-    dest_url: &url::Url,
+    // dest_url: &url::Url,
     org_url: &url::Url,
     org_subsection: &json::JsonValue,
     children_href: &mut Vec<String>,
@@ -678,7 +661,7 @@ fn page_move_subsection(
     let mut dest_subsection = json::object! {};
     page_move_subsection_title_and(org_subsection, &mut dest_subsection);
     let org_href = org_subsection["href"].as_str().or(Some("")).unwrap();
-    if let Some((dest_href, is_child)) = href_move(org_url, org_href, dest_url) {
+    if let Some((dest_href, is_child)) = href_on(org_url, org_href) {
         dest_subsection["href"] = dest_href.as_str().into();
         if is_child {
             // In case a child dest_href is relative and
@@ -686,8 +669,7 @@ fn page_move_subsection(
             children_href.push(dest_href);
         }
     };
-    dest_subsection["content"] =
-        page_move_subsection_content(&org_subsection["content"], org_url, dest_url)?;
+    dest_subsection["content"] = page_move_subsection_content(&org_subsection["content"], org_url)?;
 
     Ok(dest_subsection)
 }
@@ -761,6 +743,7 @@ fn page_move_children_prepare(
 
     let mut child_org_page = super::Page::new(stor_root, child_org_url.path());
 
+    // If child_prg_page does not exists, child_org_page.json returns None
     let child_org_json = match child_org_page
         .json()
         .and_then(|page_json| page_json.value())
@@ -790,10 +773,6 @@ fn page_move_children_prepare(
 fn page_move_subsection_content(
     org_contents: &json::JsonValue,
     org_url: &url::Url,
-    dest_url: &url::Url,
-    //
-    // dest_subsection: &mut json::JsonValue,
-    // org_children_url: &mut HashSet<url::Url>,
 ) -> Result<json::JsonValue, String> {
     let org_contents = match org_contents {
         json::JsonValue::Array(ref v) => v,
@@ -810,8 +789,7 @@ fn page_move_subsection_content(
         dest_content["type"] = org_content["type"].clone();
 
         let org_content_value = org_content["value"].as_str().or(Some("")).unwrap();
-        let dest_content_value =
-            page_move_content_href_convert(org_content_value, org_url, dest_url);
+        let dest_content_value = page_move_content_href_convert(org_content_value, org_url);
         dest_content["value"] = dest_content_value.into();
 
         dest_contents.push(dest_content).or_else(|e| {
@@ -836,7 +814,6 @@ fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
             }
         };
         let mut dest_page = page_from_json(stor_root, dest_url.path(), dest_json);
-        // dest_page.dir_build();
         if dest_page.dir_build().is_err() {
             continue;
         }
@@ -862,18 +839,6 @@ fn org_page_save(stor_root: &str, page_moving: &PageMoving) {
     }
 }
 
-// fn page_moved_to(page: &mut super::Page) -> Option<&str> {
-//     let json_value = page.json_value()?;
-//     json_value["data"]["page"]["moved_to"].as_str()
-
-//     // let mut org_page = super::Page::new(stor_root, org_url.path());
-//     // let org_json = org_page
-//     //     .json_value()
-//     //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
-
-//     //    org_json_uped["data"]["page"]["moved_to"] = dest_url.as_str().into();
-// }
-
 /// Set the page of org_url as moved.
 fn page_org_page_moved(
     stor_root: &str,
@@ -889,16 +854,6 @@ fn page_org_page_moved(
     let org_json = org_page
         .json_value()
         .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
-
-    // let org_json = org_page
-    //     .json()
-    //     .and_then(|page_json| page_json.value())
-    //     .ok_or(format!("Failed to get page_json.data of {}", org_url))?;
-
-    // let org_json = match org_page.json().and_then(|page_json| page_json.value()) {
-    //     Some(v) => v,
-    //     None => return Err(format!("Failed to get page_json.data of {}", org_url)),
-    // };
 
     let mut org_json_uped = org_json.clone();
 
@@ -928,35 +883,37 @@ fn page_org_page_moved(
     Ok((org_page, org_json_uped))
 }
 
+/// Check relation between base_url and org_href and return a href
+/// based on base_url
+/// and wethere the href is a link to a child of urg_url.
 /// Returns Option<(String, bool)
-/// Convert org_href to href based on dest_url.
-/// String: href value in String that can be used in the page at dest_url.
-/// bool: true if org_href is child of org_url, false if org_href is link to the page of org_url or not child of org_url.
-/// Return None if failed to convert href.
+///  String: href, bool: true: is child.
 ///
-/// org_url: original url base
-/// org_href: original href defined in the page of org_url
-/// dest_url: url where new href is used at.
+/// If org_href is a link to base_url.path(), a href becomes as "#abc".
+/// If org_href is a link to a child of base_url, a href becomes a relative value like a "child/child.html".
+/// If org_href is a link not base_url.path() or its children,
+/// a href becomes an absolute value like "/abc/def/ght.html" (start with /).
+/// This absolute rule is essential of this system.
+/// If org_href is not same host, returns org_href.
 ///
-/// href to child page of org_url can be relative,
-/// but otherwise should be absolute.
-/// "/abc" : absolute, start with /
-/// "abc" : relative, start without /
-fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option<(String, bool)> {
-    let org_href_url = org_url.join(org_href).ok()?;
+/// If a page moves to a different path, still relative href can work,
+/// and absolute href as well, so the destination url is not concerned.
+///
+fn href_on(base_url: &url::Url, org_href: &str) -> Option<(String, bool)> {
+    let org_href_url = base_url.join(org_href).ok()?;
 
     let is_not_child = false;
 
     // Case the host is not of this page, return the original value as it is.
-    if org_href_url.host() != org_url.host() {
+    if org_href_url.host() != base_url.host() {
         // full url
         let href = org_href_url.as_str().to_string();
         return Some((href, is_not_child));
     }
 
-    // Case org_href path is as same as org_url path, means same page.
+    // Case org_href path is as same as base_url path, means same page.
     // if org_href is empty, no need to make a new link.
-    if org_url.path() == org_href_url.path() {
+    if base_url.path() == org_href_url.path() {
         // org_href may be as same as href we get here,
         // but org_href might have some more infomation than the reference.
         // fragment: (#)subsection1 (exclude #)
@@ -966,15 +923,18 @@ fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option
         return Some((href, is_not_child));
     }
 
-    // Case org_href is child of org_url,
-    // In case org_href path is as same as org_url path, it was handled previously and it does not come here.
+    // Case org_href is child of base_url,
+    // In case org_href path is as same as base_url path, it was handled previously and it does not come here.
     // relative href can be used, so you can forget about dest_url
     //
-    // remove file name from org_url.path()
-    let filename = org_url.path_segments().and_then(|split| split.last())?;
-    let org_dir = org_url.path().strip_suffix(filename)?;
+    // remove file name from base_url.path()
+    // base_url: "http://127.0.0.1/path/filename"
+    // path_secment:  path, filename
+    // last: filename
+    let filename = base_url.path_segments().and_then(|split| split.last())?;
+    let org_dir = base_url.path().strip_suffix(filename)?;
     if org_href_url.path().starts_with(org_dir) {
-        //      org_dir: org/url/  (org_url without filename)
+        //      org_dir: org/url/  (base_url without filename)
         // org_href_url: org/url/href/page.html#fragment
         // remove prefix(: org/url/ ), remains: href/page.html
         // href: href/page.html
@@ -988,10 +948,7 @@ fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option
     }
 
     // Case not child of the orig_url
-    let org_href_url = org_url.join(org_href).unwrap();
-
-    // println!("org_href_url: mk1 {}", org_href_url.as_str());
-
+    let org_href_url = base_url.join(org_href).unwrap();
     let dest_href_url = org_href_url;
     let mut href = dest_href_url.path().to_string();
     if let Some(fragment) = dest_href_url.fragment() {
@@ -1001,11 +958,8 @@ fn href_move(org_url: &url::Url, org_href: &str, _dest_url: &url::Url) -> Option
     Some((href, is_not_child))
 }
 
-fn page_move_content_href_convert(
-    org_content: &str,
-    org_url: &url::Url,
-    dest_url: &url::Url,
-) -> String {
+/// convert href="xxx" in org_content by href_on
+fn page_move_content_href_convert(org_content: &str, org_url: &url::Url) -> String {
     let mut index: usize = 0;
     let mut content = String::from(org_content);
 
@@ -1024,7 +978,7 @@ fn page_move_content_href_convert(
 
         // Convert href value for moving.
         let org_href = &content[href_value_start..href_value_end];
-        let op_href_move = href_move(org_url, org_href, dest_url);
+        let op_href_move = href_on(org_url, org_href);
 
         // Failed to convert href valuye.
         // Leave the href="xxx" as it is.
@@ -1082,7 +1036,6 @@ fn href_pos(str: &str, search_start: usize) -> Option<(usize, usize, usize, usiz
     let href_end = q2_end;
 
     // Return positions of value part: abc of href="abc"
-    // Some((q1_end, q2_start))
     Some((href_start, href_end, href_value_start, href_value_end))
 }
 
@@ -1156,60 +1109,163 @@ fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, 
     }
 }
 
-/// Upgrade old page system version
-pub fn page_system_version_upgrade(page: &mut super::Page) -> Result<(), String> {
-    // except not html page, eg wc.js, wc.css
-
-    // page.file_path().end_with("")
-    page_system_update_json_script_to_body_span(page);
-    // let Some(mut page2) = page_system_update_json_script_to_body_span(page) else {
-    //     return Err("Failed to get page from  json in script.".to_string());
-    // };
-
-    // temp
-    Err("".to_string())
-}
-
-/// Page that has json value in the head as javascript.
-/// <script type="text/javascript">let page_json = {}</script>
-fn page_system_update_json_script_to_body_span(page: &mut super::Page) {
-    // fn page_system_update_json_script_to_body_span(page: &mut super::Page) -> Option<super::Page> {
-    // info!("page_system_update_json_script_to_body_span");
-
-    let Some(page_dom) = page.dom() else {
-        error!("Failed to get dom from the page");
+/// Upgrade old page type.
+pub fn page_upgrade(page: &mut super::Page, upres: Option<Rc<RefCell<Upres>>>) {
+    // if the page already handle
+    if page_upgrade_handled(page, &upres) {
         return;
-    };
+    }
 
-    let Some(mut json_data) = json_from_dom(&page_dom.document) else {
-        error!("Failed to parse json from the script");
-        return;
+    let page_dom = match page.dom() {
+        Some(v) => v,
+        None => {
+            page_upgrade_failed(page, &upres);
+            error!("Failed to get page_dom: {}", &page.file_path());
+            return;
+        }
     };
+    let page_node = &page_dom.document;
 
-    // last_rev_used is maximum 100
-    let Some(last_rev_used) = last_rev_used(page) else {
-        error!("Failed to get last rev");
+    // check if page type is the latest or to be upgraded.
+    // page_utility::json_from_dom(&page_node)
+
+    // json_value found in the current page style, not for upgrade
+    if json_from_dom_span(page_node).is_some() {
+        page_upgrade_already(page, &upres);
         return;
-    };
-    json_data["data"]["page"]["rev"] = last_rev_used.into();
+    }
+
+    // Get json_value from script element.
+    let mut json_value = json_from_dom_script(page_node);
+    // json_value not found in the page, create it from page html.
+    if json_value.is_none() {
+        // old page stype
+        json_value = json_from_dom_html(page_node);
+    }
+
+    // Failed to get page_json
+    if json_value.is_none() {
+        page_upgrade_failed(page, &upres);
+        error!("Failed to get page_json: {}", page.page_path());
+        return;
+    }
+
+    let mut json_value = json_value.unwrap();
+
+    // Set last rev not to overwrite on old file.
+    // Otherwise set 1
+    // last_rev_of_files is maximum 100
+    let last_rev = last_rev_of_files(page).or(Some(1)).unwrap();
+    json_value["data"]["page"]["rev"] = last_rev.into();
 
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_data);
-    let _ = page2.file_save_and_rev();
+    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_value);
+    if let Ok(_) = page2.file_save_and_rev() {
+        page_upgrade_upgraded(page, &upres);
+    }
 }
 
-/// Find max rev number.
-fn last_rev_used(page: &mut super::Page) -> Option<usize> {
-    let mut rev_last = 0;
-    for rev in 0..100 {
+pub fn page_upgrade_children(
+    page: &mut super::Page,
+    recursive: bool,
+    upres: Option<Rc<RefCell<Upres>>>,
+) {
+    // info!("fn page_upgrade_children");
+
+    // To avoid
+    // error[E0499]: cannot borrow `*page` as mutable more than once at a time
+    // get page_url at here previously
+    let Ok(page_url) = page_url(page) else {
+        return;
+    };
+
+    let stor_root = page.stor_root().to_string();
+
+    let page_json = page.json();
+    if page_json.is_none() {
+        return;
+    }
+    let Some(subsections_json) = page_json.unwrap().subsections() else {
+        return;
+    };
+    // let subsections_json = match page_json.unwrap().subsections() {
+    //     Some(v) => v,
+    //     None => return,
+    // };
+
+    let subsection_top_json = &subsections_json["0"];
+    if subsection_top_json.is_null() {
+        return;
+    }
+    let children_id_json = match subsection_top_json["child"] {
+        json::JsonValue::Array(ref v) => v,
+        _ => return,
+    };
+
+    for id in children_id_json {
+        let subsection_json = &subsections_json[id.to_string().as_str()];
+        // info!("child href: {}", subsection_json["href"]);
+
+        let Some(href) = subsection_json["href"].as_str() else {
+            continue;
+        };
+
+        // href is not to child of the page
+        let Some((_, is_child)) = href_on(&page_url, href) else {
+            continue;
+        };
+        if !is_child {
+            continue;
+        }
+
+        // info!("href is child: {}", href);
+
+        let Ok(href_url) = page_url.join(href) else {
+            continue;
+        };
+
+        let mut child_page = super::Page::new(&stor_root, href_url.path());
+        let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
+        child_page.upgrade(recursive, upres_child);
+    }
+}
+
+fn page_upgrade_handled(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) -> bool {
+    if upres.is_some() {
+        upres.as_ref().unwrap().borrow_mut().handled(page)
+    } else {
+        false
+    }
+}
+
+fn page_upgrade_upgraded(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
+    if upres.is_some() {
+        upres.as_ref().unwrap().borrow_mut().upgraded(page);
+    }
+}
+
+fn page_upgrade_already(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
+    if upres.is_some() {
+        upres.as_ref().unwrap().borrow_mut().already(page);
+    }
+}
+
+fn page_upgrade_failed(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
+    if upres.is_some() {
+        upres.as_ref().unwrap().borrow_mut().failed(page);
+    }
+}
+
+/// Find max rev number of the page in existing files.
+fn last_rev_of_files(page: &mut super::Page) -> Option<usize> {
+    let mut rev_last = 1;
+    // for rev in 0..100 {
+    for rev in 1..100 {
         rev_last = rev;
         // next to rev_last
-        let path_rev = page.file_path() + "." + (rev + 1).to_string().as_str();
-
-        // DBG
-        // info!("last_rev_used path_rev: {}", path_rev);
+        let path_rev = page.file_path() + "." + rev.to_string().as_str();
 
         if let Ok(exists) = std::fs::exists(&path_rev) {
             if exists {
