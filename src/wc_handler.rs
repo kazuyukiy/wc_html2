@@ -32,7 +32,7 @@ pub fn handle_stream(stream: &mut TcpStream, stor_root: &str) -> Result<Vec<u8>,
         }
     };
 
-    info!("path: {:?}", http_request.path());
+    // info!("path: {:?}", http_request.path());
 
     let method = http_request.method();
 
@@ -76,6 +76,8 @@ pub fn handle_stream(stream: &mut TcpStream, stor_root: &str) -> Result<Vec<u8>,
     }
 
     if method == "POST" {
+        let _span_post = info_span!("POST").entered();
+        info!("{}", http_request.path());
         // return handle_post(&http_request, stor_root).unwrap_or(http_404());
         return handle_post(&http_request, stor_root).or(Err("Failed to POST".to_string()));
     }
@@ -122,8 +124,8 @@ fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Resu
 }
 
 fn handle_post(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
-    let _span_get = info_span!("POST").entered();
-    info!("{}", http_request.path());
+    // let _span_get = info_span!("POST").entered();
+    // info!("{}", http_request.path());
 
     let wc_request = if let Some(v) = http_request.wc_request() {
         v

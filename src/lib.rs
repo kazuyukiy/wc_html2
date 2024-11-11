@@ -23,12 +23,11 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
 
     // page type upgrade
     let stor_root2 = stor_root.to_string();
-    std::thread::spawn(|| {
+    let upgraqd_handle = std::thread::spawn(|| {
         let stor_root2 = stor_root2;
         page_upgrade::pages_upgrade(&stor_root2);
-    })
-    .join()
-    .unwrap();
+    });
+    // upgraqd_handle.join().unwrap();
 
     let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
@@ -53,6 +52,8 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
             handle_connection(stream, stor_root);
         });
     }
+
+    upgraqd_handle.join().unwrap();
 
     Ok(listener)
 }
