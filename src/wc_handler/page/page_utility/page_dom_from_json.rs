@@ -88,7 +88,6 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
 
 fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
     let body_ptn = super::dom_utility::node_element("body", &vec![]);
-
     let body_node = super::dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
 
