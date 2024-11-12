@@ -1,43 +1,56 @@
-// use html5ever::serialize;
-// use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Node, RcDom}; // Handle, , NodeData, SerializableHandle
 use std::collections::HashSet;
 use std::rc::Rc;
-use tracing::{error, info, warn}; // ,
-                                  // use tracing::info; // ,
+use tracing::{error, info}; // ,, warn
 
-// pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<(), String> {
 pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> {
     // let html_plain = super::page_html_plain();
 
     // DBG
     // info!("fn page_dom_from_json");
 
-    let page_dom = super::to_dom(html_plain());
+    // let page_dom = super::to_dom(html_plain());
+    let page_dom = super::to_dom(super::page_html_plain());
 
     page_title_set(&page_dom, page_json);
 
     page_json_set(&page_dom, page_json)?;
 
+    // DBG
+    // return Ok(page_dom);
+
     // let _r = page_html_static_set(&page_dom, page_json);
     if let Err(e) = page_html_static_set(&page_dom, page_json) {
-        error!("errrr {}", e);
+        error!("Failed to set html_static, {}", e,);
     };
 
     Ok(page_dom)
 }
 
-fn html_plain() -> &'static str {
-    r#"<html>
-<head>
-<title></title><meta charset="UTF-8"></head>
-<script src="/wc.js"></script>
-<link rel="stylesheet" href="/wc.css"></link>
-<style type="text/css"></style>
-<body onload="bodyOnload()">
-<span id="page_json_str" style="display: none"></span>
-</body></html>"#
-}
+// fn html_plain() -> &'static str {
+//     r#"<html>
+// <head>
+// <title></title><meta charset="UTF-8">
+// <script src="/wc.js"></script>
+// <link rel="stylesheet" href="/wc.css"></link>
+// <style type="text/css"></style>
+// </head>
+// <body onload="bodyOnload()">
+// <span id="page_json_str" style="display: none"></span>
+// </body></html>"#
+// }
+
+// fn _html_plain_() -> &'static str {
+//     r#"<html>
+// <head>
+// <title></title><meta charset="UTF-8"></head>
+// <script src="/wc.js"></script>
+// <link rel="stylesheet" href="/wc.css"></link>
+// <style type="text/css"></style>
+// <body onload="bodyOnload()">
+// <span id="page_json_str" style="display: none"></span>
+// </body></html>"#
+// }
 
 // Get page title from page_json and
 // set it to page_dom.
@@ -49,7 +62,6 @@ fn page_title_set(page_dom: &RcDom, page_json: &json::JsonValue) {
         .unwrap();
 
     let title_ptn = super::dom_utility::node_element("title", &vec![]);
-    // if let Some(title_node) = super::dom_utility::child_match_first(&page_dom, &title_ptn, true) {
     if let Some(title_node) =
         super::dom_utility::child_match_first(&page_dom.document, &title_ptn, true)
     {
@@ -63,7 +75,6 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
     let attrs = &vec![("id", "page_json_str")];
     let span_ptn = super::dom_utility::node_element("span", &attrs);
 
-    // if let Some(span_node) = super::dom_utility::child_match_first(&page_dom, &span_ptn, true) {
     if let Some(span_node) =
         super::dom_utility::child_match_first(&page_dom.document, &span_ptn, true)
     {
@@ -76,10 +87,8 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
 }
 
 fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
-    // let attrs = &vec![("id", "page_json_str")];
     let body_ptn = super::dom_utility::node_element("body", &vec![]);
 
-    // let body_node = super::dom_utility::child_match_first(&page_dom, &body_ptn, true)
     let body_node = super::dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
 
@@ -100,17 +109,11 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
 
     // subsection
     let subsections_node = super::dom_utility::node_element("div", &vec![]);
-    // let subsections_node = subsections(page_json)?;
-    // subsections_node.children.borrow_mut().push(navi_back());
 
     let subsections_json = &page_json["data"]["subsection"]["data"];
     if subsections_json.is_null() {
         return Err("Failed to get subsection data!".to_string());
     }
-
-    warn!("Consider to check dublication of subsection no to avoid endless loop");
-
-    // subsections(page_json, &subsections_node, 0)?;
 
     // Check dublication of parent_index_key to avoid endlessloop.
     let mut parent_handled = HashSet::new();
@@ -144,8 +147,6 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
     let mut navi_json_iter = navis_json.iter();
     loop {
-        info!("hint: {:?}", navi_json_iter.size_hint());
-
         let navi_item_json = match navi_json_iter.next() {
             Some(v) => v,
             None => break,
@@ -166,8 +167,6 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
         ele_top.children.borrow_mut().push(navi_item);
 
-        info!("hint(after): {:?}", navi_json_iter.size_hint());
-
         if navi_json_iter.size_hint().0 < 1 {
             continue;
         }
@@ -187,7 +186,6 @@ fn index(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 
     // ul / li
     let index_ul = index_ul(subsections_json, &0)?;
-    // let index_ul = index_ul(page_json, 0)?;
     Ok(index_ul)
 }
 
@@ -215,17 +213,19 @@ fn subsection_children_indexes(
     let key = index_key.to_string();
     let parent_json = &subsections_json[&key];
     if parent_json.is_null() {
-        return Err(format!("Failed to get subsection in key: {}", index_key));
+        return Err(format!("Failed to get parent subsection: {}", index_key));
     }
+
+    let mut children_i2 = vec![];
 
     let children_i = match &parent_json["child"] {
         json::JsonValue::Array(ref vec) => vec,
+        // case parent_json["child"] is not defined
         _ => {
-            return Err(format!("Failed to get child of subsection {}", index_key));
+            return Ok(children_i2);
         }
     };
 
-    let mut children_i2 = vec![];
     for child_i in children_i.iter() {
         let i = if child_i.is_number() {
             child_i.as_usize().unwrap()
@@ -261,7 +261,6 @@ fn index_li(subsections_json: &json::JsonValue, child_i: &usize) -> Result<Rc<No
 
     li.children.borrow_mut().push(a_node);
 
-    // let children_ul = index_ul(    subsections_json, li, );
     let children_ul = index_ul(subsections_json, child_i)?;
     li.children.borrow_mut().push(children_ul);
 
@@ -275,22 +274,12 @@ fn subsections(
     parent_index_key: &usize,
 ) -> Result<(), String> {
     if parent_handled.contains(parent_index_key) {
-        return Err(format!("Key duplicated {}", parent_index_key));
+        info!("Key duplicated {}", parent_index_key);
+        return Ok(());
     }
     parent_handled.insert(*parent_index_key);
 
-    let key = parent_index_key.to_string();
-    // indexing in string
-    let parent_json = &subsections_json[&key];
-    if parent_json.is_null() {
-        return Err(format!(
-            "Failed to get subsection in key: {}",
-            &parent_index_key
-        ));
-    }
-
     subsections_node.children.borrow_mut().push(navi_back());
-
     let subsection_children_i = subsection_children_indexes(subsections_json, &parent_index_key)?;
     for child_i in subsection_children_i.iter() {
         subsection(subsections_json, &subsections_node, parent_handled, child_i)?;
@@ -368,34 +357,19 @@ fn subsection_start_with_sharp(
 
     let href = href.unwrap();
 
-    // DBG
-    info!("subsection href: {}", href);
-
     if href.starts_with("#") {
-        // DBG
-
         return Ok(true);
     }
 
     Ok(false)
 }
 
-// fn content(content_json: &json::JsonValue) -> Result<RcDom, String> {
 fn content(content_json: &json::JsonValue) -> Result<Rc<Node>, String> {
-    // &content_json["type"]: "html", "script", "text"
-
-    // info!("fn content start");
-    info!("content.type: {}", &content_json["type"]);
-    // info!("content.value: {}", &content_json["value"]);
-
     let content_value = content_json["value"]
         .as_str()
         .ok_or("Failed to get content value".to_string())?;
 
-    // if(type == "html"){ ele = this.eleHtml(); }
-    // if(type == "script"){ ele = this.eleScript(); }
-    // if(type == "text"){ ele = this.eleText(); }
-
+    // &content_json["type"]: "html", "script", "text"
     if &content_json["type"] == "text" {
         return content_text(&content_value);
     }
@@ -405,62 +379,21 @@ fn content(content_json: &json::JsonValue) -> Result<Rc<Node>, String> {
     }
 
     if content_json["type"] == "html" {
-        // DBG comment out
         return content_html(&content_value);
-        // return content_html(&content_value)?;
     }
 
-    // DBG
-    // let attrs = &vec![("class", "html subsectionContent")];
-    // let dbg_node = super::dom_utility::node_element("div", &attrs);
-    // let dbg_text = super::dom_utility::node_text(
-    //     format!("content: {}", content_json["type"].as_str().unwrap()).as_str(),
-    // );
-    // dbg_node.children.borrow_mut().push(dbg_text);
-    // return Ok(dbg_node);
-
-    // DBG
-    // let temp_node = super::dom_utility::node_element("div", &vec![]);
-    // let temp_title = super::dom_utility::node_text("Temp DBG");
-    // temp_node.children.borrow_mut().push(temp_title);
-    // return Ok(temp_node);
-
-    // temp
     Err("type does not match".to_string())
 }
 
 fn content_html(content_value: &str) -> Result<Rc<Node>, String> {
-    //    let value = content_value_json
-    //         .as_str()
-    //         .ok_or("Failed to get content value".to_string())?;
-    // ;
-
-    // info!("content_value: {}", content_value);
-
     let attrs = &vec![("class", "html subsectionContent")];
     let content_node = super::dom_utility::node_element("div", &attrs);
-
-    // let dbg_text = super::dom_utility::node_text("content_html");
-    // content_node.children.borrow_mut().push(dbg_text);
-
-    // DBG
-    // return Ok(content_node);
-
-    // info!("fn content_html to_dom calling");
-
-    // let value_dom = super::to_dom(content_value);
-    // content_node.children.borrow_mut().push(value_dom.document);
 
     let value_doms = super::to_dom_parts(content_value);
     // to_dom_parts always returns in vec even one node.
     for value_dom in value_doms.into_iter() {
         content_node.children.borrow_mut().push(value_dom);
     }
-
-    // info!("fn content_html to_dom end content_node: {:?}", content_node);
-
-    // let content_dom = super::to_dom(value);
-    // Ok(super::to_dom(value))
     Ok(content_node)
 }
 
@@ -542,11 +475,23 @@ fn text_angle_entity(content_value: &str) -> String {
             }
         };
 
+        // info!("bs_pos: {}, angle_c: {}", bs_pos, angle_c);
+
         let angle_entity = if angle_c == "\\<" { "&lt;" } else { "&gt;" };
 
         content_value2 = content_value2 + &content_value[i_pos..bs_pos] + angle_entity;
 
-        i_pos = bs_pos + 4; // &lt; 4 charantors
+        // info!("angle_c.len(): {}", angle_c.len());
+
+        // i_pos = bs_pos + 4; // &lt; 4 charantors
+        // i_pos = bs_pos + 2; // // i_pos based on content_value // &lt; 4 charantors
+        // i_pos = bs_pos + angle_c.len(); // // i_pos based on content_value // &lt; 4 charantors
+
+        //
+        i_pos = match bs_pos.checked_add(angle_c.len()) {
+            Some(v) => v,
+            None => break,
+        };
     }
 
     content_value2
@@ -563,6 +508,13 @@ fn pos_esc_angle(hay: &str, start: usize) -> Option<(usize, &str)> {
     // sothat it is not for controle charactors.
     // reg: (\*)(\[<>]) if not escaped by \
     let reg = regex::Regex::new(r#"(\\*)(\\[<>])"#).unwrap();
+
+    // info!("fn pos_esc_angle");
+    // info!("hay: {}", hay);
+    // info!("start: {}", start);
+
+    // info!("slice: {}", &hay[start..]);
+    // &hay[start..];
 
     // Return None if not match.
     let caps = reg.captures(&hay[start..])?;
@@ -666,67 +618,3 @@ fn text_spread_parts(content_value: &str) -> String {
     // close p element. And return it.
     html + "</p>"
 }
-
-// fn text_spread_parts_(content_value: &str) -> String {
-//     if content_value.len() == 0 {
-//         return "".to_string();
-//     }
-
-//     // Starts with "<p>".
-//     // let mut html = String::from(P_PRE);
-//     let mut html = String::from("<p>");
-
-//     let mut prev_empty = false;
-//     // let mut lines = content_value.split("\n");
-
-//     for line in content_value.split("\n") {
-//         // previous content is empty.
-//         if prev_empty {
-//             // case \n\n; \n(prev line)\n(this line)
-//             if line.len() == 0 {
-//                 html = html + "</p><p>";
-//             }
-//             // case \n(prev line) some contents \n(this line)
-//             // handle previous \n
-//             else {
-//                 html = html + "<br>"
-//             }
-
-//             // clear
-//             prev_empty = false;
-//         } else {
-//             // for next iterator
-//             // entrust on next loop
-//             if line.len() == 0 {
-//                 prev_empty = true;
-//             }
-//         }
-
-//         // // for next iterator
-//         // if line.len() == 0 {
-//         //     prev_empty = true;
-//         // } else {
-//         //     prev_empty = false;
-//         // }
-
-//         // even line.len() == 0
-//         html = html + line;
-//     }
-
-//     // close p element. And return it.
-//     html + "</p>"
-// }
-
-// keyDelimiter = "._.";
-// classDelimiter = ".__.";
-// bloxAddress() {
-// 	// this.log("bloxAddress");
-
-// 	let address = "";
-// 	if(this.parentBx()){
-// 	    address += this.parentBx().bloxAddress() + this.classDelimiter;
-// 	}
-// 	address += this.constructor.name + this.keyDelimiter + this.key();
-// 	return address;
-
-// } // end of class Blox bloxAddress

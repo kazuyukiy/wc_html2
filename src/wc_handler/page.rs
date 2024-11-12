@@ -1,19 +1,13 @@
+use super::super::page_upgrade::Upres;
 use html5ever::driver::parse_document; // , serialize
-use html5ever::tendril::TendrilSink;
+use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
-// use std::collections::HashMap;
-// use std::collections::HashSet;
+use std::cell::RefCell;
 use std::fs;
-// use std::str::FromStr;
-// use tracing::{instrument, Level}; // event, info, , span , debug
-// use tracing::{error, info};
+use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
-
-// info!("hooll");
-
 mod page_json;
 pub mod page_utility;
-// use crate::wc_handler2::page::page_utility::json_from_dom;
 
 /// path: the path of the page.
 /// source: None: not tried to read, Some(None): Tried to read with faile,
@@ -42,8 +36,6 @@ impl Page {
         }
     }
 
-    //     fn
-
     pub fn stor_root(&self) -> &str {
         self.stor_root.as_str()
     }
@@ -58,7 +50,6 @@ impl Page {
 
     pub fn is_end_with_rev(&self) -> bool {
         let reg = regex::Regex::new(r#"html.[0-9]+$"#).unwrap();
-        // if reg.is_match(&self.page_path) {}
         reg.is_match(&self.page_path)
     }
 
@@ -66,11 +57,8 @@ impl Page {
         let file_path = &self.file_path();
         match fs::read(&file_path) {
             Ok(s) => {
-                // self.source.replace(Some(s));
                 self.source_replace_some(s);
                 return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
-                // let v = self.source.as_ref().unwrap().as_ref().unwrap();
-                // return Ok(v);
             }
             // file not found
             Err(e) => {
@@ -90,7 +78,6 @@ impl Page {
         // parent: abc/def (remain only directory path.)
         let parent = path.parent().ok_or(())?;
 
-        // parent.components().count();
         // This count() counts depth of directory.
         // Consider how avoid too match deep directorys making.
 
@@ -109,7 +96,6 @@ impl Page {
                 Ok(())
             }
             Err(_) => {
-                // eprintln!("Failed to create dir: {}", parent_path);
                 error!("Failed to create dir: {}", parent_path);
                 Err(())
             }
@@ -160,7 +146,6 @@ impl Page {
 
     fn json_parse(&mut self) -> Result<(), ()> {
         let dom = self.dom().ok_or(())?;
-        // match page_utility::json_from_dom(dom) {
         match page_utility::json_from_dom(&dom.document) {
             Some(v) => {
                 let page_json = page_json::PageJson::from(v);
@@ -182,16 +167,6 @@ impl Page {
         }
         self.json.as_ref().unwrap().as_ref()
     }
-
-    // fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
-    //     if self.json.is_none() {
-    //         if let Err(_) = self.json_parse() {
-    //             return None;
-    //         }
-    //     }
-    //
-    //     self.json.as_mut().unwrap().as_mut()
-    // }
 
     ///
     pub fn json_value(&mut self) -> Option<&json::JsonValue> {
@@ -216,9 +191,13 @@ impl Page {
     }
 
     /// Save self.source data to the file.
-    pub fn file_save(&mut self) -> Result<(), ()> {
+    pub fn file_save(&mut self) -> Result<String, String> {
         let file_path = &self.file_path();
-        let source = self.source().ok_or(())?;
+        // let source = self.source().ok_or(())?;
+        let source = match self.source() {
+            Some(v) => v,
+            None => return Err(format!("Failed to get source: {}", &self.file_path())),
+        };
         page_utility::fs_write(file_path, source)
     }
 
@@ -231,20 +210,37 @@ impl Page {
         Ok(self.file_path() + "." + &rev)
     }
 
-    pub fn file_save_rev(&mut self) -> Result<(), ()> {
-        let path_rev = self.path_rev()?;
-        let source = self.source().ok_or(())?;
+    /// Save self.source value to self.path_rev().
+    /// Return self.path_revp() on sucsess as Ok
+    /// Return Err in fail.
+    pub fn file_save_rev(&mut self) -> Result<String, String> {
+        let path_rev = match self.path_rev() {
+            Ok(v) => v,
+            Err(()) => return Err(format!("Failed to get path_ref: {}", &self.file_path())),
+        };
+
+        let source = match self.source() {
+            Some(v) => v,
+            None => return Err(format!("Failed to get source: {}", &self.file_path())),
+        };
+
         page_utility::fs_write(&path_rev, source)
     }
 
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
         let mut saved = true;
 
-        if self.file_save().is_err() {
+        if let Err(emsg) = self.file_save() {
+            error!("{}", emsg.as_str());
             saved = false;
         }
-        if self.file_save_rev().is_err() {
-            saved = false;
+
+        // file_save_rev is for backup.
+        match self.file_save_rev() {
+            Ok(v) => info!("Saved: {}", v),
+            Err(e) => error!("{}", e),
+            // comment out as intended because file_save_rev is for backup
+            // saved = false;
         }
 
         if saved {
@@ -257,21 +253,16 @@ impl Page {
     pub fn json_subsections_data_exists(&mut self) -> bool {
         self.json()
             .is_some_and(|page_json| page_json.subsections_data_exists())
-
-        // if let Some(page_json) = self.json() {
-        //     page_json.subsections_data_exists()
-        // } else {
-        // }
-
-        // self.json().and_then(|page_json| page_json.subsections_no_data())
     }
 
-    // /// Upgrade the page of url, not self.
-    // fn page_system_version_upgrade(&mut self, url: url::Url) -> Result<(), String> {
-
     /// Upgrade the page of url, not self.
-    pub fn upgrade(&mut self) -> Result<(), String> {
-        page_utility::page_system_version_upgrade(self)
+    pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
+        let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
+        page_utility::page_upgrade(self, upres2);
+
+        if recursive {
+            page_utility::page_upgrade_children(self, recursive, upres);
+        }
     }
 
     /// Move this page to dest_url as a child of parent_url.

@@ -2,12 +2,11 @@ use html5ever::parse_document; // , serialize
 use html5ever::tendril::TendrilSink; // Default::default()).one needs this.
 use markup5ever::interface::Attribute;
 use markup5ever::{namespace_url, ns};
-use markup5ever::{tendril::Tendril, LocalName, QualName};
+use markup5ever::{tendril::Tendril, LocalName, QualName}; // local_name,
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom}; // , SerializableHandle
 use std::cell::RefCell;
 use std::rc::Rc;
 // use tracing::{error, info}; // debug,
-// use tendril::Tendril;
 
 /// Parse html source in str into page node
 /// eg; <html><body></body></html>
@@ -18,9 +17,6 @@ pub fn to_dom(source: &str) -> RcDom {
 /// Parse parts of html in str into Nodes
 /// eg; <div><div>contents</div></div>
 pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
-    // let parsed =
-    //     parse_document(markup5ever_rcdom::RcDom::default(), Default::default()).one(html_text);
-
     // This inserts html_text into body.
     // eg;
     //  if html_text = "<div><div>contents</div></div>";
@@ -38,21 +34,6 @@ pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
     body.children.take()
 }
 
-pub fn qual_name(name: &str) -> QualName {
-    // DBG
-    // info!("qual_name: {}", name);
-
-    QualName::new(
-        None,
-        // ns!(html), // <script unknown_namespace:type="text/javascript">
-        // ns!(html), // <a unknown_namespace:href="./../wc_top.html">Top</a>
-        ns!(), // <script type="text/javascript">
-        // Namespace::from("http://abc.rs"),
-        LocalName::from(name),
-        // local_name!(name),
-    )
-} // end of fn qual_name
-
 pub fn attrs(attrs_vec: &Vec<(&str, &str)>) -> RefCell<Vec<Attribute>> {
     let mut attr_list: Vec<Attribute> = vec![];
     for (name, value) in attrs_vec {
@@ -62,15 +43,25 @@ pub fn attrs(attrs_vec: &Vec<(&str, &str)>) -> RefCell<Vec<Attribute>> {
 } // end of fn attrs
 
 pub fn attr(name: &str, value: &str) -> Attribute {
+    // ns!(html) for attribute name causes
+    // WARN html5ever::serialize: attr with weird namespace Atom('http://www.w3.org/1999/xhtml' type=static)
+
     Attribute {
-        name: qual_name(&name),
+        name: QualName::new(
+            None,
+            ns!(), // <script type="text/javascript">
+            LocalName::from(name),
+        ),
         value: Tendril::from(value.to_string()),
     }
 } // end of fn attr
 
 pub fn node_element(ele_name: &str, attrs_vec: &Vec<(&str, &str)>) -> Rc<Node> {
+    // QualName ns!() causes
+    // WARN html5ever::serialize: node with weird namespace Atom('' type=static)
+
     Node::new(NodeData::Element {
-        name: qual_name(ele_name),
+        name: QualName::new(None, ns!(html), LocalName::from(ele_name)),
         attrs: attrs(&attrs_vec),
         template_contents: None.into(),
         mathml_annotation_xml_integration_point: false,
@@ -78,9 +69,6 @@ pub fn node_element(ele_name: &str, attrs_vec: &Vec<(&str, &str)>) -> Rc<Node> {
 } // end of fn node_element
 
 pub fn node_text(contents: &str) -> Rc<Node> {
-    // Tendril::from(value.to_string())
-
-    // let contents = Tendril::from(contents.to_string());
     let contents = Tendril::from(contents);
     let node_data = NodeData::Text {
         contents: RefCell::new(contents),
@@ -97,9 +85,6 @@ fn node_child_match(
 ) {
     for child in node_obj.children.borrow().iter() {
         if element_match(child, node_ptn) {
-            // dbg
-            // println!("dom_urility node_child_match matched");
-
             node_list.push(Rc::clone(child));
         }
 
@@ -179,9 +164,7 @@ pub fn child_match_list(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> 
     node_list
 }
 
-// pub fn child_match_first(dom: &RcDom, node_ptn: &Node, recursive: bool) -> Option<Handle> {
 pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-    // let list = child_match_list(&dom.document, node_ptn, recursive);
     let list = child_match_list(&dom, node_ptn, recursive);
 
     if list.len() < 1 {
