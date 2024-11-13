@@ -6,7 +6,7 @@ use tracing::info;
 // {event, info, instrument, span, Level, Node, error, } //  error, event, instrument, span, Level debug,, info, info_span
 use wc_handler::page;
 
-pub fn pages_upgrade(stor_root: &str) {
+pub fn pages_upgrade_handle(stor_root: &str) {
     // top page
     // let page_path = "wc_top.html";
     // let page_path = "/Computing/Html/html_basic.html";
@@ -22,6 +22,7 @@ pub fn pages_upgrade(stor_root: &str) {
 
     let upres = Rc::new(RefCell::new(upres));
     let mut page = wc_handler::page::Page::new(stor_root, page_path);
+    // upgrade this page and its children as recursive option is ture.
     page.upgrade(true, Some(Rc::clone(&upres)));
     upres.borrow().tracing_info();
 }

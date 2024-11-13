@@ -25,8 +25,6 @@ pub fn to_dom_parts(html_text: &str) -> Vec<Rc<Node>> {
 
     // get body
     let body_ptn = node_element("body", &vec![]);
-    // Rx<Node>
-    // let body = child_match_first(&parsed, &body_ptn, true).unwrap();
     let body = child_match_first(&parsed.document, &body_ptn, true).unwrap();
 
     // take is essential to get elements deep in children recursively.
@@ -135,9 +133,6 @@ fn attrs_match(attrs: RefCell<Vec<Attribute>>, attrs_ptn: RefCell<Vec<Attribute>
     for att_for in attrs_ptn.borrow().iter() {
         'attrs: loop {
             for att in attrs.borrow().iter() {
-                // dbg
-                // println!("dom_urility fn attrs_match name:{:?}", att_for.name);
-
                 if att_for.name.local == att.name.local {
                     if att_for.value == att.value {
                         // att_for match att
@@ -173,4 +168,43 @@ pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Opti
 
     let child = Rc::clone(&list[0]);
     Some(child)
+}
+
+/// Return Rc<Node> of
+/// <span id="page_json_str" style="display: none"></span>
+pub fn span_json_new() -> Handle {
+    // <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
+    let attrs = &vec![("id", "page_json_str")];
+    node_element("span", &attrs)
+}
+
+/// Get span node from page_dom
+/// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
+pub fn get_span_json(page_node: &Rc<Node>) -> Option<Handle> {
+    let ptn_span = span_json_new();
+    child_match_first(&page_node, &ptn_span, true)
+}
+
+/// <script type="text/javascript" class="page_json">let page_json = {}</script>
+pub fn get_script_json(page_node: &Rc<Node>) -> Option<Handle> {
+    let attrs = &vec![("type", "text/javascript")];
+    let script_ptn = node_element("script", &attrs);
+    child_match_first(page_node, &script_ptn, true)
+}
+
+/// top_node <div id="page_top_node">
+pub fn div_page_top_new() -> Handle {
+    let attrs = &vec![("id", "page_top_node")];
+    node_element("div", attrs)
+}
+
+pub fn get_div_page_top(page_node: &Rc<Node>) -> Option<Handle> {
+    let ptn_top = div_page_top_new();
+    child_match_first(page_node, &ptn_top, true)
+}
+
+// <div class="html subsectionContent">
+pub fn div_subsection_content_new() -> Handle {
+    let attrs = &vec![("class", "html subsectionContent")];
+    node_element("div", &attrs)
 }

@@ -1,4 +1,4 @@
-use super::super::page_upgrade::Upres;
+use super::super::page_upgrade_handle::Upres;
 use html5ever::driver::parse_document; // , serialize
 use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
