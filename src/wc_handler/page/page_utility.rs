@@ -50,17 +50,26 @@ fn json_parse(str: &str) -> Option<json::JsonValue> {
 
 /// Get json text data from span element and return it as JsonValue
 /// If span with json data is not found, get data from script element (old style)
+/// or parse html data.
 pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
-    // current page stype
+    // current page stype, json value is in span element.
     let mut json_value = json_from_dom_span(page_node);
+
+    // The script in below may not need since page_upgrade is done in lib.rs.
+    // All pages upgraded should have json_value in span element.
+
+    // old stype, json value is in scritp element.
     if json_value.is_none() {
-        // old page stype
         json_value = json_from_dom_script(page_node);
     }
+
+    // old page stype, no json value in the page.
+    // Create json value parsing html data.
+    // But the page structure of html is different from the current html page.
     if json_value.is_none() {
-        // old page stype
         json_value = json_from_dom_html(page_node);
     }
+
     json_value
 }
 

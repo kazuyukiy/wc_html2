@@ -16,18 +16,17 @@ mod wc_handler;
 /// stor_root: root path for storeage of the pages
 /// capa: number of thread_pool
 pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> {
-    // Copy wc.js, wc.css to ./page/
-    // Do it only once when start main()
-    // if you change wc.js or wc.css, you may restart main() or copy it manulally
+    // Copy the latest wc.js, wc.css to ./page/.
+    // It is done only once when wc_note() is called.
+    // If you change contents of wc.js or wc.css, you may recall wc_note() to apply the changes.
     js_css::setup();
 
     // page type upgrade
     let stor_root2 = stor_root.to_string();
-    let upgraqd_handle = std::thread::spawn(|| {
+    let upgrade_handle = std::thread::spawn(|| {
         let stor_root2 = stor_root2;
         page_upgrade_handle::pages_upgrade_handle(&stor_root2);
     });
-    // upgraqd_handle.join().unwrap();
 
     let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
@@ -53,7 +52,8 @@ pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> 
         });
     }
 
-    upgraqd_handle.join().unwrap();
+    // Handling listener does not wait end of upgrade_handles
+    upgrade_handle.join().unwrap();
 
     Ok(listener)
 }
