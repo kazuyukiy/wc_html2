@@ -18,29 +18,29 @@ pub fn contents() -> &'static str {
 
 'use strict';
 
-console.log("hajime!");
-page_json_ini();
+// console.log("hajime!");
+// page_json_ini();
 // console.log("typeof page_json: " + typeof page_json);
 // if(page_json) {
 // console.log("typeof page_json: " + typeof page_json);
 // }
 
-function page_json_ini() {
-console.log("page_json_ini!");
+// function page_json_ini() {
+// console.log("page_json_ini!");
 
-let eles = document.getElementsByTagName("script");
-console.log("eles: " + eles.length);
+// let eles = document.getElementsByTagName("script");
+// console.log("eles: " + eles.length);
 
-console.log("eles.0.src: " + eles[0].src);
+// console.log("eles.0.src: " + eles[0].src);
 // chrome-extension://mopnmbcafieddcagagdcbnhejhlodfdd/page.js
 
-console.log("eles.1.src: " + eles[1].src);
+// console.log("eles.1.src: " + eles[1].src);
 // http://127.0.0.1:3000/wc.js
 
-console.log("eles.0.innerHTML: " + eles[0].innerHTML);
-console.log("eles.1.innerHTML: " + eles[1].innerHTML);
+// console.log("eles.0.innerHTML: " + eles[0].innerHTML);
+// console.log("eles.1.innerHTML: " + eles[1].innerHTML);
 
-}
+// }
 
 let page_json;
 
@@ -2148,7 +2148,7 @@ class Menu extends Blox {
     } // end of class Menu menuVisibleSet 
 
     hrefEventHandle(event) {
-	this.log("hrefEventHandle() ttotto");
+	// this.log("hrefEventHandle() ttotto");
 
 	// prevent to move to href
 	// espacialy avoid to move to another page without saveing editing
@@ -2169,6 +2169,12 @@ class Menu extends Blox {
 	    javascript:history.back();
 	    return;
 	}
+
+        // DBG
+        // go to href without POST
+        location.href = href;
+	console.log("go direct: " + href);
+	return;
 
 	// link to out of the page
 	let data = {"href" : href};

@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
-mod page_json;
+pub mod page_json;
 pub mod page_utility;
 
 /// path: the path of the page.
@@ -24,6 +24,7 @@ pub struct Page {
 impl Page {
     /// Returns `Page`.
     /// It is used for further creation of 'Page'
+    /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
         // let path = String::from(path);
 

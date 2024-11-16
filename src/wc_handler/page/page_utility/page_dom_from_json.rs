@@ -1,17 +1,17 @@
 use super::dom_utility;
-use markup5ever_rcdom::{Node, RcDom}; // Handle, , NodeData, SerializableHandle
+use markup5ever_rcdom::{Node, NodeData, RcDom}; // Handle, , NodeData, SerializableHandle
 use std::collections::HashSet;
 use std::rc::Rc;
 use tracing::{error, info}; // ,, warn
 
-pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> {
+pub fn page_dom_from_json(page_path: &str, page_json: &json::JsonValue) -> Result<RcDom, String> {
     let page_dom = super::to_dom(super::page_html_plain());
 
     page_title_set(&page_dom, page_json);
 
     page_json_set(&page_dom, page_json)?;
 
-    if let Err(e) = page_html_static_set(&page_dom, page_json) {
+    if let Err(e) = page_html_static_set(&page_dom, page_path, page_json) {
         error!("Failed to set html_static, {}", e,);
     };
 
@@ -44,7 +44,16 @@ fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), St
     Ok(())
 }
 
-fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
+/// Create html elements from page_json data as static html contents
+/// so you can see the html page even if javascript does not draw
+/// html elements dynamically.
+fn page_html_static_set(
+    page_dom: &RcDom,
+    page_path: &str,
+    page_json: &json::JsonValue,
+) -> Result<(), String> {
+    style_link_relative_set(page_dom, page_path);
+
     let body_ptn = dom_utility::node_element("body", &vec![]);
     let body_node = dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
@@ -52,7 +61,7 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     // <div id="page_top_node">
     let top_node = dom_utility::div_page_top_new();
 
-    let title_text = dom_utility::node_text("page_html_static_set");
+    let title_text = dom_utility::node_text("static page");
     top_node.children.borrow_mut().push(title_text);
 
     // navi
@@ -85,6 +94,60 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     body_node.children.borrow_mut().push(top_node);
 
     Ok(())
+}
+
+/// Static pages does not recognize it self position so stylesheet location
+/// should be relative.
+/// absolute ex.:
+/// <link rel="stylesheet" href="/wc.css"></link>
+/// relative ex.:
+/// <link rel="stylesheet" href="../..//wc.css"></link>
+fn style_link_relative_set(page_dom: &RcDom, page_path: &str) {
+    //
+    let page_path = "http://127.0.0.1".to_string() + page_path;
+    let Ok(page_url) = url::Url::parse(&page_path) else {
+        return;
+    };
+
+    let Ok(href_url) = page_url.join("/wc.css") else {
+        return;
+    };
+
+    // info!("page_path: {}", page_path);
+
+    let Some(relative) = page_url.make_relative(&href_url) else {
+        return;
+    };
+    // info!("relative: {}", relative);
+
+    // <link rel="stylesheet" href="/wc.css"></link>
+    let attrs = &vec![("href", "/wc.css")];
+    let ptn = dom_utility::node_element("link", attrs);
+    let Some(link_node) = dom_utility::child_match_first(&page_dom.document, &ptn, true) else {
+        return;
+    };
+    // attrs
+    let NodeData::Element { attrs, .. } = &link_node.data else {
+        return;
+    };
+    // set relative attr
+    // href="/wc.css" to
+    // href="../..//wc.css"
+    for att in attrs.borrow_mut().iter_mut() {
+        if *att.name.local == *"href" {
+            att.value = relative.into();
+            break;
+        }
+    }
+
+    // DBG monitor
+    // let Ok(link_u8) = super::dom_serialize(page_dom.document.clone()) else {
+    //     return;
+    // };
+    // let Ok(link_str) = std::str::from_utf8(&link_u8) else {
+    //     return;
+    // };
+    // info!("style_link: {}", link_str);
 }
 
 fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {

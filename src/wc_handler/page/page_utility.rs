@@ -139,7 +139,11 @@ fn page_dom_plain() -> RcDom {
 
 // Contains body onload="bodyOnload()"
 fn page_html_plain() -> &'static str {
-    r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta><script src="/wc.js"></script>
+    // On static page, wc.js file may not be imported. In that case, internal script function bodyOnload avoid no function error.
+    // the internal function bodyOnload is written before script tag with src for import so the function will be overwritten as its import.
+    // But it is not sure this script tag order work well for every browser type.
+    // To be secure, better to make a script that confirm existsnce of the function and handle it.
+    r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta><script>function bodyOnload () {}</script><script src="/wc.js"></script>
     <link rel="stylesheet" href="/wc.css"></link>
     <style type="text/css"></style>
 </head><body onload="bodyOnload()"><span id="page_json_str" style="display: none"></span></body></html>
@@ -147,17 +151,19 @@ fn page_html_plain() -> &'static str {
 }
 
 /// Create a page source from json value.
-pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
+pub fn source_from_json_a(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
     // let debug_mode = false;
     let debug_mode = true;
     if debug_mode {
         info!("source_from_json debug_mode: {}", debug_mode);
-        let page_dom = page_dom_from_json::page_dom_from_json(page_json);
+        let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
         if page_dom.is_err() {
             return vec![];
         }
 
-        let v = match dom_serialize(page_dom.unwrap()) {
+        // dom.document
+        // let v = match dom_serialize(page_dom.unwrap()) {
+        let v = match dom_serialize(page_dom.unwrap().document) {
             Ok(v) => v,
             Err(e) => {
                 error!("Failed to get source from json: {}", e);
@@ -167,6 +173,7 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
         return v;
     }
 
+    // Create a page in domm with title and page_json in span
     let page_dom = page_dom_plain();
     let page_node = &page_dom.document;
 
@@ -192,7 +199,9 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     let json_node_text = dom_utility::node_text(&json_str);
     let _ = &span.children.borrow_mut().push(json_node_text);
 
-    match dom_serialize(page_dom) {
+    // dom.document
+    // match dom_serialize(page_dom) {
+    match dom_serialize(page_dom.document) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to get source from json: {}", e);
@@ -201,8 +210,10 @@ pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
     }
 }
 
-fn dom_serialize(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
-    let sh = SerializableHandle::from(dom.document);
+// fn dom_serialize_a(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
+fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
+    // let sh = SerializableHandle::from(dom.document);
+    let sh = SerializableHandle::from(node);
     let mut page_bytes = vec![];
 
     let _r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
@@ -215,7 +226,7 @@ pub fn page_from_json(
     page_path: &str,
     page_json: &json::JsonValue,
 ) -> super::Page {
-    let source = source_from_json(page_json); // bytes
+    let source = source_from_json_a(page_path, page_json); // bytes
 
     let mut page = super::Page::new(stor_root, page_path);
     page.source.replace(Some(source));
@@ -558,6 +569,7 @@ fn page_move_dest_already_data(
     // Return Err if dest_page already exists, except no data in the page.
     let mut dest_page = super::Page::new(stor_root, dest_url.path());
     // Case the page already has subsection data, abort moving.
+    // It consider if no subsecitons data, it can be over written.
     if dest_page.json_subsections_data_exists() {
         return Err(format!("The file data already exists: {}", dest_url.path()));
     }
