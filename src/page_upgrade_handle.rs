@@ -35,8 +35,7 @@ fn page_top(stor_root: &str) -> Page {
         return page;
     }
 
-    // Create a new pate
-    // let title = "Wc top";
+    // Create a new page Wc_top.html
     let title = "Top";
 
     // json plain
@@ -49,9 +48,6 @@ fn page_top(stor_root: &str) -> Page {
     let mut navi = json::JsonValue::Array(vec![]);
     let navi_top: Vec<json::JsonValue> = vec![title.into(), "".into()];
 
-    // if navi.push(json::JsonValue::Array(navi_top)).is_err() {
-    //     return Err(());
-    // }
     let _ = navi.push(json::JsonValue::Array(navi_top));
     page_json["data"]["navi"] = navi;
 

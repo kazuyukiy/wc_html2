@@ -26,8 +26,6 @@ impl Page {
     /// It is used for further creation of 'Page'
     /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
-        // let path = String::from(path);
-
         Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),

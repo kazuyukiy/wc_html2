@@ -151,63 +151,63 @@ fn page_html_plain() -> &'static str {
 }
 
 /// Create a page source from json value.
-pub fn source_from_json_a(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
+pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
     // let debug_mode = false;
-    let debug_mode = true;
-    if debug_mode {
-        info!("source_from_json debug_mode: {}", debug_mode);
-        let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
-        if page_dom.is_err() {
-            return vec![];
-        }
-
-        // dom.document
-        // let v = match dom_serialize(page_dom.unwrap()) {
-        let v = match dom_serialize(page_dom.unwrap().document) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to get source from json: {}", e);
-                vec![]
-            }
-        };
-        return v;
+    // let debug_mode = true;
+    // if debug_mode {
+    // info!("source_from_json debug_mode: {}", debug_mode);
+    let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
+    if page_dom.is_err() {
+        return vec![];
     }
-
-    // Create a page in domm with title and page_json in span
-    let page_dom = page_dom_plain();
-    let page_node = &page_dom.document;
-
-    // title
-    if let Some(title_str) = page_json["data"]["page"]["title"].as_str() {
-        let title_ptn = dom_utility::node_element("title", &vec![]);
-        if let Some(title_node) = dom_utility::child_match_first(&page_node, &title_ptn, true) {
-            let title_text = dom_utility::node_text(title_str);
-            title_node.children.borrow_mut().push(title_text);
-        }
-    }
-
-    // put json value into span as str
-    let span = match dom_utility::get_span_json(&page_node) {
-        Some(v) => v,
-        None => {
-            error!("Failed to get element span.");
-            return vec![];
-        }
-    };
-    let _ = &span.children.borrow_mut().clear();
-    let json_str = page_json.dump();
-    let json_node_text = dom_utility::node_text(&json_str);
-    let _ = &span.children.borrow_mut().push(json_node_text);
 
     // dom.document
-    // match dom_serialize(page_dom) {
-    match dom_serialize(page_dom.document) {
+    // let v = match dom_serialize(page_dom.unwrap()) {
+    let v = match dom_serialize(page_dom.unwrap().document) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to get source from json: {}", e);
             vec![]
         }
-    }
+    };
+    return v;
+    // }
+
+    // // Create a page in domm with title and page_json in span
+    // let page_dom = page_dom_plain();
+    // let page_node = &page_dom.document;
+
+    // // title
+    // if let Some(title_str) = page_json["data"]["page"]["title"].as_str() {
+    //     let title_ptn = dom_utility::node_element("title", &vec![]);
+    //     if let Some(title_node) = dom_utility::child_match_first(&page_node, &title_ptn, true) {
+    //         let title_text = dom_utility::node_text(title_str);
+    //         title_node.children.borrow_mut().push(title_text);
+    //     }
+    // }
+
+    // // put json value into span as str
+    // let span = match dom_utility::get_span_json(&page_node) {
+    //     Some(v) => v,
+    //     None => {
+    //         error!("Failed to get element span.");
+    //         return vec![];
+    //     }
+    // };
+    // let _ = &span.children.borrow_mut().clear();
+    // let json_str = page_json.dump();
+    // let json_node_text = dom_utility::node_text(&json_str);
+    // let _ = &span.children.borrow_mut().push(json_node_text);
+
+    // // dom.document
+    // // match dom_serialize(page_dom) {
+    // match dom_serialize(page_dom.document) {
+    //     Ok(v) => v,
+    //     Err(e) => {
+    //         error!("Failed to get source from json: {}", e);
+    //         vec![]
+    //     }
+    // }
 }
 
 // fn dom_serialize_a(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
@@ -226,7 +226,7 @@ pub fn page_from_json(
     page_path: &str,
     page_json: &json::JsonValue,
 ) -> super::Page {
-    let source = source_from_json_a(page_path, page_json); // bytes
+    let source = source_from_json(page_path, page_json); // bytes
 
     let mut page = super::Page::new(stor_root, page_path);
     page.source.replace(Some(source));
@@ -523,7 +523,6 @@ fn page_move_json(
     dest_parent_url: Option<&url::Url>,
     dest_parent_json: Option<&json::JsonValue>,
 ) -> Result<(), String> {
-    // DBG
     info!("\n org_url: {} to\ndest_url: {}", org_url, dest_url);
 
     // org_url duplication avoiding endlessloop
