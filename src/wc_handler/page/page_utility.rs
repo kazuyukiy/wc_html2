@@ -133,9 +133,9 @@ fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
     json_from_dom_html::json_from_dom_html(page_node)
 }
 
-fn page_dom_plain() -> RcDom {
-    to_dom(page_html_plain())
-}
+// fn page_dom_plain() -> RcDom {
+//     to_dom(page_html_plain())
+// }
 
 // Contains body onload="bodyOnload()"
 fn page_html_plain() -> &'static str {
