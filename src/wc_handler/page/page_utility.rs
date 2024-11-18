@@ -1,8 +1,8 @@
-use super::super::super::page_upgrade::Upres;
-use std::cell::RefCell;
-// use html5ever::driver::parse_document; // , serialize
+use super::super::super::page_upgrade_handle::Upres;
+use super::Page;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -10,6 +10,7 @@ use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
 mod dom_utility;
 mod json_from_dom_html;
 pub mod page_dom_from_json;
+mod page_upgrade;
 
 pub fn file_path(stor_root: &str, page_path: &str) -> String {
     // String + "." + &str
@@ -49,17 +50,26 @@ fn json_parse(str: &str) -> Option<json::JsonValue> {
 
 /// Get json text data from span element and return it as JsonValue
 /// If span with json data is not found, get data from script element (old style)
+/// or parse html data.
 pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
-    // current page stype
+    // current page stype, json value is in span element.
     let mut json_value = json_from_dom_span(page_node);
+
+    // The script in below may not need since page_upgrade is done in lib.rs.
+    // All pages upgraded should have json_value in span element.
+
+    // old stype, json value is in scritp element.
     if json_value.is_none() {
-        // old page stype
         json_value = json_from_dom_script(page_node);
     }
+
+    // old page stype, no json value in the page.
+    // Create json value parsing html data.
+    // But the page structure of html is different from the current html page.
     if json_value.is_none() {
-        // old page stype
         json_value = json_from_dom_html(page_node);
     }
+
     json_value
 }
 
@@ -71,7 +81,7 @@ pub fn json_from_dom_span(page_node: &Handle) -> Option<json::JsonValue> {
 
 /// Get page_json in string from span element
 fn span_json_str(page_node: &Rc<Node>) -> Option<String> {
-    let span = span_json_node(page_node)?;
+    let span = dom_utility::get_span_json(page_node)?;
 
     let children = span.children.borrow();
     if children.len() == 0 {
@@ -90,24 +100,16 @@ fn span_json_str(page_node: &Rc<Node>) -> Option<String> {
     Some(str)
 }
 
-/// Get span node from page_dom
-/// <span id="page_json_str" style="display: none">{"json":"json_data"}</span>
-pub fn span_json_node(page_node: &Rc<Node>) -> Option<Handle> {
-    let attrs = &vec![("id", "page_json_str")];
-    let ptn_span = dom_utility::node_element("span", &attrs);
-    dom_utility::child_match_first(&page_node, &ptn_span, true)
-}
-
+/// <script type="text/javascript" class="page_json">let page_json = {}</script>
 pub fn json_from_dom_script(page_node: &Handle) -> Option<json::JsonValue> {
     // json in script
     let json_str = script_json_str(page_node)?;
     json_parse(&json_str)
 }
 
+/// <script type="text/javascript" class="page_json">let page_json = {}</script>
 fn script_json_str(page_dom: &Rc<Node>) -> Option<String> {
-    let attrs = &vec![("type", "text/javascript")];
-    let ptn = dom_utility::node_element("script", &attrs);
-    let script_node = dom_utility::child_match_first(&page_dom, &ptn, true)?;
+    let script_node = dom_utility::get_script_json(&page_dom)?;
     for child in script_node.children.borrow().iter() {
         let content = match &child.data {
             NodeData::Text { contents } => contents.borrow(),
@@ -131,13 +133,17 @@ fn json_from_dom_html(page_node: &Handle) -> Option<json::JsonValue> {
     json_from_dom_html::json_from_dom_html(page_node)
 }
 
-fn page_dom_plain() -> RcDom {
-    to_dom(page_html_plain())
-}
+// fn page_dom_plain() -> RcDom {
+//     to_dom(page_html_plain())
+// }
 
 // Contains body onload="bodyOnload()"
 fn page_html_plain() -> &'static str {
-    r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta><script src="/wc.js"></script>
+    // On static page, wc.js file may not be imported. In that case, internal script function bodyOnload avoid no function error.
+    // the internal function bodyOnload is written before script tag with src for import so the function will be overwritten as its import.
+    // But it is not sure this script tag order work well for every browser type.
+    // To be secure, better to make a script that confirm existsnce of the function and handle it.
+    r#"<!DOCTYPE html><html><head><title></title><meta charset="UTF-8"></meta><script>function bodyOnload () {}</script><script src="/wc.js"></script>
     <link rel="stylesheet" href="/wc.css"></link>
     <style type="text/css"></style>
 </head><body onload="bodyOnload()"><span id="page_json_str" style="display: none"></span></body></html>
@@ -145,62 +151,69 @@ fn page_html_plain() -> &'static str {
 }
 
 /// Create a page source from json value.
-pub fn source_from_json(page_json: &json::JsonValue) -> Vec<u8> {
+pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
     // let debug_mode = false;
-    let debug_mode = true;
-    if debug_mode {
-        info!("source_from_json debug_mode: {}", debug_mode);
-        let page_dom = page_dom_from_json::page_dom_from_json(page_json);
-        if page_dom.is_err() {
-            return vec![];
-        }
-
-        let v = match dom_serialize(page_dom.unwrap()) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to get source from json: {}", e);
-                vec![]
-            }
-        };
-        return v;
+    // let debug_mode = true;
+    // if debug_mode {
+    // info!("source_from_json debug_mode: {}", debug_mode);
+    let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
+    if page_dom.is_err() {
+        return vec![];
     }
 
-    let page_dom = page_dom_plain();
-    let page_node = &page_dom.document;
-
-    // title
-    if let Some(title_str) = page_json["data"]["page"]["title"].as_str() {
-        let title_ptn = dom_utility::node_element("title", &vec![]);
-        if let Some(title_node) = dom_utility::child_match_first(&page_node, &title_ptn, true) {
-            let title_text = dom_utility::node_text(title_str);
-            title_node.children.borrow_mut().push(title_text);
-        }
-    }
-
-    // put json value into span as str
-    let span = match span_json_node(&page_node) {
-        Some(v) => v,
-        None => {
-            error!("Failed to get element span.");
-            return vec![];
-        }
-    };
-    let _ = &span.children.borrow_mut().clear();
-    let json_str = page_json.dump();
-    let json_node_text = dom_utility::node_text(&json_str);
-    let _ = &span.children.borrow_mut().push(json_node_text);
-
-    match dom_serialize(page_dom) {
+    // dom.document
+    // let v = match dom_serialize(page_dom.unwrap()) {
+    let v = match dom_serialize(page_dom.unwrap().document) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to get source from json: {}", e);
             vec![]
         }
-    }
+    };
+    return v;
+    // }
+
+    // // Create a page in domm with title and page_json in span
+    // let page_dom = page_dom_plain();
+    // let page_node = &page_dom.document;
+
+    // // title
+    // if let Some(title_str) = page_json["data"]["page"]["title"].as_str() {
+    //     let title_ptn = dom_utility::node_element("title", &vec![]);
+    //     if let Some(title_node) = dom_utility::child_match_first(&page_node, &title_ptn, true) {
+    //         let title_text = dom_utility::node_text(title_str);
+    //         title_node.children.borrow_mut().push(title_text);
+    //     }
+    // }
+
+    // // put json value into span as str
+    // let span = match dom_utility::get_span_json(&page_node) {
+    //     Some(v) => v,
+    //     None => {
+    //         error!("Failed to get element span.");
+    //         return vec![];
+    //     }
+    // };
+    // let _ = &span.children.borrow_mut().clear();
+    // let json_str = page_json.dump();
+    // let json_node_text = dom_utility::node_text(&json_str);
+    // let _ = &span.children.borrow_mut().push(json_node_text);
+
+    // // dom.document
+    // // match dom_serialize(page_dom) {
+    // match dom_serialize(page_dom.document) {
+    //     Ok(v) => v,
+    //     Err(e) => {
+    //         error!("Failed to get source from json: {}", e);
+    //         vec![]
+    //     }
+    // }
 }
 
-fn dom_serialize(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
-    let sh = SerializableHandle::from(dom.document);
+// fn dom_serialize_a(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
+fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
+    // let sh = SerializableHandle::from(dom.document);
+    let sh = SerializableHandle::from(node);
     let mut page_bytes = vec![];
 
     let _r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
@@ -213,7 +226,7 @@ pub fn page_from_json(
     page_path: &str,
     page_json: &json::JsonValue,
 ) -> super::Page {
-    let source = source_from_json(page_json); // bytes
+    let source = source_from_json(page_path, page_json); // bytes
 
     let mut page = super::Page::new(stor_root, page_path);
     page.source.replace(Some(source));
@@ -510,7 +523,6 @@ fn page_move_json(
     dest_parent_url: Option<&url::Url>,
     dest_parent_json: Option<&json::JsonValue>,
 ) -> Result<(), String> {
-    // DBG
     info!("\n org_url: {} to\ndest_url: {}", org_url, dest_url);
 
     // org_url duplication avoiding endlessloop
@@ -556,6 +568,7 @@ fn page_move_dest_already_data(
     // Return Err if dest_page already exists, except no data in the page.
     let mut dest_page = super::Page::new(stor_root, dest_url.path());
     // Case the page already has subsection data, abort moving.
+    // It consider if no subsecitons data, it can be over written.
     if dest_page.json_subsections_data_exists() {
         return Err(format!("The file data already exists: {}", dest_url.path()));
     }
@@ -1111,60 +1124,7 @@ fn pos_not_escaped(str: &str, search_start: usize, ptn: &str) -> Option<(usize, 
 
 /// Upgrade old page type.
 pub fn page_upgrade(page: &mut super::Page, upres: Option<Rc<RefCell<Upres>>>) {
-    // if the page already handle
-    if page_upgrade_handled(page, &upres) {
-        return;
-    }
-
-    let page_dom = match page.dom() {
-        Some(v) => v,
-        None => {
-            page_upgrade_failed(page, &upres);
-            error!("Failed to get page_dom: {}", &page.file_path());
-            return;
-        }
-    };
-    let page_node = &page_dom.document;
-
-    // check if page type is the latest or to be upgraded.
-    // page_utility::json_from_dom(&page_node)
-
-    // json_value found in the current page style, not for upgrade
-    if json_from_dom_span(page_node).is_some() {
-        page_upgrade_already(page, &upres);
-        return;
-    }
-
-    // Get json_value from script element.
-    let mut json_value = json_from_dom_script(page_node);
-    // json_value not found in the page, create it from page html.
-    if json_value.is_none() {
-        // old page stype
-        json_value = json_from_dom_html(page_node);
-    }
-
-    // Failed to get page_json
-    if json_value.is_none() {
-        page_upgrade_failed(page, &upres);
-        error!("Failed to get page_json: {}", page.page_path());
-        return;
-    }
-
-    let mut json_value = json_value.unwrap();
-
-    // Set last rev not to overwrite on old file.
-    // Otherwise set 1
-    // last_rev_of_files is maximum 100
-    let last_rev = last_rev_of_files(page).or(Some(1)).unwrap();
-    json_value["data"]["page"]["rev"] = last_rev.into();
-
-    // page.json_replace_save(json_data) does not work
-    // because it needs original json value of the page
-    // in span element of the body that does not exists.
-    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_value);
-    if let Ok(_) = page2.file_save_and_rev() {
-        page_upgrade_upgraded(page, &upres);
-    }
+    return page_upgrade::page_upgrade(page, upres);
 }
 
 pub fn page_upgrade_children(
@@ -1190,10 +1150,6 @@ pub fn page_upgrade_children(
     let Some(subsections_json) = page_json.unwrap().subsections() else {
         return;
     };
-    // let subsections_json = match page_json.unwrap().subsections() {
-    //     Some(v) => v,
-    //     None => return,
-    // };
 
     let subsection_top_json = &subsections_json["0"];
     if subsection_top_json.is_null() {
@@ -1206,8 +1162,6 @@ pub fn page_upgrade_children(
 
     for id in children_id_json {
         let subsection_json = &subsections_json[id.to_string().as_str()];
-        // info!("child href: {}", subsection_json["href"]);
-
         let Some(href) = subsection_json["href"].as_str() else {
             continue;
         };
@@ -1220,8 +1174,6 @@ pub fn page_upgrade_children(
             continue;
         }
 
-        // info!("href is child: {}", href);
-
         let Ok(href_url) = page_url.join(href) else {
             continue;
         };
@@ -1231,64 +1183,3 @@ pub fn page_upgrade_children(
         child_page.upgrade(recursive, upres_child);
     }
 }
-
-fn page_upgrade_handled(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) -> bool {
-    if upres.is_some() {
-        upres.as_ref().unwrap().borrow_mut().handled(page)
-    } else {
-        false
-    }
-}
-
-fn page_upgrade_upgraded(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
-    if upres.is_some() {
-        upres.as_ref().unwrap().borrow_mut().upgraded(page);
-    }
-}
-
-fn page_upgrade_already(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
-    if upres.is_some() {
-        upres.as_ref().unwrap().borrow_mut().already(page);
-    }
-}
-
-fn page_upgrade_failed(page: &mut super::Page, upres: &Option<Rc<RefCell<Upres>>>) {
-    if upres.is_some() {
-        upres.as_ref().unwrap().borrow_mut().failed(page);
-    }
-}
-
-/// Find max rev number of the page in existing files.
-fn last_rev_of_files(page: &mut super::Page) -> Option<usize> {
-    let mut rev_last = 1;
-    // for rev in 0..100 {
-    for rev in 1..100 {
-        rev_last = rev;
-        // next to rev_last
-        let path_rev = page.file_path() + "." + rev.to_string().as_str();
-
-        if let Ok(exists) = std::fs::exists(&path_rev) {
-            if exists {
-                continue;
-            }
-        }
-        break;
-    }
-    Some(rev_last)
-}
-
-// fn update_old_to_003(page_json: &json::JsonValue) -> Option<()> {
-//     // value for system is not null
-//     if page_json["system"].is_null() == false {
-//         return None;
-//     }
-
-//     // Since wrong spel "syttem" was use.
-//     // value for syttem is not null
-//     if page_json["syttem"].is_null() == false {
-//         return None;
-//     }
-
-//     // temp
-//     Some(())
-// }

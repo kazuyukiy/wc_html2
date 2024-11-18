@@ -1,4 +1,4 @@
-use super::super::page_upgrade::Upres;
+use super::super::page_upgrade_handle::Upres;
 use html5ever::driver::parse_document; // , serialize
 use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
-mod page_json;
+pub mod page_json;
 pub mod page_utility;
 
 /// path: the path of the page.
@@ -24,9 +24,8 @@ pub struct Page {
 impl Page {
     /// Returns `Page`.
     /// It is used for further creation of 'Page'
+    /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
-        // let path = String::from(path);
-
         Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),

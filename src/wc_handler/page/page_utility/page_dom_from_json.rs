@@ -1,56 +1,22 @@
-use markup5ever_rcdom::{Node, RcDom}; // Handle, , NodeData, SerializableHandle
+use super::dom_utility;
+use markup5ever_rcdom::{Node, NodeData, RcDom}; // Handle, , NodeData, SerializableHandle
 use std::collections::HashSet;
 use std::rc::Rc;
 use tracing::{error, info}; // ,, warn
 
-pub fn page_dom_from_json(page_json: &json::JsonValue) -> Result<RcDom, String> {
-    // let html_plain = super::page_html_plain();
-
-    // DBG
-    // info!("fn page_dom_from_json");
-
-    // let page_dom = super::to_dom(html_plain());
+pub fn page_dom_from_json(page_path: &str, page_json: &json::JsonValue) -> Result<RcDom, String> {
     let page_dom = super::to_dom(super::page_html_plain());
 
     page_title_set(&page_dom, page_json);
 
     page_json_set(&page_dom, page_json)?;
 
-    // DBG
-    // return Ok(page_dom);
-
-    // let _r = page_html_static_set(&page_dom, page_json);
-    if let Err(e) = page_html_static_set(&page_dom, page_json) {
+    if let Err(e) = page_html_static_set(&page_dom, page_path, page_json) {
         error!("Failed to set html_static, {}", e,);
     };
 
     Ok(page_dom)
 }
-
-// fn html_plain() -> &'static str {
-//     r#"<html>
-// <head>
-// <title></title><meta charset="UTF-8">
-// <script src="/wc.js"></script>
-// <link rel="stylesheet" href="/wc.css"></link>
-// <style type="text/css"></style>
-// </head>
-// <body onload="bodyOnload()">
-// <span id="page_json_str" style="display: none"></span>
-// </body></html>"#
-// }
-
-// fn _html_plain_() -> &'static str {
-//     r#"<html>
-// <head>
-// <title></title><meta charset="UTF-8"></head>
-// <script src="/wc.js"></script>
-// <link rel="stylesheet" href="/wc.css"></link>
-// <style type="text/css"></style>
-// <body onload="bodyOnload()">
-// <span id="page_json_str" style="display: none"></span>
-// </body></html>"#
-// }
 
 // Get page title from page_json and
 // set it to page_dom.
@@ -61,41 +27,41 @@ fn page_title_set(page_dom: &RcDom, page_json: &json::JsonValue) {
         .or(Some(""))
         .unwrap();
 
-    let title_ptn = super::dom_utility::node_element("title", &vec![]);
-    if let Some(title_node) =
-        super::dom_utility::child_match_first(&page_dom.document, &title_ptn, true)
-    {
-        let title_text = super::dom_utility::node_text(title_str);
+    let title_ptn = dom_utility::node_element("title", &vec![]);
+    if let Some(title_node) = dom_utility::child_match_first(&page_dom.document, &title_ptn, true) {
+        let title_text = dom_utility::node_text(title_str);
         title_node.children.borrow_mut().push(title_text);
     }
 }
 
 // Set page_json value into a span.
 fn page_json_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
-    let attrs = &vec![("id", "page_json_str")];
-    let span_ptn = super::dom_utility::node_element("span", &attrs);
-
-    if let Some(span_node) =
-        super::dom_utility::child_match_first(&page_dom.document, &span_ptn, true)
-    {
+    if let Some(span_node) = dom_utility::get_span_json(&page_dom.document) {
         let json_str = page_json.dump();
-        let json_node_text = super::dom_utility::node_text(&json_str);
+        let json_node_text = dom_utility::node_text(&json_str);
         span_node.children.borrow_mut().push(json_node_text);
     }
-
     Ok(())
 }
 
-fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result<(), String> {
-    let body_ptn = super::dom_utility::node_element("body", &vec![]);
-    let body_node = super::dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
+/// Create html elements from page_json data as static html contents
+/// so you can see the html page even if javascript does not draw
+/// html elements dynamically.
+fn page_html_static_set(
+    page_dom: &RcDom,
+    page_path: &str,
+    page_json: &json::JsonValue,
+) -> Result<(), String> {
+    style_link_relative_set(page_dom, page_path);
+
+    let body_ptn = dom_utility::node_element("body", &vec![]);
+    let body_node = dom_utility::child_match_first(&page_dom.document, &body_ptn, true)
         .ok_or("Failedto get body element".to_string())?;
 
-    // top_node <div id="page_static">
-    let attrs = &vec![("id", "page_top_node")];
-    let top_node = super::dom_utility::node_element("div", attrs);
+    // <div id="page_top_node">
+    let top_node = dom_utility::div_page_top_new();
 
-    let title_text = super::dom_utility::node_text("page_html_static_set");
+    let title_text = dom_utility::node_text("static page");
     top_node.children.borrow_mut().push(title_text);
 
     // navi
@@ -107,7 +73,7 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     top_node.children.borrow_mut().push(index_node);
 
     // subsection
-    let subsections_node = super::dom_utility::node_element("div", &vec![]);
+    let subsections_node = dom_utility::node_element("div", &vec![]);
 
     let subsections_json = &page_json["data"]["subsection"]["data"];
     if subsections_json.is_null() {
@@ -120,8 +86,8 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     top_node.children.borrow_mut().push(subsections_node);
 
     // temporary space
-    let div_space = super::dom_utility::node_element("div", &vec![]);
-    let title_text = super::dom_utility::node_text("----");
+    let div_space = dom_utility::node_element("div", &vec![]);
+    let title_text = dom_utility::node_text("----");
     div_space.children.borrow_mut().push(title_text);
     top_node.children.borrow_mut().push(div_space);
 
@@ -130,12 +96,62 @@ fn page_html_static_set(page_dom: &RcDom, page_json: &json::JsonValue) -> Result
     Ok(())
 }
 
-fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
-    // let attrs = &vec![("class", "abc")];
-    let ele_top = super::dom_utility::node_element("div", &vec![]);
+/// Static pages does not recognize it self position so stylesheet location
+/// should be relative.
+/// absolute ex.:
+/// <link rel="stylesheet" href="/wc.css"></link>
+/// relative ex.:
+/// <link rel="stylesheet" href="../..//wc.css"></link>
+fn style_link_relative_set(page_dom: &RcDom, page_path: &str) {
+    //
+    let page_path = "http://127.0.0.1".to_string() + page_path;
+    let Ok(page_url) = url::Url::parse(&page_path) else {
+        return;
+    };
 
-    // info!("navi.len: {}", page_json["data"]["navi"].len());
-    // page_json["navi"].len();
+    let Ok(href_url) = page_url.join("/wc.css") else {
+        return;
+    };
+
+    // info!("page_path: {}", page_path);
+
+    let Some(relative) = page_url.make_relative(&href_url) else {
+        return;
+    };
+    // info!("relative: {}", relative);
+
+    // <link rel="stylesheet" href="/wc.css"></link>
+    let attrs = &vec![("href", "/wc.css")];
+    let ptn = dom_utility::node_element("link", attrs);
+    let Some(link_node) = dom_utility::child_match_first(&page_dom.document, &ptn, true) else {
+        return;
+    };
+    // attrs
+    let NodeData::Element { attrs, .. } = &link_node.data else {
+        return;
+    };
+    // set relative attr
+    // href="/wc.css" to
+    // href="../..//wc.css"
+    for att in attrs.borrow_mut().iter_mut() {
+        if *att.name.local == *"href" {
+            att.value = relative.into();
+            break;
+        }
+    }
+
+    // DBG monitor
+    // let Ok(link_u8) = super::dom_serialize(page_dom.document.clone()) else {
+    //     return;
+    // };
+    // let Ok(link_str) = std::str::from_utf8(&link_u8) else {
+    //     return;
+    // };
+    // info!("style_link: {}", link_str);
+}
+
+fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
+    let ele_top = dom_utility::node_element("div", &vec![]);
 
     let navis_json = match page_json["data"]["navi"] {
         json::JsonValue::Array(ref vec) => vec,
@@ -156,12 +172,12 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
         let navi_item = if 0 < navi_json_iter.size_hint().0 {
             let href = navi_item_json[1].as_str().or(Some("")).unwrap();
             let attrs = &vec![("href", href)];
-            let navi_item = super::dom_utility::node_element("a", attrs);
-            let title_text = super::dom_utility::node_text(title);
+            let navi_item = dom_utility::node_element("a", attrs);
+            let title_text = dom_utility::node_text(title);
             navi_item.children.borrow_mut().push(title_text);
             navi_item
         } else {
-            super::dom_utility::node_text(title)
+            dom_utility::node_text(title)
         };
 
         ele_top.children.borrow_mut().push(navi_item);
@@ -170,7 +186,7 @@ fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
             continue;
         }
 
-        let delimiter_text = super::dom_utility::node_text(" > ");
+        let delimiter_text = dom_utility::node_text(" > ");
         ele_top.children.borrow_mut().push(delimiter_text);
     }
 
@@ -196,7 +212,7 @@ fn index(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 fn index_ul(subsections_json: &json::JsonValue, index_key: &usize) -> Result<Rc<Node>, String> {
     let children_i = subsection_children_indexes(subsections_json, index_key)?;
 
-    let ul = super::dom_utility::node_element("ul", &vec![]);
+    let ul = dom_utility::node_element("ul", &vec![]);
 
     for child_i in children_i.iter() {
         let li = index_li(subsections_json, child_i)?;
@@ -243,19 +259,19 @@ fn subsection_children_indexes(
 fn index_li(subsections_json: &json::JsonValue, child_i: &usize) -> Result<Rc<Node>, String> {
     let subsection_json = &subsections_json[child_i.to_string().as_str()];
 
-    let li = super::dom_utility::node_element("li", &vec![]);
+    let li = dom_utility::node_element("li", &vec![]);
     let href = match subsection_json["href"].as_str() {
         Some(v) => v,
         None => return Err(format!("Failed to get subsection href of : {}", child_i)),
     };
     let attrs = &vec![("href", href)];
-    let a_node = super::dom_utility::node_element("a", attrs);
+    let a_node = dom_utility::node_element("a", attrs);
 
     let title = match subsection_json["title"].as_str() {
         Some(v) => v,
         None => return Err(format!("Failed to get subsection title of : {}", child_i)),
     };
-    let title_node = super::dom_utility::node_text(title);
+    let title_node = dom_utility::node_text(title);
     a_node.children.borrow_mut().push(title_node);
 
     li.children.borrow_mut().push(a_node);
@@ -304,20 +320,20 @@ fn subsection(
     // top element and id
     let id_str = id.to_string();
     let attrs = &vec![("id", id_str.as_str())];
-    let subsection_node = super::dom_utility::node_element("div", attrs);
+    let subsection_node = dom_utility::node_element("div", attrs);
 
     // title
     let attrs = &vec![("class", "subsectionTitle")];
-    let title_node = super::dom_utility::node_element("div", attrs);
+    let title_node = dom_utility::node_element("div", attrs);
     let title_str = subsection_json["title"]
         .as_str()
         .ok_or(format!("Failed to get title of index: {}", id))?;
-    let title_text = super::dom_utility::node_text(title_str);
+    let title_text = dom_utility::node_text(title_str);
     title_node.children.borrow_mut().push(title_text);
     subsection_node.children.borrow_mut().push(title_node);
 
     // contents
-    let contents_node = super::dom_utility::node_element("div", &vec![]);
+    let contents_node = dom_utility::node_element("div", &vec![]);
 
     // "content" : [ {"type" : "text", "value" : "sample"} ],
     let contents_json = match subsection_json["content"] {
@@ -385,9 +401,7 @@ fn content(content_json: &json::JsonValue) -> Result<Rc<Node>, String> {
 }
 
 fn content_html(content_value: &str) -> Result<Rc<Node>, String> {
-    let attrs = &vec![("class", "html subsectionContent")];
-    let content_node = super::dom_utility::node_element("div", &attrs);
-
+    let content_node = dom_utility::div_subsection_content_new();
     let value_doms = super::to_dom_parts(content_value);
     // to_dom_parts always returns in vec even one node.
     for value_dom in value_doms.into_iter() {
@@ -397,13 +411,11 @@ fn content_html(content_value: &str) -> Result<Rc<Node>, String> {
 }
 
 fn content_script(content_value: &str) -> Result<Rc<Node>, String> {
-    // top node
-    let attrs = &vec![("class", "html subsectionContent")];
-    let content_node = super::dom_utility::node_element("div", &attrs);
+    let content_node = dom_utility::div_subsection_content_new();
 
     // script top node
     let attrs = &vec![("class", "script")];
-    let script_node = super::dom_utility::node_element("div", &attrs);
+    let script_node = dom_utility::node_element("div", &attrs);
 
     // to_dom_parts always returns in vec even one node.
     let content_value = text_in_html(content_value);
@@ -422,9 +434,7 @@ fn content_script(content_value: &str) -> Result<Rc<Node>, String> {
 /// But it handle <> as html markers because it is usefull to contain html in the text.
 /// So to show '<' and '>' in text, user \ to escape html markers as "\<", "\>".
 fn content_text(content_value: &str) -> Result<Rc<Node>, String> {
-    // top node
-    let attrs = &vec![("class", "html subsectionContent")];
-    let content_node = super::dom_utility::node_element("div", &attrs);
+    let content_node = dom_utility::div_subsection_content_new();
 
     let content_value = text_in_html(content_value);
 
@@ -474,19 +484,9 @@ fn text_angle_entity(content_value: &str) -> String {
             }
         };
 
-        // info!("bs_pos: {}, angle_c: {}", bs_pos, angle_c);
-
         let angle_entity = if angle_c == "\\<" { "&lt;" } else { "&gt;" };
-
         content_value2 = content_value2 + &content_value[i_pos..bs_pos] + angle_entity;
 
-        // info!("angle_c.len(): {}", angle_c.len());
-
-        // i_pos = bs_pos + 4; // &lt; 4 charantors
-        // i_pos = bs_pos + 2; // // i_pos based on content_value // &lt; 4 charantors
-        // i_pos = bs_pos + angle_c.len(); // // i_pos based on content_value // &lt; 4 charantors
-
-        //
         i_pos = match bs_pos.checked_add(angle_c.len()) {
             Some(v) => v,
             None => break,
@@ -507,13 +507,6 @@ fn pos_esc_angle(hay: &str, start: usize) -> Option<(usize, &str)> {
     // sothat it is not for controle charactors.
     // reg: (\*)(\[<>]) if not escaped by \
     let reg = regex::Regex::new(r#"(\\*)(\\[<>])"#).unwrap();
-
-    // info!("fn pos_esc_angle");
-    // info!("hay: {}", hay);
-    // info!("start: {}", start);
-
-    // info!("slice: {}", &hay[start..]);
-    // &hay[start..];
 
     // Return None if not match.
     let caps = reg.captures(&hay[start..])?;
@@ -538,7 +531,6 @@ fn pos_esc_angle(hay: &str, start: usize) -> Option<(usize, &str)> {
 
 /// Cnvert space and tab to <pre class="inline0">space and tab</pre>
 fn text_whitespace_pre(hay: &str) -> String {
-    // let reg = regex::Regex::new(r#"[ \t]{2,}|\t"#).unwrap();
     let reg = regex::Regex::new(r#"[ \t]{2,}|\t"#).unwrap();
     let hay = reg.replace_all(hay, r#"<span style="white-space: pre">$0</span>"#);
     hay.to_string()
@@ -559,23 +551,23 @@ fn text_whitespace_pre(hay: &str) -> String {
 // }
 
 fn navi_back() -> Rc<Node> {
-    let navi_back_node = super::dom_utility::node_element("div", &vec![]);
+    let navi_back_node = dom_utility::node_element("div", &vec![]);
 
     // back
     let attrs = &vec![("href", "javascript:history.back()")];
-    let back_node = super::dom_utility::node_element("a", &attrs);
-    let back_text = super::dom_utility::node_text("back");
+    let back_node = dom_utility::node_element("a", &attrs);
+    let back_text = dom_utility::node_text("back");
     back_node.children.borrow_mut().push(back_text);
     navi_back_node.children.borrow_mut().push(back_node);
 
     // space
-    let space_text = super::dom_utility::node_text(" ");
+    let space_text = dom_utility::node_text(" ");
     navi_back_node.children.borrow_mut().push(space_text);
 
     // top
     let attrs = &vec![("href", "#")];
-    let top_node = super::dom_utility::node_element("a", &attrs);
-    let top_text = super::dom_utility::node_text("top");
+    let top_node = dom_utility::node_element("a", &attrs);
+    let top_text = dom_utility::node_text("top");
     top_node.children.borrow_mut().push(top_text);
     navi_back_node.children.borrow_mut().push(top_node);
 

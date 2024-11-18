@@ -18,29 +18,29 @@ pub fn contents() -> &'static str {
 
 'use strict';
 
-console.log("hajime!");
-page_json_ini();
+// console.log("hajime!");
+// page_json_ini();
 // console.log("typeof page_json: " + typeof page_json);
 // if(page_json) {
 // console.log("typeof page_json: " + typeof page_json);
 // }
 
-function page_json_ini() {
-console.log("page_json_ini!");
+// function page_json_ini() {
+// console.log("page_json_ini!");
 
-let eles = document.getElementsByTagName("script");
-console.log("eles: " + eles.length);
+// let eles = document.getElementsByTagName("script");
+// console.log("eles: " + eles.length);
 
-console.log("eles.0.src: " + eles[0].src);
+// console.log("eles.0.src: " + eles[0].src);
 // chrome-extension://mopnmbcafieddcagagdcbnhejhlodfdd/page.js
 
-console.log("eles.1.src: " + eles[1].src);
+// console.log("eles.1.src: " + eles[1].src);
 // http://127.0.0.1:3000/wc.js
 
-console.log("eles.0.innerHTML: " + eles[0].innerHTML);
-console.log("eles.1.innerHTML: " + eles[1].innerHTML);
+// console.log("eles.0.innerHTML: " + eles[0].innerHTML);
+// console.log("eles.1.innerHTML: " + eles[1].innerHTML);
 
-}
+// }
 
 let page_json;
 
@@ -1860,11 +1860,8 @@ class Menu extends Blox {
 
 (
 	  <input type="button" value="Page Move" class="{BXPF=menuPageMoveReq}">
-	  <input type="button" value="Page Upgrade" class="{BXPF=menuPageUpgradeReq}">
 	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference}">
 	  <input type="button" value="page_json" class="{BXPF=menupage_json_open}">
-
-
 	  <span class="{BXPF=menuGroupTopTitle}"></span>
 	  <input type="button" value="Group Top On" class="{BXPF=menuGroupTop}">
 )
@@ -1875,11 +1872,12 @@ class Menu extends Blox {
     </table>
 `); // end of class Menu htmlMenu
 
+
+
     menuItem = [
 	"menuExit"
 	,"menuSave"
 	,"menuPageMoveReq"
-	,"menuPageUpgradeReq"
 	,"menuGroupTop"
 	// ,""
     ];
@@ -1957,14 +1955,6 @@ class Menu extends Blox {
 	alert("Close the current editor, then Page Move menu is comming up!");
 	
     } // end of class Menu menuPageMoveOpen
-
-    menuPageUpgradeReq() {
-	// this.log2("menuPageUpgradeReq()","");
-
-	this.editor().currentStatus().editType = "pageUpgrade";
-	alert("Close the current editor, then Page Upgrade menu is comming up!");
-	
-    } // end of class Menu menuPageUpgradeOpen
 
     // Flip group_top value.
     menuGroupTop() {
@@ -2133,11 +2123,6 @@ class Menu extends Blox {
 	    return;
 	}
 
-	if(this.editor().currentStatus().editType == "pageUpgrade"){
-	    this.editorOpen(this);
-	    return;
-	}
-
 	// this.editorOpen() do this.hrefListenerRemove()
 	// So do this.hrefListenerAdd() when this.editorClose()
 	this.hrefListenerAdd();
@@ -2163,7 +2148,7 @@ class Menu extends Blox {
     } // end of class Menu menuVisibleSet 
 
     hrefEventHandle(event) {
-	this.log("hrefEventHandle() ttotto");
+	// this.log("hrefEventHandle() ttotto");
 
 	// prevent to move to href
 	// espacialy avoid to move to another page without saveing editing
@@ -2184,6 +2169,12 @@ class Menu extends Blox {
 	    javascript:history.back();
 	    return;
 	}
+
+        // DBG
+        // go to href without POST
+        location.href = href;
+	console.log("go direct: " + href);
+	return;
 
 	// link to out of the page
 	let data = {"href" : href};
@@ -2304,15 +2295,9 @@ class MenuEditor extends Editor {
 
     eleDrawInst() {
 	// this.log2("eleDrawInst()", "");
-
 	if(this.currentStatus().editType == "pageMove"){
 	    return this.eleDrawInstPageMove();
 	}
-	
-	if(this.currentStatus().editType == "pageUpgrade"){
-	    return this.eleDrawInstPageUpgrade();
-	}
-	
     } // end of class MenuEditor eleDrawInst()
 
     eleDrawInstPageMove() {
@@ -2328,20 +2313,6 @@ class MenuEditor extends Editor {
 	this.ele(ele);
 	
     } // end of eleDrawInstPageMove
-
-    eleDrawInstPageUpgrade() {
-
-	let html = this.htmlEditorBox;
-	html = this.htmlPhReplace(html, this.htmlEditorUpgrade);
-	html = this.htmlPhReplace(html, this.htmlEditorEnter);
-	
-	let ele = this.eleFromHtml(html);
-	
-	this.eleVisibleSet(ele, {"editorNewPage" : 0});
-	
-	this.ele(ele);
-	
-    } // end of eleDrawInstPageUpgrade
 
     htmlEditorURL = (`
       <tr>
@@ -2359,18 +2330,6 @@ class MenuEditor extends Editor {
 	<!--placeHolder-->
 `); // end of class MenuEditor htmlEditorURL
 
-    htmlEditorUpgrade = (`
-      <tr>
-      <td>URL to upgrade</td>
-      <td><input class="{BXPF=urlToUpgrade}"></td>	
-      </tr>
-      <tr>
-      <td></td>
-	<td></td>
-      </tr>
-	<!--placeHolder-->
-`); // end of class MenuEditor htmlEditorURL
-
     editorClose() {
 	delete this.currentStatus().editType;
 	super.editorClose();
@@ -2378,15 +2337,9 @@ class MenuEditor extends Editor {
     
     editorEnter() {
 	// this.log2("editorEnter()","");
-
 	if(this.currentStatus().editType == "pageMove"){
 	    return this.editorEnterPageMove();
 	}
-	
-	if(this.currentStatus().editType == "pageUpgrade"){
-	    return this.editorEnterPageUpgrade();
-	}
-	
     } // end of class MenuEditor editorEnter
 
     editorEnterPageMove() {
@@ -2423,41 +2376,6 @@ class MenuEditor extends Editor {
 	    }
 	)
     } // end of class MenuEditor editorEnterPageMove 
-
-     editorEnterPageUpgrade() {
-         console.log("editorEnterPageUpgrade");
-
-	const urlEle = this.querySelectorBx(this.ele(), "urlToUpgrade");
-	const upgradeUrl = urlEle.value;
-	if(upgradeUrl.length == 0){
-	    this.result("err","URL to upgrade is emply!");
-	}	
-
-	if(0 < this.result().err.length){
-	    this.eleDraw();
-	    return;
-	}
-
-	let data = {"upgrade_url" : upgradeUrl};
-	postData("page_upgrade", data)
-	.then(
-	    data => {
-		// Ok(_) => format!(r#"{{"res":"upgraded"}}"#),
-		if(data.res == "upgraded"){
-		    delete this.currentStatus().editType;
-		    // super: class Editor this class extends on.
-		    super.editorEnter();
-		    console.log(data.res);
-		    return;
-		}
-                else {
-		    let err_message = "Failed to upgrade." + data.res;
-		    console.error(err_message);
-		    alert(err_message);
-                }
-	    }
-	);
-    } // end of class MenuEditor editorEnterPageUpgrade 
     
 } // end of class MenuEditor end  
 
