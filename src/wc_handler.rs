@@ -90,11 +90,6 @@ fn handle_post(
 
     info!("wc_request: {}", wc_request);
 
-    // DBG
-    if wc_request == "fetch_test" {
-        return handle_fetch_test(http_request, stor_root);
-    }
-
     if wc_request == "json_save" {
         return json_save(http_request, stor_root);
     }
@@ -149,9 +144,7 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     let mut page = page_post(http_request, stor_root)?;
 
     // The file not exist.
-    // if page.read().is_err() {
     if page.source().is_none() {
-        // return Err(());
         return Err(format!("Failed to read file: {}", page.file_path()));
     }
 
@@ -161,11 +154,6 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
             return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
         }
     };
-
-    // // Create static html
-    // if let Err(e) = page::page_utility::page_dom_from_json::page_dom_from_json(&json_post) {
-    //     error!("{}", e);
-    // };
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
         // Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),
@@ -179,7 +167,6 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
             .into()
         }
         Err(e) => {
-            // eprintln!("fn json_save: {}", e);
             error!("fn json_save: {}", e);
             format!("{{\"res\":\"{}\"}}", e).into()
         }
@@ -209,11 +196,7 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
     let title = match json_post["title"].as_str() {
         Some(s) => s,
         None => {
-            // eprintln!("title not found");
-            // error!("title not found");
-            // return Err(());
             return Err(format!("title not found: {}", http_request.path()));
-            // return Ok(r#"{"res":"title not found"}"#.into());
         }
     };
 
@@ -221,14 +204,10 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
     let href = match json_post["href"].as_str() {
         Some(s) => s,
         None => {
-            // eprintln!("href not found");
-            // return Err(());
             return Err(format!("href not found: {}", http_request.path()));
         }
     };
 
-    // let mut child_page = page::page_utility::page_child_new(&mut parent_page, url, title, href)?;
-    // let mut child_page = page::page_utility::page_child_new(&mut parent_page, title, href)?;
     let Ok(mut child_page) = page::page_utility::page_child_new(&mut parent_page, title, href)
     else {
         return Err(format!(
@@ -254,13 +233,10 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
     Ok(http_ok(&res))
 }
 
-// fn handle_href(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, ()> {
-
 fn handle_href(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, String> {
     handle_href_temp(http_request)
 }
 
-// fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, ()> {
 fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, String> {
     // let json_post = http_request.body_json().ok_or(())?;
     let json_post = json_post(http_request)?;
@@ -269,8 +245,6 @@ fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>,
     let href = match json_post["href"].as_str() {
         Some(s) => s,
         None => {
-            // eprintln!("href not found");
-            // return Err(());
             let res = format!(r#"{{"Err":"href not found"}}"#);
             return Ok(http_ok(&res.as_bytes().to_vec()));
         }
@@ -287,9 +261,7 @@ fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>,
 fn handle_page_move(
     http_request: &http_request::HttpRequest,
     stor_root: &str,
-    // ) -> Result<Vec<u8>, ()> {
 ) -> Result<Vec<u8>, String> {
-    // let json_post = http_request.body_json().ok_or(())?;
     let json_post = json_post(http_request)?;
     let parent_url = json_post["parent_url"]
         .as_str()
@@ -312,8 +284,6 @@ fn handle_page_move(
         .url()
         .ok_or(format!("Failed to get url: {}", http_request.path()))?;
 
-    // info!("page_url: {}", page_url);
-
     let parent_url = if parent_url.len() == 0 {
         None
     } else {
@@ -330,53 +300,11 @@ fn handle_page_move(
     )))?;
 
     let res = match page.page_move(page_url, dest_url, parent_url) {
-        // temp
-        // Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
-        // Ok(_) => format!(r#"{{"Ok":"ok"}}"#),
         Ok(_) => format!(r#"{{"res":"moved"}}"#),
-        // {
-        //     let res = format!(r#"{{"Ok":"ok"}}"#);
-        //     info!("page.page_move res: {}", res);
-        //     res
-        // }
         Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
     };
 
     info!("{}", res);
 
     Ok(http_ok(&res.as_bytes().to_vec()))
-}
-
-fn handle_fetch_test(
-    http_request: &http_request::HttpRequest,
-    _stor_root: &str,
-) -> Result<Vec<u8>, String> {
-    // match http_request.body_string_dbg() {
-    //     Some(v) => {
-    //         info!("Got body: {}", v);
-    //     }
-    //     None => error!("Failed to get body"),
-    // }
-
-    // match http_request.body_json() {
-    //     Some(v) => {
-    //         info!("Got body json: {}", v);
-    //     }
-    //     None => error!("Failed to get body json"),
-    // }
-
-    let res = match http_request.body_json() {
-        Some(v) => {
-            info!("Got body json: {}", v);
-            r#"{"res":"post_handle page_json_save"}"#
-        }
-        None => {
-            error!("Failed to get body json");
-            r#"{"res":"post_handle: Failed page_json_save"}"#
-        }
-    };
-
-    // let res: Vec<u8> = r#"{"res":"post_handle page_json_save"}"#.into();
-    let res: Vec<u8> = res.into();
-    return Ok(http_ok(&res));
 }

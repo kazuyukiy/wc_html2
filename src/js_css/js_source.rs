@@ -1929,113 +1929,44 @@ class Menu extends Blox {
 	let pageJson = this.bxCenter().bxTop().data();
 
 	let res = await fetchPost(req, pageJson);
-	// console.log("menuSave res: " + res);
-	// console.log("menuSave res.res: " + res.res);
 	if (res.res == "post_handle page_json_save") {
-	    console.log("rev: " + pageJson["data"]["page"]["rev"]);
+	    // console.log("rev: " + pageJson["data"]["page"]["rev"]);
 	    pageJson["data"]["page"]["rev"] = res.rev_uped;
-	    console.log("rev: " + pageJson["data"]["page"]["rev"]);
+	    // console.log("rev: " + pageJson["data"]["page"]["rev"]);
 	    this.changed(undefined);
 	    this.editorClose();
 	} else {
 	    alert("Failed to save.\nTry to save again!");
 	}
-
-
-	// const json_data = JSON.stringify(req_data);
-	
-	// postFetchTest(this, req_data);
-	// postFetchTest(this, json_data);
-
-	// postJsonSave (this, req_data);
-	
-
-// 	try {
-
-// 	    const response = await fetch(
-// 		document.URL,
-// 		{
-// 		    method: 'POST',
-// 		    headers: {
-// 			'Content-Type': 'application/json',
-// //			'wc-request' : req,
-// 			'wc-request' : 'json_save',
-// 		    },
-// 		    body: JSON.stringify(data),
-// 		},
-
-// 	    );
-
-// 	    if(!response.ok) {
-// 		throw new Error(`Failed to get response of the fetch`);
-// 	    }
-
-// 	    let response_json = await response.json();
-// 	    if(!response_json) {
-// 		throw new Error(`Failed to get response in json`);
-// 	    }
-// 	    if (value.res == "post_handle page_json_save") {
-// 		console.log("value.res matched: " + value.res);
-// 	    }
-
-// 	    this.changed(undefined);
-// 	    this.editorClose();
-// 	} catch (error) {
-// 	    console.error(error.message)
-// 	    alert("Failed to save.\nTry to save again!");
-// 	}
-	
-	// console.log("json_save post req_data: " + req_data);
-
-	// try {
-	//     let res = postData2(req, req_data);
-	//     res.then((value) => {
-	// 	if (value.res == "post_handle page_json_save") {
-	// 	    console.log("value.res matched");
-	// 	}
-	// 	// console.log("value: " + value);
-	// 	// console.log("value.res: " + value.res);
-	// 	this.changed(undefined);
-	// 	this.editorClose();
-	//     }
-	// 	     //		     (reason) => { throw reason; }
-	// 	     // throw new Error(`Failed response.ok`);
-		     
-	// 	    );
-	// } catch(error) {
-	//     console.error(error.message);
-	//     alert("Failed to save.\nTry to save again!");
-	// }
-	
     } // end of class Menu menuSave
 
-    menuSave_() {
-	// this.log("menuSave()");
+    // menuSave_() {
+    // 	// this.log("menuSave()");
 
-	if(! this.changed()){ return; }
-	if(this.currentBlox()){ return; }
+    // 	if(! this.changed()){ return; }
+    // 	if(this.currentBlox()){ return; }
 
-	let req = "json_save";
-	let req_data = this.bxCenter().bxTop().data();
-	postData(req, req_data)
-	    .then(
-		data => {
-		    console.log("res: " + data.res);
-		    if(data.res == "post_handle page_json_save"){
-			// console.log("res: " + data.res);
-		    }
-		    else{
-			console.error("Failed to save.");
-			alert("Failed to save.\nTry to save again!");
-			return;
-		    }
+    // 	let req = "json_save";
+    // 	let req_data = this.bxCenter().bxTop().data();
+    // 	postData(req, req_data)
+    // 	    .then(
+    // 		data => {
+    // 		    console.log("res: " + data.res);
+    // 		    if(data.res == "post_handle page_json_save"){
+    // 			// console.log("res: " + data.res);
+    // 		    }
+    // 		    else{
+    // 			console.error("Failed to save.");
+    // 			alert("Failed to save.\nTry to save again!");
+    // 			return;
+    // 		    }
 
-		    this.changed(undefined);
-		    this.editorClose();
+    // 		    this.changed(undefined);
+    // 		    this.editorClose();
 		    
-		}
-	    );
-    } // end of class Menu menuSave
+    // 		}
+    // 	    );
+    // } // end of class Menu menuSave
 
     menuPageMoveReq() {
 	// this.log2("menuPageMoveReq()","");
@@ -4763,107 +4694,5 @@ async function fetchPost (req, json) {
 	console.error("fatchPost: " + e);
     }
 } // end of function fetchPost
-
-
-async function postFetchTest (that, req_data) {
-// async function postFetchTest (that, json_data) {
-    try {
-	const myRequest = new Request(document.URL, {
-	    method: "POST",
-	    headers: {
-		"Content-Type": "application/json",
-		"wc-request" : "fetch_test",
-	    },
-	    body: JSON.stringify(req_data),
-	    // mode: "cors",
-	    // headers:myHeaders,
-	    // body: json_data,
-	});
-
-	const response = await fetch(myRequest);
-
-	console.log("fetched");
-
-	let response_json = await response.json();
-
-	// console.log("Got response_json");
-	
-	if (response_json.res == "post_handle page_json_save") {
-	    // console.log("Got right response: : " + response_json.res);
-	    console.log("res: " + response_json.res);
-	    that.changed(undefined);
-	    that.editorClose();
-	} else {
-	    console.error(response_json.res);
-	    // console.error("Got invalid json ");
-	    alert("Failed to save.\nTry to save again!");
-	}
-
-    } catch (e) {
-	console.error("fatch error: " + e);
-	// console.error("postFetchTest error")
-	// console.error(e)
-	// console.error(error.message)
-	alert("Failed to save.\nTry to save again!");
-    }
-
-} // end of function postFetchTest
-
-async function postJsonSave (that, req_data) {
-    try {
-
-	console.log("postJsonSave try start");
-	console.log("url: " + document.URL);
-	console.log("req_data: " + req_data);
-	console.log("body: " + JSON.stringify(req_data));
-	
-	const response = await fetch(
-	    document.URL,
-	    {
-		method: "POST",
-		headers: {
-		    "Content-Type": "application/json",
-		    "wc-request" : "json_save",
-		},
-		body: JSON.stringify(req_data),
-	    },
-
-	);
-
-	console.log("Got response");
-
-	if(!response.ok) {
-	    console.error(`Failed to get response of the fetch`);
-	    return;
-	    throw new Error(`Failed to get response of the fetch`);
-	}
-
-	console.log("!response.ok passed");
-
-	let response_json = await response.json();
-
-	console.log("Got response_json");
-	
-	if(!response_json) {
-	    console.error(`Failed to get response in json`);
-	    return;
-	    throw new Error(`Failed to get response in json`);
-	}
-	
-	if (response_json.res == "post_handle page_json_save") {
-	    console.log("value.res matched: " + response_json.res);
-	}
-
-	that.changed(undefined);
-	that.editorClose();
-    } catch (e) {
-	console.log("e: " + e);
-	console.error("postJsonSave error")
-	// console.error(e)
-	// console.error(error.message)
-	alert("Failed to save.\nTry to save again!");
-    }
-
-} // end of function postJsonSave
 "####
 }

@@ -114,12 +114,12 @@ impl HttpRequest {
             .and_then(|v| String::from_utf8(v).ok())
     }
 
-    pub fn _body_string_dbg(&self) -> Option<String> {
-        self.body
-            .as_ref()
-            .and_then(|v| Some(v.to_vec()))
-            .and_then(|v| String::from_utf8(v).ok())
-    }
+    // pub fn _body_string_dbg(&self) -> Option<String> {
+    //     self.body
+    //         .as_ref()
+    //         .and_then(|v| Some(v.to_vec()))
+    //         .and_then(|v| String::from_utf8(v).ok())
+    // }
 
     pub fn body_json(&self) -> Option<json::JsonValue> {
         let json_post = self.body_string()?;
