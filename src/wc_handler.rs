@@ -90,6 +90,11 @@ fn handle_post(
 
     info!("wc_request: {}", wc_request);
 
+    // DBG
+    if wc_request == "fetch_test" {
+        return handle_fetch_test(http_request, stor_root);
+    }
+
     if wc_request == "json_save" {
         return json_save(http_request, stor_root);
     }
@@ -135,7 +140,7 @@ fn page_post(
 
 fn json_post(http_request: &http_request::HttpRequest) -> Result<json::JsonValue, String> {
     http_request.body_json().ok_or(format!(
-        "Failed to get request body in json: {}",
+        "Failed to get json from request body: {}",
         http_request.path()
     ))
 }
@@ -155,7 +160,15 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     //     "Failed to get request body in json: {}",
     //     http_request.path()
     // ))?;
-    let json_post = json_post(http_request)?;
+
+    // let json_post = json_post(http_request)?;
+    let json_post = match json_post(http_request) {
+        Ok(v) => v,
+        Err(e) => {
+            return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
+        } // r#"{"res":"post_handle page_json_save"}"#.into()
+          // format!("{{\"res\":\"{}\"}}", e).into()
+    };
 
     // // Create static html
     // if let Err(e) = page::page_utility::page_dom_from_json::page_dom_from_json(&json_post) {
@@ -171,10 +184,11 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
         }
     };
 
-    // if let Ok(v) = std::str::from_utf8(&res) {
-    //     info!("json_save: res: {}", v)
-    // } else {
-    // }
+    if let Ok(v) = std::str::from_utf8(&res) {
+        info!("json_save: res: {}", v)
+    } else {
+        error!("Failed json_replace_save");
+    }
 
     Ok(http_ok(&res))
 }
@@ -330,4 +344,38 @@ fn handle_page_move(
     info!("{}", res);
 
     Ok(http_ok(&res.as_bytes().to_vec()))
+}
+
+fn handle_fetch_test(
+    http_request: &http_request::HttpRequest,
+    _stor_root: &str,
+) -> Result<Vec<u8>, String> {
+    // match http_request.body_string_dbg() {
+    //     Some(v) => {
+    //         info!("Got body: {}", v);
+    //     }
+    //     None => error!("Failed to get body"),
+    // }
+
+    // match http_request.body_json() {
+    //     Some(v) => {
+    //         info!("Got body json: {}", v);
+    //     }
+    //     None => error!("Failed to get body json"),
+    // }
+
+    let res = match http_request.body_json() {
+        Some(v) => {
+            info!("Got body json: {}", v);
+            r#"{"res":"post_handle page_json_save"}"#
+        }
+        None => {
+            error!("Failed to get body json");
+            r#"{"res":"post_handle: Failed page_json_save"}"#
+        }
+    };
+
+    // let res: Vec<u8> = r#"{"res":"post_handle page_json_save"}"#.into();
+    let res: Vec<u8> = res.into();
+    return Ok(http_ok(&res));
 }

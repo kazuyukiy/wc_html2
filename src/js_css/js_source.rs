@@ -7,7 +7,6 @@ pub fn contents() -> &'static str {
     // in below
 
     r####"
-
 // class Blox ele, let targetNext;
 // it sometimes did refer old element that was deleted
 // and element to be drawn before the targetNext was not shown
@@ -79,7 +78,7 @@ function bodyOnload () {
     page.menu().hrefListenerAdd();
     
 } // end of function bodyOnload;
-    
+
 // Get page string data from <span id="page_json_str">{...data...}</span>
 // in HTML source .
 // Return as javascript value .
@@ -196,7 +195,7 @@ class BxCenter {
 } // end of class BxCenter end 
 
 class Blox {
- 
+    
     constructor() {
 
 	this.parentBx(arguments[0]);
@@ -230,7 +229,7 @@ class Blox {
 	// console.log("wc.js class Blox parent()");
 	if(0 < arguments.length) { this.parentObj = arguments[0]; }
 	return this.parentObj; 
-   } // end of class Blox parent 
+    } // end of class Blox parent 
 
     key() {
 	if(0 < arguments.length){ this.keyV = arguments[0]; }
@@ -855,7 +854,7 @@ class Blox {
 	if(this.dataBlankV == undefined){ this.dataBlankV = {}; }
 	return this.dataBlankV;	
     } // end of class Blox dataBlank 
-   
+    
     methodInstance() {
 	const fname = arguments[0];
 	const fcode = new Function("return this."+fname+";");
@@ -923,7 +922,7 @@ class Blox {
 	    message += "\n" + arguments[1];
 	}
 
-	 console.log(message);
+	console.log(message);
 
 	// console.log("wc.js log2 " + this.bloxTreeNameKey() +":"+arguments[0] + "\n" + arguments[1]);
 	// console.log("wc.js log2 mssg:" + arguments[1]);
@@ -1156,7 +1155,7 @@ class Editor extends Blox {
 
     // 	event.stopPropagation();
     // 	event.preventDefault();
-	
+    
     // 	// this.log("editorClick() name:" + name);
 
     // 	const fname = "editor"+name;
@@ -1921,7 +1920,81 @@ class Menu extends Blox {
     } // end of class Menu menuExit
 
     menuSave() {
-	 // this.log("menuSave()");
+	// this.log("menuSave()");
+
+	if(! this.changed()){ return; }
+	if(this.currentBlox()){ return; }
+
+	// let req = "json_save";
+	let req_data = this.bxCenter().bxTop().data();
+
+	// DBG
+	postFetchTest(this, req_data);
+
+	// postJsonSave (this, req_data);
+	
+
+// 	try {
+
+// 	    const response = await fetch(
+// 		document.URL,
+// 		{
+// 		    method: 'POST',
+// 		    headers: {
+// 			'Content-Type': 'application/json',
+// //			'wc-request' : req,
+// 			'wc-request' : 'json_save',
+// 		    },
+// 		    body: JSON.stringify(data),
+// 		},
+
+// 	    );
+
+// 	    if(!response.ok) {
+// 		throw new Error(`Failed to get response of the fetch`);
+// 	    }
+
+// 	    let response_json = await response.json();
+// 	    if(!response_json) {
+// 		throw new Error(`Failed to get response in json`);
+// 	    }
+// 	    if (value.res == "post_handle page_json_save") {
+// 		console.log("value.res matched: " + value.res);
+// 	    }
+
+// 	    this.changed(undefined);
+// 	    this.editorClose();
+// 	} catch (error) {
+// 	    console.error(error.message)
+// 	    alert("Failed to save.\nTry to save again!");
+// 	}
+	
+	// console.log("json_save post req_data: " + req_data);
+
+	// try {
+	//     let res = postData2(req, req_data);
+	//     res.then((value) => {
+	// 	if (value.res == "post_handle page_json_save") {
+	// 	    console.log("value.res matched");
+	// 	}
+	// 	// console.log("value: " + value);
+	// 	// console.log("value.res: " + value.res);
+	// 	this.changed(undefined);
+	// 	this.editorClose();
+	//     }
+	// 	     //		     (reason) => { throw reason; }
+	// 	     // throw new Error(`Failed response.ok`);
+		     
+	// 	    );
+	// } catch(error) {
+	//     console.error(error.message);
+	//     alert("Failed to save.\nTry to save again!");
+	// }
+	
+    } // end of class Menu menuSave
+
+    menuSave_() {
+	// this.log("menuSave()");
 
 	if(! this.changed()){ return; }
 	if(this.currentBlox()){ return; }
@@ -1929,23 +2002,23 @@ class Menu extends Blox {
 	let req = "json_save";
 	let req_data = this.bxCenter().bxTop().data();
 	postData(req, req_data)
-	.then(
-	    data => {
-		console.log("res: " + data.res);
-		if(data.res == "post_handle page_json_save"){
-		    // console.log("res: " + data.res);
-		}
-		else{
-		    console.error("Failed to save.");
-		    alert("Failed to save.\nTry to save again!");
-		    return;
-		}
+	    .then(
+		data => {
+		    console.log("res: " + data.res);
+		    if(data.res == "post_handle page_json_save"){
+			// console.log("res: " + data.res);
+		    }
+		    else{
+			console.error("Failed to save.");
+			alert("Failed to save.\nTry to save again!");
+			return;
+		    }
 
-		this.changed(undefined);
-		this.editorClose();
-		
-	    }
-	);
+		    this.changed(undefined);
+		    this.editorClose();
+		    
+		}
+	    );
     } // end of class Menu menuSave
 
     menuPageMoveReq() {
@@ -2179,16 +2252,16 @@ class Menu extends Blox {
 	// link to out of the page
 	let data = {"href" : href};
 	postData("href", data)
-	.then(
-	    data => {
-		if(data.dest){
-		    console.log("href: " + data.dest);
-		    location.href = data.dest;
-		    return;
-		} else {
-	 	  console.error("Failed to get href for " + href);
-		}
-	    });
+	    .then(
+		data => {
+		    if(data.dest){
+			console.log("href: " + data.dest);
+			location.href = data.dest;
+			return;
+		    } else {
+	 		console.error("Failed to get href for " + href);
+		    }
+		});
     } // end of class Menu hrefEventHandle
 
     // Move to a local part if href is # and something,
@@ -2362,19 +2435,19 @@ class MenuEditor extends Editor {
 	
 	let data = {"parent_url" : parentUrl, "dest_url" : destUrl};
 	postData("page_move", data)
-	.then(
-	    data => {
-		// Ok(_) => format!(r#"{{"res":"moved"}}"#),
-		if(data.res == "moved"){
-		    delete this.currentStatus().editType;
-		    // super: class Editor this class extends on.
-		    super.editorEnter();
-		    return;
-		} else {
-		    console.error("Failed to move the pages.");
+	    .then(
+		data => {
+		    // Ok(_) => format!(r#"{{"res":"moved"}}"#),
+		    if(data.res == "moved"){
+			delete this.currentStatus().editType;
+			// super: class Editor this class extends on.
+			super.editorEnter();
+			return;
+		    } else {
+			console.error("Failed to move the pages.");
+		    }
 		}
-	    }
-	)
+	    )
     } // end of class MenuEditor editorEnterPageMove 
     
 } // end of class MenuEditor end  
@@ -2419,7 +2492,7 @@ class Navi extends Blox {
 	const editorTargetName = this.bloxPrefix("itemEditorTarget");
 	eleEditorTarget.classList.add(editorTargetName);
 	ele.appendChild(eleEditorTarget);
-		
+	
 	this.ele(ele);
 
 	this.naviDraw();
@@ -2704,7 +2777,7 @@ class NaviItemEditor extends Editor {
 		this.result("changed", true);
 	    }
 	}
-	    
+	
 	if(this.isBlank()){ return this.editorEnterNew(); }
 	
 	super.editorEnter();
@@ -3175,7 +3248,7 @@ class Item extends Blox {
     } // end of class Item putAsChild 
 
     putBySibling(itemTo) {
-    
+	
 	const option = arguments[1];
 	// let option = arguments[1];
 	// if(option == undefined){ option = {}; }
@@ -3223,7 +3296,7 @@ class Index extends Blox {
 
     eleTarget() {
  	// console.log("wc.js class Index eleTarget()");
-    
+	
 	// Index is to hold its children
 	// So Index becomes under its IndexItem
 	// then Index's children becomes under the Index as IndexItem
@@ -3532,8 +3605,8 @@ class IndexItemEditor extends Editor {
 	    if(
 		bloxFm == bloxToParent
 		    ||
-		bloxFmParent == bloxToParent
-	      ){
+		    bloxFmParent == bloxToParent
+	    ){
 		return true;
 	    }
 	    bloxToParent = bloxToParent.parentBx();
@@ -3670,16 +3743,16 @@ class IndexItemEditor extends Editor {
 	data["href"] = hrefNew;
 
 	postData("page_new", data)
-	.then(
-	    data => {
-		// Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
-		if(data.res == "post_handle page_new") {
-		    console.log("wc.js newPage res:" + data.res);
-		    return;
-		} else {
-		    console.error("Failed to create a new page.");
-		}
-	});
+	    .then(
+		data => {
+		    // Ok(_) => r#"{"res":"post_handle page_new"}"#.into(),
+		    if(data.res == "post_handle page_new") {
+			console.log("wc.js newPage res:" + data.res);
+			return;
+		    } else {
+			console.error("Failed to create a new page.");
+		    }
+		});
     } // end of class IndexItemEditor editorNewPage 
 
 } // end of class IndexItemEditor end 
@@ -3917,7 +3990,7 @@ class Contents extends Blox {
 
 	let targetTo;
 	if(contentTo){
-	     targetTo = contentTo.key();
+	    targetTo = contentTo.key();
 	} else {
 	    targetTo = 0;
 	}
@@ -3930,7 +4003,7 @@ class Contents extends Blox {
     } // end of class Contents contentInsert 
 
 } // end of class Contents end 
-    
+
 class ContentsEditor extends Editor {
     
     item() {
@@ -4539,35 +4612,68 @@ function scrollHash(id) {
 // data conflict might happen .
 //
 async function postData (req, data) {
-	const response = await fetch(
-	    document.URL,
-	    {
-		method: 'POST',
-		headers: {
-		    'Content-Type': 'application/json',
-		    'wc-request' : req,
-		},
-		body: JSON.stringify(data),
+    // console.log("postData data: " + JSON.stringify(data));
+    
+    const response = await fetch(
+	document.URL,
+	{
+	    method: 'POST',
+	    headers: {
+		'Content-Type': 'application/json',
+		'wc-request' : req,
 	    },
-	);
-	
-	if (!response.ok) {
-	    throw new Error(`Failed response.ok`);
-	}
+	    body: JSON.stringify(data),
+	},
+    );
+    
+    if (!response.ok) {
+	throw new Error(`Failed response.ok`);
+    }
 
-	let response_json = await response.json();
-	if(!response_json) { console.error("Failed to get response!"); }
-	return response_json;
+    let response_json = await response.json();
+    if(!response_json) { console.error("Failed to get response!"); }
+    return response_json;
 } // end of function postData
+
+async function postData2 (req, data) {
+
+    let postData = JSON.stringigy(data);
+    console.log("postData: " + postData);
+    
+    const response = await fetch(
+	document.URL,
+	{
+	    method: 'POST',
+	    headers: {
+		'Content-Type': 'application/json',
+		'wc-request' : req,
+	    },
+//	    body: JSON.stringify(data),
+	    body: postData,
+	},
+    );
+    
+    if (!response.ok) {
+	throw new Error(`Got error response.`);
+    }
+
+    let response_json = await response.json();
+    // if(!response_json) { console.error("Failed to get response!"); }
+    if(!response_json) {
+	throw new Error(`Failed to get response in json.`);
+	// console.error("Failed to get response!");
+    }
+    return response_json;
+} // end of function postData2
 
 async function postData_(req, data) {
 
 
-let postReq = postReauest(data, req); 
+    let postReq = postReauest(data, req); 
 
     try {
 	const response = await fetch(
-postReq
+	    postReq
 	);
 	
 	if (!response.ok) {
@@ -4587,22 +4693,127 @@ postReq
 
 function postReauest(data, req) {
 
-// dbg
-// console.log("document.URL: " + document.URL);
+    // dbg
+    // console.log("document.URL: " + document.URL);
 
     return new Request(
         document.URL,
         {
             method: "POST",
             headers: {
-		    'Content-Type': 'application/json',
-		    'wc-request' : req,
+		'Content-Type': 'application/json',
+		'wc-request' : req,
             },
             body: JSON.stringify(data),
         }
     );
 } // end of function postReauest
 
+async function postFetchTest (that, req_data) {
+    try {
 
+	// console.log("postFetchTest try start");
+
+	let url = document.URL;
+	const json_data = JSON.stringify(req_data);	
+	// console.log("json_data size:" + json_data.length);
+
+	const myHeaders = new Headers();
+	myHeaders.append("Content-Type", "application/json");
+	// myHeaders.append("Content-Type", "text/plain");
+	myHeaders.append("wc-request", "fetch_test");
+	
+	const myRequest = new Request(document.URL, {
+	    method: "POST",
+	    // mode: "cors",
+	    headers:myHeaders,
+	    body: json_data,
+	});
+
+	const response = await fetch(myRequest);
+
+	// console.log("fetched");
+
+	let response_json = await response.json();
+
+	// console.log("Got response_json");
+	
+	if (response_json.res == "post_handle page_json_save") {
+	    // console.log("Got right response: : " + response_json.res);
+	    console.log("res: " + response_json.res);
+	    that.changed(undefined);
+	    that.editorClose();
+	} else {
+	    console.error(response_json.res);
+	    // console.error("Got invalid json ");
+	    alert("Failed to save.\nTry to save again!");
+	}
+
+    } catch (e) {
+	console.error("fatch error: " + e);
+	// console.error("postFetchTest error")
+	// console.error(e)
+	// console.error(error.message)
+	alert("Failed to save.\nTry to save again!");
+    }
+
+} // end of function postFetchTest
+
+async function postJsonSave (that, req_data) {
+    try {
+
+	console.log("postJsonSave try start");
+	console.log("url: " + document.URL);
+	console.log("req_data: " + req_data);
+	console.log("body: " + JSON.stringify(req_data));
+	
+	const response = await fetch(
+	    document.URL,
+	    {
+		method: "POST",
+		headers: {
+		    "Content-Type": "application/json",
+		    "wc-request" : "json_save",
+		},
+		body: JSON.stringify(req_data),
+	    },
+
+	);
+
+	console.log("Got response");
+
+	if(!response.ok) {
+	    console.error(`Failed to get response of the fetch`);
+	    return;
+	    throw new Error(`Failed to get response of the fetch`);
+	}
+
+	console.log("!response.ok passed");
+
+	let response_json = await response.json();
+
+	console.log("Got response_json");
+	
+	if(!response_json) {
+	    console.error(`Failed to get response in json`);
+	    return;
+	    throw new Error(`Failed to get response in json`);
+	}
+	
+	if (response_json.res == "post_handle page_json_save") {
+	    console.log("value.res matched: " + response_json.res);
+	}
+
+	that.changed(undefined);
+	that.editorClose();
+    } catch (e) {
+	console.log("e: " + e);
+	console.error("postJsonSave error")
+	// console.error(e)
+	// console.error(error.message)
+	alert("Failed to save.\nTry to save again!");
+    }
+
+} // end of function postJsonSave
 "####
 }

@@ -257,11 +257,11 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
             match usize::from_str(rev2) {
                 Ok(rev2) => rev2,
                 Err(_) => {
-                    return Err(format!("Failed to get rev2"));
+                    return Err(format!("Failed to get rev in json_data2"));
                 }
             }
         }
-        _ => return Err(format!("Failed to get rev2")),
+        _ => return Err(format!("Failed to get rev in json_data2")),
     };
 
     // rev == rev2
