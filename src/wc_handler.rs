@@ -155,19 +155,11 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
         return Err(format!("Failed to read file: {}", page.file_path()));
     }
 
-    // let json_post = http_request.body_json().ok_or(())?;
-    // let json_post = http_request.body_json().ok_or(format!(
-    //     "Failed to get request body in json: {}",
-    //     http_request.path()
-    // ))?;
-
-    // let json_post = json_post(http_request)?;
     let json_post = match json_post(http_request) {
         Ok(v) => v,
         Err(e) => {
             return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
-        } // r#"{"res":"post_handle page_json_save"}"#.into()
-          // format!("{{\"res\":\"{}\"}}", e).into()
+        }
     };
 
     // // Create static html
@@ -176,7 +168,16 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     // };
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
-        Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),
+        // Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),
+        Ok(rev_uped) => {
+            //
+            // let str = r#"{"res":"post_handle page_json_save"}"#;
+            format!(
+                r#"{{"res":"post_handle page_json_save", "rev_uped": {}}}"#,
+                rev_uped
+            )
+            .into()
+        }
         Err(e) => {
             // eprintln!("fn json_save: {}", e);
             error!("fn json_save: {}", e);

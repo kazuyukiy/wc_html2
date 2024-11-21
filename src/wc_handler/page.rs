@@ -174,7 +174,8 @@ impl Page {
 
     /// Updata the page with json_data2
     /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
-    pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<(), String> {
+    // pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<(), String> {
+    pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<usize, String> {
         page_utility::json_rev_match(self, &json_data2)?;
 
         // Updata rev no.
@@ -186,6 +187,7 @@ impl Page {
 
         page2
             .file_save_and_rev()
+            .and(Ok(rev_uped))
             .or(Err(format!("failed to save on  {}", &self.page_path)))
     }
 

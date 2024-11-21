@@ -1919,17 +1919,33 @@ class Menu extends Blox {
 
     } // end of class Menu menuExit
 
-    menuSave() {
+    async menuSave() {
 	// this.log("menuSave()");
 
 	if(! this.changed()){ return; }
 	if(this.currentBlox()){ return; }
 
-	// let req = "json_save";
-	let req_data = this.bxCenter().bxTop().data();
+	let req = "json_save";
+	let pageJson = this.bxCenter().bxTop().data();
 
-	// DBG
-	postFetchTest(this, req_data);
+	let res = await fetchPost(req, pageJson);
+	// console.log("menuSave res: " + res);
+	// console.log("menuSave res.res: " + res.res);
+	if (res.res == "post_handle page_json_save") {
+	    console.log("rev: " + pageJson["data"]["page"]["rev"]);
+	    pageJson["data"]["page"]["rev"] = res.rev_uped;
+	    console.log("rev: " + pageJson["data"]["page"]["rev"]);
+	    this.changed(undefined);
+	    this.editorClose();
+	} else {
+	    alert("Failed to save.\nTry to save again!");
+	}
+
+
+	// const json_data = JSON.stringify(req_data);
+	
+	// postFetchTest(this, req_data);
+	// postFetchTest(this, json_data);
 
 	// postJsonSave (this, req_data);
 	
@@ -4669,7 +4685,7 @@ async function postData2 (req, data) {
 async function postData_(req, data) {
 
 
-    let postReq = postReauest(data, req); 
+    let postReq = postRequest2(data, req); 
 
     try {
 	const response = await fetch(
@@ -4691,7 +4707,22 @@ async function postData_(req, data) {
 
 } // end of function postData
 
-function postReauest(data, req) {
+function postRequest(req, json) {
+    return new Request(
+        document.URL,
+        {
+            method: "POST",
+            headers: {
+		'Content-Type': 'application/json',
+		'wc-request' : req,
+            },
+            body: JSON.stringify(json),
+        }
+    );
+} // end of function postRequest
+
+
+function postRequest2(data, req) {
 
     // dbg
     // console.log("document.URL: " + document.URL);
@@ -4707,32 +4738,51 @@ function postReauest(data, req) {
             body: JSON.stringify(data),
         }
     );
-} // end of function postReauest
+} // end of function postRequest2
+
+async function fetchPost (req, json) {
+    try {
+	const response = await fetch(
+	    document.URL,
+	    {
+		method: "POST",
+		headers: {
+		    "Content-Type": "application/json",
+		    "wc-request" : req,
+		},
+		body: JSON.stringify(json),
+	    }
+	);
+	
+	// console.log("fetched");
+
+	let res_json = await response.json();
+	console.log("fetch res: " + JSON.stringify(res_json));
+	return res_json 
+    } catch (e) {
+	console.error("fatchPost: " + e);
+    }
+} // end of function fetchPost
+
 
 async function postFetchTest (that, req_data) {
+// async function postFetchTest (that, json_data) {
     try {
-
-	// console.log("postFetchTest try start");
-
-	let url = document.URL;
-	const json_data = JSON.stringify(req_data);	
-	// console.log("json_data size:" + json_data.length);
-
-	const myHeaders = new Headers();
-	myHeaders.append("Content-Type", "application/json");
-	// myHeaders.append("Content-Type", "text/plain");
-	myHeaders.append("wc-request", "fetch_test");
-	
 	const myRequest = new Request(document.URL, {
 	    method: "POST",
+	    headers: {
+		"Content-Type": "application/json",
+		"wc-request" : "fetch_test",
+	    },
+	    body: JSON.stringify(req_data),
 	    // mode: "cors",
-	    headers:myHeaders,
-	    body: json_data,
+	    // headers:myHeaders,
+	    // body: json_data,
 	});
 
 	const response = await fetch(myRequest);
 
-	// console.log("fetched");
+	console.log("fetched");
 
 	let response_json = await response.json();
 
