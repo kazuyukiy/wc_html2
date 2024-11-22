@@ -207,24 +207,35 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
     };
 
     let rev2 = match json_data2["data"]["page"]["rev"] {
-        json::JsonValue::Number(number) => match number.try_into() {
-            Ok(rev2) => rev2,
-            Err(_) => {
-                return Err(format!("Failed to get rev from json_data2"));
-            }
-        },
+        json::JsonValue::Number(number) => number.try_into().or(Err(())),
         // case: rev="12" ( with "" )
         json::JsonValue::Short(short) => {
             let rev2 = short.as_str();
-            match usize::from_str(rev2) {
-                Ok(rev2) => rev2,
-                Err(_) => {
-                    return Err(format!("Failed to get rev in json_data2"));
-                }
-            }
+            usize::from_str(rev2).or(Err(()))
         }
-        _ => return Err(format!("Failed to get rev in json_data2")),
-    };
+        _ => Err(()),
+    }
+    .or(Err(format!("Failed to get rev from json_data2")))?;
+
+    // let rev2 = match json_data2["data"]["page"]["rev"] {
+    //     json::JsonValue::Number(number) => match number.try_into() {
+    //         Ok(rev2) => rev2,
+    //         Err(_) => {
+    //             return Err(format!("Failed to get rev from json_data2"));
+    //         }
+    //     },
+    //     // case: rev="12" ( with "" )
+    //     json::JsonValue::Short(short) => {
+    //         let rev2 = short.as_str();
+    //         match usize::from_str(rev2) {
+    //             Ok(rev2) => rev2,
+    //             Err(_) => {
+    //                 return Err(format!("Failed to get rev in json_data2"));
+    //             }
+    //         }
+    //     }
+    //     _ => return Err(format!("Failed to get rev in json_data2")),
+    // };
 
     // rev == rev2
     if rev == rev2 {
