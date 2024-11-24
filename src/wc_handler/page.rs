@@ -204,11 +204,14 @@ impl Page {
 
     fn path_rev(&mut self) -> Result<String, ()> {
         let page_json = self.json().ok_or(())?;
-        let rev = page_json
-            .rev()
-            .and_then(|v| Some(v.to_string()))
-            .ok_or(())?;
-        Ok(self.file_path() + "." + &rev)
+        let rev = page_json.rev().ok_or(())?;
+        Ok(self.path_rev_form(rev))
+    }
+
+    /// This function take rev as a usize separated from self.json.rev().
+    /// So this works without self.json.rev().
+    pub fn path_rev_form(&self, rev: usize) -> String {
+        self.file_path() + "." + rev.to_string().as_str()
     }
 
     /// Save self.source value to self.path_rev().
@@ -228,6 +231,7 @@ impl Page {
         page_utility::fs_write(&path_rev, source)
     }
 
+    /// Save the file and its backup file wit rev suffix.
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
         let mut saved = true;
 
@@ -241,6 +245,7 @@ impl Page {
             Ok(v) => info!("Saved: {}", v),
             Err(e) => error!("{}", e),
             // comment out as intended because file_save_rev is for backup
+            // Dicide result on self.file_save()
             // saved = false;
         }
 

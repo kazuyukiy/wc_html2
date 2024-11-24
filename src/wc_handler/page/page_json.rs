@@ -1,5 +1,5 @@
 use std::str::FromStr;
-// use tracing::info;
+use tracing::error;
 // {error, event, info, instrument, span, Level, Node}
 
 pub struct PageJson {
@@ -36,34 +36,20 @@ impl PageJson {
     }
 
     pub fn rev(&self) -> Option<usize> {
-        // case rev=10: Number(Number { category: 1, exponent: 0, mantissa: 10 })
-        if let Ok(rev) = to_usize(&self.value()?["data"]["page"]["rev"]) {
-            return Some(rev);
-        }
-
-        // case: rev="12" ( with "" )
-        match self.value()?["data"]["page"]["rev"] {
-            json::JsonValue::Short(short) => {
-                let rev = short.as_str();
-                match usize::from_str(rev) {
-                    // Ok(v) => Some(v),
-                    Ok(v) => return Some(v),
-                    Err(_) => {
-                        eprintln!("Failed to get rev");
-                        return None;
-                    }
-                }
+        match to_usize(&self.value()?["data"]["page"]["rev"]) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                error!("rev: {}", e);
+                None
             }
-            _ => None::<usize>,
-        };
-
-        None
+        }
     }
 
     // rev counted up from current rev
     pub fn rev_uped(&self) -> Option<usize> {
         let rev = self.rev()?;
-        Some(rev + 1)
+        // Some(rev + 1)
+        rev.checked_add(1)
     }
 
     pub fn subsection_id_next(&self) -> Option<usize> {
@@ -199,20 +185,24 @@ impl PageJson {
     }
 }
 
-fn to_usize(v: &json::JsonValue) -> Result<usize, String> {
-    match v {
-        json::JsonValue::Number(number) => {
-            match <json::number::Number as TryInto<usize>>::try_into(*number) {
-                Ok(num) => return Ok(num),
-                Err(_) => {
-                    return Err("Failed to convert to usize.".to_string());
-                }
-            };
-        }
-        _ => {
-            return Err("It is not number".to_string());
+pub fn to_usize(v: &json::JsonValue) -> Result<usize, String> {
+    // case v = 10; Number(Number { category: 1, exponent: 0, mantissa: 10 }
+    if let json::JsonValue::Number(number) = v {
+        // v can be usize
+        if let Ok(num) = <json::number::Number as TryInto<usize>>::try_into(*number) {
+            return Ok(num);
         }
     }
+
+    // case: r = "12"; ( string with "" )
+    if let json::JsonValue::Short(short) = v {
+        let rev = short.as_str();
+        if let Ok(v) = usize::from_str(rev) {
+            return Ok(v);
+        }
+    }
+
+    Err("Failed to get value in usize.".to_string())
 }
 
 pub struct Subsection<'a> {
