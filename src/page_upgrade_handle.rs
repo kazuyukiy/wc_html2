@@ -12,6 +12,7 @@ pub fn pages_upgrade_handle(stor_root: &str) {
         failed: vec![],
         handled: HashSet::new(),
     };
+
     let upres = Rc::new(RefCell::new(upres));
 
     // upgrade this page and its children as recursive option is ture.
@@ -26,9 +27,13 @@ pub fn pages_upgrade_handle(stor_root: &str) {
 fn page_top(stor_root: &str) -> Page {
     let page_path = "/wc_top.html";
 
+    // DBG
     // let page_path = "/Computing/Html/html_basic.html";
     // let page_path = "/Computing/computing_iroiro.html";
     // let page_path = "/Computing/computing_index.html";
+    // let page_path = "/Computing/windows/windows10/windows10openssh.html";
+    // let page_path = "/Computing/Linux/Package/Yum/linux_yum_index.html";
+    // let page_path = "/Computing/Language/computer_language_index.html";
 
     let mut page = Page::new(stor_root, page_path);
     // Already exists.

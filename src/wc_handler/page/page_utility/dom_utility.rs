@@ -75,19 +75,24 @@ pub fn node_text(contents: &str) -> Rc<Node> {
     Node::new(node_data)
 }
 
+/// match_single: finish if one node matched.
 fn node_child_match(
     node_obj: &Handle,
     node_ptn: &Node,
     node_list: &mut Vec<Handle>,
     recursive: bool,
+    match_single: bool,
 ) {
     for child in node_obj.children.borrow().iter() {
         if element_match(child, node_ptn) {
             node_list.push(Rc::clone(child));
+            if match_single {
+                break;
+            }
         }
 
         if recursive {
-            node_child_match(child, node_ptn, node_list, recursive);
+            node_child_match(child, node_ptn, node_list, recursive, match_single);
         }
     }
 }
@@ -153,14 +158,22 @@ fn attrs_match(attrs: RefCell<Vec<Attribute>>, attrs_ptn: RefCell<Vec<Attribute>
     true
 }
 
-pub fn child_match_list(node_obj: &Handle, node_ptn: &Node, recursive: bool) -> Vec<Handle> {
+pub fn child_match_list(
+    node_obj: &Handle,
+    node_ptn: &Node,
+    recursive: bool,
+    match_single: bool,
+) -> Vec<Handle> {
     let mut node_list: Vec<Handle> = vec![];
-    node_child_match(node_obj, node_ptn, &mut node_list, recursive);
+    node_child_match(node_obj, node_ptn, &mut node_list, recursive, match_single);
     node_list
 }
 
 pub fn child_match_first(dom: &Handle, node_ptn: &Node, recursive: bool) -> Option<Handle> {
-    let list = child_match_list(&dom, node_ptn, recursive);
+    // match_single stops seeking node_ptn if one node found,
+    // it makes procedure faster.
+    let match_single = true;
+    let list = child_match_list(&dom, node_ptn, recursive, match_single);
 
     if list.len() < 1 {
         return None;

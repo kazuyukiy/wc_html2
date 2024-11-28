@@ -68,32 +68,34 @@ impl PageJson {
     }
 
     pub fn subsection_new(&mut self, parent_id: &usize) -> Option<Subsection> {
-        let parent_id_str = parent_id.to_string();
+        let parent_id_string = parent_id.to_string();
+        let parent_id_str = parent_id_string.as_str();
 
         // get id hrer before self is borrowed as mutable.
         let id = self.subsection_id_new()?;
-        let id_str = id.to_string();
+        let id_string = id.to_string();
+        let id_str = id_string.as_str();
 
         let subsections = self.subsections_mut()?;
 
         // subsection for paren_id must exists.
-        if subsections[parent_id_str.as_str()].is_null() {
+        if subsections[parent_id_str].is_null() {
             return None;
         }
 
         // already exists
-        if !subsections[id_str.as_str()].is_null() {
+        if !subsections[id_str].is_null() {
             return None;
         }
 
-        subsections[id_str.as_str()] = json::object! {
+        subsections[id_str] = json::object! {
             "parent_id" : *parent_id,
             "id":  id,
         };
 
         // Set new subsection's id to parent subsection
         {
-            let parent = &mut subsections[parent_id_str.as_str()];
+            let parent = &mut subsections[parent_id_str];
             let _ = parent["child"].push(id);
         }
 
@@ -104,9 +106,6 @@ impl PageJson {
     }
 
     pub fn subsection_by_name(&mut self, href_arg: &str) -> Option<Subsection> {
-        // DBG
-        // info!("fn subsection_by_name");
-
         let subsections = self.subsections()?;
 
         // Search subsection that has the href_arg value.
@@ -136,10 +135,12 @@ impl PageJson {
         None
     }
 
-    pub fn subsections(&self) -> Option<&json::object::Object> {
-        let value = self.value()?;
+    pub fn subsections(&mut self) -> Option<&json::object::Object> {
+        // let value = self.value()?;
+        let value = self.value_mut()?;
         if value["data"]["subsection"]["data"].is_empty() {
-            return None;
+            value["data"]["subsection"]["data"] = json::array! {};
+            // return None;
         }
         match value["data"]["subsection"]["data"] {
             json::JsonValue::Object(ref object) => Some(object),
@@ -158,11 +159,11 @@ impl PageJson {
         }
     }
 
-    pub fn subsections_data_exists(&self) -> bool {
+    // pub fn subsections_data_exists(&self) -> bool {
+    pub fn subsections_data_exists(&mut self) -> bool {
         self.subsections()
             .and_then(|subsections| {
                 // value["data"]["subsection"]["data"][0] is not real content.
-                // if 1 < subsections["data"].len() {
                 if 1 < subsections.len() {
                     Some(subsections) // true for is_some()
                 } else {

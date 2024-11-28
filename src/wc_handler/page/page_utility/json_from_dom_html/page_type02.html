@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html><head>
+    <title>OpenSSH</title>
+    <meta charset="UTF-8">
+    <script src="./../../../wc.js"></script>
+    <link rel="stylesheet" href="./../../../wc.css">
+
+    <style type="text/css">
+
+      /*
+      temporary comment out for DBG;
+     */
+
+      .invisible { display: none; }
+
+      .subsection {
+	  margin-bottom: 20px;
+      }
+      .subsectionTitle {
+	  font-weight: bold;
+	  font-size: 1.5em;
+      }
+      .subsectionContent {
+	  margin-left: 30px;
+      }
+      .inline0 {
+	  display: inline;
+      }
+      .scriptSample {
+	  border: solid 1px black;
+	  width: 400px;
+	  height: 50px;
+	  background: #e6e6fa;
+	  padding: 10px;
+	  resize: both;
+	  overflow: hidden;
+	  // overflow: scroll;
+      }
+
+      /*
+       */
+      
+      
+    </style>
+    
+  </head>
+  
+  <body onload="bodyOnload()">
+
+    <!-- 
+	 editor
+	 navi
+	 listItem
+	 subsection
+      -->
+    
+    <!-- editor start -->
+    <table class="editModeTable invisible">
+      <tbody><tr>
+	<td>
+	  Edit MODE 
+	  <input type="button" value="Exit" class="editModeExit">
+
+	  <span class="editModeSaveMenu">
+	   /
+	   <input type="button" value="Save" class="editModeSave">
+	  </span>
+
+	  <span class="editModeExitConfirm invisible">
+	  Exit without saving ?
+	  <input type="button" value="Discard changes" class="editModeDiscardChanges">
+	  <input type="button" value="Cancel" class="editModeExitCancel">
+	  </span>
+	  ( old form <input type="file" value="Import" class="editModeImport"> )
+	</td>
+      </tr>
+    </tbody></table>
+
+    <div class="invisible">
+      <table id="editorTemplate" class="editTable">
+
+	<tbody><tr class="placeHolder"><td></td><td></td></tr>
+
+	<tr>
+	  <td></td><td>
+	    <input type="button" class="editEnter" value="Enter"> 
+	    <input type="button" class="editCancel" value="Cancel">
+	    &nbsp;&nbsp;&nbsp;
+	    <input type="button" class="editDelete" value="Delete">
+	    <div class="editDeleteConfirm invisible">
+	      <div class="editDeleteMessage"></div>
+	      <input type="button" class="editDeleteExecute" value="Execute">
+	      <input type="button" class="editDeleteCancel" value="Cancel">
+	    </div>
+	  </td>
+	</tr>
+
+	<tr>
+	  <td></td>
+	  <td></td>
+	</tr>
+
+	<tr>
+	  <td></td>
+	  <td><hr></td>
+	</tr>
+
+	<tr>
+	  <td></td>
+	  <td>browser <input type="button" value="ON/OFF" class="browserFlip"></td>
+	</tr>
+	<tr><td></td><td><iframe class="invisible iframe0"></iframe></td></tr>
+      
+	<tr>
+	  <td></td>
+	  <td>
+	    <input type="button" class="moveBack" value="Back">
+	    &lt;- Move -&gt;
+	    <input type="button" class="moveForward" value="Forward">
+	  </td>
+	</tr>
+
+	<tr>
+	  <td></td>
+	  <td>
+	    <input type="button" class="insertBefore" value="Insert">
+	    &lt;- New -&gt;
+	    <input type="button" class="insertAfter" value="Insert">
+	  </td>
+	</tr>
+      </tbody></table>
+
+    </div>
+    
+    <!-- editor end -->
+
+    <span id="top"></span>
+    
+    <!-- navi start -->
+    <div class="naviBase"><span class="navi">
+	<span class="naviArrow"></span>
+	<a class="naviAnchor" href="./../../../wc_top.html">Top</a>
+      </span><span class="navi">
+	<span class="naviArrow">&nbsp;&gt;&nbsp;</span>
+	<a class="naviAnchor" href="./../../computing_index.html">
+Computing
+</a>
+      </span><span class="navi">
+	<span class="naviArrow">&nbsp;&gt;&nbsp;</span>
+	<a class="naviAnchor" href="./../windows_index.html">Windows</a>
+      </span><span class="navi">
+	<span class="naviArrow">&nbsp;&gt;&nbsp;</span>
+	<a class="naviAnchor" href="./windows10_index.html">Windows10</a>
+      </span><span class="navi">
+	<span class="naviArrow">&nbsp;&gt;&nbsp;</span>
+	<a class="naviAnchor">OpenSSH</a>
+      </span></div>
+    
+    <div class="invisible">
+      <span id="navi_template" class="navi">
+	<span class="naviArrow">&nbsp;&gt;&nbsp;</span>
+	<a class="naviAnchor">title0</a>
+      </span>
+
+      <table id="navi_editorContent_template" class="invisible editTable">
+	<tbody><tr>
+	  <td>File</td>
+	  <td>
+	    <input type="file" class="naviRef_"><br>
+	    <span class="fileURL"></span>
+	  </td>
+	</tr>
+
+	<tr>
+	  <td>arrow</td>
+	  <td><input type="text" class="naviArrow"></td>
+	</tr>
+
+	<tr>
+	  <td>display</td>
+	  <td><input type="text" class="naviDisplay"></td>
+	</tr>
+
+	<tr>
+	  <td>href</td>
+	  <td>
+	    <input class="naviHref"><br>
+	  </td>
+	</tr>
+      </tbody></table>
+      
+    </div>
+    <!-- navi end -->
+
+    <!-- listItem start -->
+    <ul class="listItemBase"><li class="listItem"><a class="title" href="#install">インストール</a></li><li class="listItem"><a class="title" href="#grabled_charactor">文字化け</a></li><li class="listItem"><a class="title" href="#ctrl_slash">Ctrl+/</a></li></ul>
+
+    <div class="invisible">
+
+      <ul id="listItemBase_template" class="listItemBase">
+      </ul>
+      <ul>
+	<li id="listItem_template" class="listItem"><a class="title">新規項目</a></li>
+      </ul>
+      
+      <table id="listItem_editorContent_template" class="invisible editTable">
+	<tbody><tr>
+	  <td>title</td>
+	  <td><input class="listTitle"></td>
+	</tr>
+	<tr>
+	  <td>href</td>
+	  <td>
+	    <input class="listHref">
+	    <input type="button" value="Create" class="targetCreate">
+	  </td>
+	</tr>
+	<tr>
+	  <td></td>
+	  <td>
+	    <input type="button" value="Sub List" class="editSublistCreate">
+	  </td>
+	</tr>
+	
+      </tbody></table>
+      
+    </div>
+    <!-- listItem end -->
+    
+    <!-- subsection start -->
+    <div class="subsectionBase"><div class="subsection" id="install">
+	<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+	<div class="subsectionTitle">インストール</div>
+	<div class="subsectionContent">
+	  <div class="textContent">スタート(画面左下)<br>設定<br>アプリ<br>アプリと機能<br>オプション機能<br>OpenSSHクライアント</div>
+	</div> <!-- end of subsectionContent -->
+      </div><div class="subsection" id="grabled_charactor">
+	<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+	<div class="subsectionTitle">文字化け</div>
+	<div class="subsectionContent">
+	  <div class="textContent">PowerShell でsshすると文字が化ける場合、<br>PowerShellメニューバー右クリック<br>プロパティー<br>フォント<br>Consolas 　を　MSゴシックに変える</div>
+	</div> <!-- end of subsectionContent -->
+      </div><div class="subsection" id="ctrl_slash">
+	<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+	<div class="subsectionTitle">Ctrl+/</div>
+	<div class="subsectionContent">
+	  <div class="textContent">sshでつながった先のEmacsにおいて、<br>Ctrl+/<br>でundoを仕様としても反応しない。<br>原因は、Ctrl+/に対応するAsciiコードがないからである。（らしい、未確認）<br><br><br>http://www.callcc.net/diary/20050115.html<br>https://whitypig.hatenadiary.org/entry/20080617/1213702348</div>
+	</div> <!-- end of subsectionContent -->
+      </div></div>
+    
+    <div class="invisible">
+      <div id="subsection_template" class="subsection">
+	<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+	<div class="subsectionTitle">
+	  新規項目
+	</div>
+	<div class="subsectionContent">
+	  <div>
+	    この内容<br>
+	  </div>
+	</div> <!-- end of subsectionContent -->
+      </div> <!-- end of subsection -->
+      
+      <table id="subsection_editorContent_template" class="editTable">
+	<tbody><tr>
+	  <td>title:</td>
+	  <td><span class="title"></span>
+	    <select name="subsectionContentType">
+	      <option value="htmlContent">HTML</option>
+	      <option value="textContent">Text</option>
+	      <option value="scriptSample">Script</option>
+	    </select>
+	  </td>
+	</tr>
+
+	<tr>
+	  <td colspan="2">
+	    <textarea class="editSubsectionContent"></textarea>
+	  </td>
+	</tr>
+      </tbody></table>
+
+    </div>
+    <!-- subsection end -->
+
+    <a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+
+  
+
+
+
+<!-- Miyako Kochiku (C)-->
+<!-- 
+012345678911234567892123456789312345678941234567895123456789612345678971234567898
+oO0ij
+-->
+
+<script id="editModeRevSet">editModeRev = 0</script><pre id="editModeRevCount" class="invisible">5</pre>
+</body></html>

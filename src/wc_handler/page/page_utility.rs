@@ -3,7 +3,6 @@ use super::Page;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
 use std::cell::RefCell;
-// use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
 use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
@@ -164,18 +163,8 @@ pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8>
             vec![]
         }
     }
-
-    // let v = match dom_serialize(page_dom.unwrap().document) {
-    //     Ok(v) => v,
-    //     Err(e) => {
-    //         error!("Failed to get source from json: {}", e);
-    //         vec![]
-    //     }
-    // };
-    // return v;
 }
 
-// fn dom_serialize_a(dom: RcDom) -> std::result::Result<Vec<u8>, std::io::Error> {
 fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
     // let sh = SerializableHandle::from(dom.document);
     let sh = SerializableHandle::from(node);
@@ -220,27 +209,6 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
     }
     .or(Err(format!("Failed to get rev from json_data2")))?;
 
-    // let rev2 = match json_data2["data"]["page"]["rev"] {
-    //     json::JsonValue::Number(number) => match number.try_into() {
-    //         Ok(rev2) => rev2,
-    //         Err(_) => {
-    //             return Err(format!("Failed to get rev from json_data2"));
-    //         }
-    //     },
-    //     // case: rev="12" ( with "" )
-    //     json::JsonValue::Short(short) => {
-    //         let rev2 = short.as_str();
-    //         match usize::from_str(rev2) {
-    //             Ok(rev2) => rev2,
-    //             Err(_) => {
-    //                 return Err(format!("Failed to get rev in json_data2"));
-    //             }
-    //         }
-    //     }
-    //     _ => return Err(format!("Failed to get rev in json_data2")),
-    // };
-
-    // rev == rev2
     if rev == rev2 {
         Ok(())
     } else {
@@ -265,7 +233,6 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
 ///
 pub fn page_child_new(
     parent_page: &mut super::Page,
-    // parent_url: url::Url,
     child_title: &str,
     child_href: &str,
 ) -> Result<super::Page, ()> {
@@ -486,7 +453,8 @@ pub fn page_upgrade_children(
 
     let stor_root = page.stor_root().to_string();
 
-    let page_json = page.json();
+    // let page_json = page.json();
+    let page_json = page.json_mut();
     if page_json.is_none() {
         return;
     }

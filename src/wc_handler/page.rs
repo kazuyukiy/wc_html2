@@ -5,7 +5,7 @@ use markup5ever_rcdom::RcDom;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
-use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
+use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,, warn
 pub mod page_json;
 pub mod page_utility;
 
@@ -167,6 +167,15 @@ impl Page {
         self.json.as_ref().unwrap().as_ref()
     }
 
+    fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
+        if self.json.is_none() {
+            if let Err(_) = self.json_parse() {
+                return None;
+            }
+        }
+        self.json.as_mut().unwrap().as_mut()
+    }
+
     ///
     pub fn json_value(&mut self) -> Option<&json::JsonValue> {
         self.json().and_then(|page_json| page_json.value())
@@ -193,8 +202,11 @@ impl Page {
 
     /// Save self.source data to the file.
     pub fn file_save(&mut self) -> Result<String, String> {
+        // DBG
+        // warn!("pub fn file_save returning Err in DBG");
+        // return Err("".into());
+
         let file_path = &self.file_path();
-        // let source = self.source().ok_or(())?;
         let source = match self.source() {
             Some(v) => v,
             None => return Err(format!("Failed to get source: {}", &self.file_path())),
@@ -257,7 +269,7 @@ impl Page {
     }
 
     pub fn json_subsections_data_exists(&mut self) -> bool {
-        self.json()
+        self.json_mut()
             .is_some_and(|page_json| page_json.subsections_data_exists())
     }
 

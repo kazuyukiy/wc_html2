@@ -1,4 +1,5 @@
 use super::dom_utility;
+use super::page_json;
 use super::Page;
 use super::Upres;
 use std::cell::RefCell;
@@ -41,7 +42,7 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
 
     // json_value not found in the page, create it from page html.
     if json_value.is_none() {
-        // old page stype
+        // parse html page in old style to josn_value
         json_value = super::json_from_dom_html(page_node);
     }
 
@@ -96,9 +97,23 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     // because it needs original json value of the page
     // in span element of the body that does not exists.
     let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
+
+    // DBG
+    // page_upgrade_upgraded(page, &upres);
+    // return;
+
     if let Ok(_) = page2.file_save_and_rev() {
         page_upgrade_upgraded(page, &upres);
     }
+
+    // on page.upgrade(), it will call page_upgrade_child() after this function.
+    // at there, it calls page.json()
+    // and page_urility::json_from_dom will be called, that almost as same as this function.
+    // To avoid same procedure again, set json_value on page.
+    let page_json = page_json::PageJson::from(json_value.take());
+    page.json.replace(Some(page_json));
+
+    // info!("fn page_upgrade end");
 }
 
 fn page_upgrade_handled(page: &mut Page, upres: &Option<Rc<RefCell<Upres>>>) -> bool {
@@ -134,8 +149,6 @@ fn last_rev_of_files(page: &mut super::Page, rev: Option<usize>) -> Option<usize
     // otherwise set 1.
     let rev = rev.or(Some(1)).unwrap();
 
-    // info!("file rev start: {}", &rev);
-
     let mut rev_last = rev;
     // fm: rev + 1
     let fm = rev.checked_add(1).or(Some(usize::MAX)).unwrap();
@@ -144,24 +157,14 @@ fn last_rev_of_files(page: &mut super::Page, rev: Option<usize>) -> Option<usize
         // rev_last = rev;
         // let path_rev = page.file_path() + "." + rev.to_string().as_str();
         let path_rev = page.path_rev_form(rev);
-
-        // info!("file rev path: {}", &path_rev);
-
         if let Ok(exists) = std::fs::exists(&path_rev) {
             if exists {
                 rev_last = rev;
-
-                // info!("file rev exits: {}", rev);
-
                 continue;
             }
-            // info!("file rev exits NOT: {}", rev);
         }
         break;
     }
-
-    // info!("file rev return: {}", rev_last);
-
     Some(rev_last)
 }
 
@@ -170,15 +173,11 @@ fn last_rev_of_files(page: &mut super::Page, rev: Option<usize>) -> Option<usize
 /// arguments rev_crt + 1 will be used for this backup file name and
 /// returns new rev: rev_crt + 1 in Some() if sucseeded.
 fn page_org_backup(page: &mut Page, rev_crt: &usize) -> Option<usize> {
-    // info!("backup last_rev of arguments: {}", &rev_crt);
-
     // backup with new rev number.
     let rev_uped = rev_crt.checked_add(1)?;
 
     // let path_rev_uped = page.file_path() + "." + rev_uped.to_string().as_str();
     let path_rev_uped = page.path_rev_form(rev_uped);
-
-    // info!("backup path_rev: {}", &last_rev);
 
     let source = page.source()?;
     match super::fs_write(&path_rev_uped, source) {
@@ -189,10 +188,6 @@ fn page_org_backup(page: &mut Page, rev_crt: &usize) -> Option<usize> {
         }
         Err(e) => {
             error!("Failed, Original backup: {}, {}", &path_rev_uped, e);
-            // error!(
-            //     "Failed to backup the original, {} on: {}",
-            //     e, &path_rev_uped
-            // );
             None
         }
     }
