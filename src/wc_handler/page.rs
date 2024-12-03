@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,, warn
+pub mod page_backup_delete;
 pub mod page_json;
 pub mod page_utility;
 
@@ -16,6 +17,7 @@ pub mod page_utility;
 pub struct Page {
     stor_root: String,
     page_path: String,
+    path: std::path::PathBuf,
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
     json: Option<Option<page_json::PageJson>>,
@@ -26,9 +28,13 @@ impl Page {
     /// It is used for further creation of 'Page'
     /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
+        let path = String::from(stor_root) + page_path;
+        let path = std::path::PathBuf::from(path);
+
         Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),
+            path,
             source: None,
             dom: None,
             json: None,
@@ -41,6 +47,14 @@ impl Page {
 
     pub fn page_path(&self) -> &str {
         self.page_path.as_str()
+    }
+
+    // pub fn page_path2(&self) -> Option<&str> {
+    //     self.path.to_str()
+    // }
+
+    pub fn path(&self) -> &std::path::Path {
+        self.path.as_path()
     }
 
     pub fn file_path(&self) -> String {
@@ -71,6 +85,9 @@ impl Page {
 
     // Create dirs saving this file.
     pub fn dir_build(&self) -> Result<(), ()> {
+        let recursive = true;
+        return page_utility::dir_build(self.path.as_path(), recursive);
+
         // file_path : abc/def/ghi.html (Contains a file name.)
         let file_path = self.file_path();
         let path = std::path::Path::new(&file_path);
@@ -214,6 +231,19 @@ impl Page {
         page_utility::fs_write(file_path, source)
     }
 
+    pub fn rev(&mut self) -> Result<usize, ()> {
+        let page_json = self.json().ok_or(())?;
+        // let rev = page_json.rev().ok_or(())?;
+        let rev = match page_json.rev() {
+            Some(v) => v,
+            None => {
+                error!("Failed to get rev on {}", self.file_path());
+                return Err(());
+            }
+        };
+        Ok(rev)
+    }
+
     fn path_rev(&mut self) -> Result<String, ()> {
         let page_json = self.json().ok_or(())?;
         let rev = page_json.rev().ok_or(())?;
@@ -241,6 +271,10 @@ impl Page {
         };
 
         page_utility::fs_write(&path_rev, source)
+    }
+
+    pub fn file_backup_delete(&mut self) {
+        page_backup_delete::backup_delete(self);
     }
 
     /// Save the file and its backup file wit rev suffix.

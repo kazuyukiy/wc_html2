@@ -32,6 +32,38 @@ pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<String, String> {
         .or_else(|e| Err(e.to_string()))
 }
 
+/// Create dir of the path
+// pub fn dir_build(page: &mut super::Page) -> Result<(), ()> {
+pub fn dir_build(path: &std::path::Path, recursive: bool) -> Result<(), ()> {
+    // path : abc/def/ghi.html (Contains a file name.)
+    // parent: abc/def (remain only directory path.)
+    let parent = path.parent().ok_or(())?;
+
+    // This count() counts depth of directory.
+    // Consider how avoid too match deep directorys making.
+
+    // Already exists.
+    if let Ok(true) = parent.try_exists() {
+        return Ok(());
+    }
+
+    let parent_path = parent.to_str().ok_or(())?;
+    match std::fs::DirBuilder::new()
+        // .recursive(true)
+        .recursive(recursive)
+        .create(parent_path)
+    {
+        Ok(_) => {
+            info!("dir created: {}", parent_path);
+            Ok(())
+        }
+        Err(_) => {
+            error!("Failed to create dir: {}", parent_path);
+            Err(())
+        }
+    }
+}
+
 pub fn to_dom(source: &str) -> RcDom {
     dom_utility::to_dom(source)
 }

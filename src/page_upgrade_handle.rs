@@ -5,7 +5,7 @@ use tracing::{error, info};
 // {event, info, instrument, span, Level, Node, error, }
 use super::wc_handler::page::{self, Page};
 
-pub fn pages_upgrade_handle(stor_root: &str) {
+pub fn pages_upgrade_handle(stor_root: &str, page_top_path: &str) {
     let upres = Upres {
         already: vec![],
         upgraded: vec![],
@@ -16,7 +16,7 @@ pub fn pages_upgrade_handle(stor_root: &str) {
     let upres = Rc::new(RefCell::new(upres));
 
     // upgrade this page and its children as recursive option is ture.
-    let mut page_top = page_top(stor_root);
+    let mut page_top = page_top(stor_root, page_top_path);
     page_top.upgrade(true, Some(Rc::clone(&upres)));
 
     tracing_page_save(&mut page_top, Rc::clone(&upres));
@@ -24,8 +24,8 @@ pub fn pages_upgrade_handle(stor_root: &str) {
 
 /// Return top page.
 /// If not exists, create top page.
-fn page_top(stor_root: &str) -> Page {
-    let page_path = "/wc_top.html";
+fn page_top(stor_root: &str, page_top_path: &str) -> Page {
+    // let page_path = "/wc_top.html";
 
     // DBG
     // let page_path = "/Computing/Html/html_basic.html";
@@ -34,8 +34,9 @@ fn page_top(stor_root: &str) -> Page {
     // let page_path = "/Computing/windows/windows10/windows10openssh.html";
     // let page_path = "/Computing/Linux/Package/Yum/linux_yum_index.html";
     // let page_path = "/Computing/Language/computer_language_index.html";
+    // let page_path = "/pages/Computing/Windows/windows10/windows10openssh.html";
 
-    let mut page = Page::new(stor_root, page_path);
+    let mut page = Page::new(stor_root, page_top_path);
     // Already exists.
     if page.source().is_some() {
         return page;
@@ -57,7 +58,7 @@ fn page_top(stor_root: &str) -> Page {
     let _ = navi.push(json::JsonValue::Array(navi_top));
     page_json["data"]["navi"] = navi;
 
-    let mut page = page::page_utility::page_from_json(stor_root, page_path, &page_json);
+    let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
     let _ = page.file_save_and_rev();
 
     page
