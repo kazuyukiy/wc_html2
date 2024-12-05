@@ -4,20 +4,21 @@ use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
 use std::cell::RefCell;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,, warn
-pub mod page_backup_delete;
+                            // pub mod page_backup_delete;
 pub mod page_json;
 pub mod page_utility;
 
-/// path: the path of the page.
+/// path: the path of the page. ie: ./stor_root/page_path
 /// source: None: not tried to read, Some(None): Tried to read with faile,
 /// Some(Some(v)) : Tried to read and get the source.
 ///
 pub struct Page {
     stor_root: String,
     page_path: String,
-    path: std::path::PathBuf,
+    path: PathBuf,
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
     json: Option<Option<page_json::PageJson>>,
@@ -29,7 +30,7 @@ impl Page {
     /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
         let path = String::from(stor_root) + page_path;
-        let path = std::path::PathBuf::from(path);
+        let path = PathBuf::from(path);
 
         Page {
             stor_root: String::from(stor_root),
@@ -53,7 +54,7 @@ impl Page {
     //     self.path.to_str()
     // }
 
-    pub fn path(&self) -> &std::path::Path {
+    pub fn path(&self) -> &Path {
         self.path.as_path()
     }
 
@@ -86,36 +87,37 @@ impl Page {
     // Create dirs saving this file.
     pub fn dir_build(&self) -> Result<(), ()> {
         let recursive = true;
-        return page_utility::dir_build(self.path.as_path(), recursive);
+        page_utility::dir_build(self.path.as_path(), recursive)
+        // return page_utility::dir_build(self.path.as_path(), recursive);
 
-        // file_path : abc/def/ghi.html (Contains a file name.)
-        let file_path = self.file_path();
-        let path = std::path::Path::new(&file_path);
-        // parent: abc/def (remain only directory path.)
-        let parent = path.parent().ok_or(())?;
+        // // file_path : abc/def/ghi.html (Contains a file name.)
+        // let file_path = self.file_path();
+        // let path = Path::new(&file_path);
+        // // parent: abc/def (remain only directory path.)
+        // let parent = path.parent().ok_or(())?;
 
-        // This count() counts depth of directory.
-        // Consider how avoid too match deep directorys making.
+        // // This count() counts depth of directory.
+        // // Consider how avoid too match deep directorys making.
 
-        // Already exists.
-        if let Ok(true) = parent.try_exists() {
-            return Ok(());
-        }
+        // // Already exists.
+        // if let Ok(true) = parent.try_exists() {
+        //     return Ok(());
+        // }
 
-        let parent_path = parent.to_str().ok_or(())?;
-        match std::fs::DirBuilder::new()
-            .recursive(true)
-            .create(parent_path)
-        {
-            Ok(_) => {
-                info!("dir created: {}", parent_path);
-                Ok(())
-            }
-            Err(_) => {
-                error!("Failed to create dir: {}", parent_path);
-                Err(())
-            }
-        }
+        // let parent_path = parent.to_str().ok_or(())?;
+        // match std::fs::DirBuilder::new()
+        //     .recursive(true)
+        //     .create(parent_path)
+        // {
+        //     Ok(_) => {
+        //         info!("dir created: {}", parent_path);
+        //         Ok(())
+        //     }
+        //     Err(_) => {
+        //         error!("Failed to create dir: {}", parent_path);
+        //         Err(())
+        //     }
+        // }
     }
 
     pub fn source(&mut self) -> Option<&Vec<u8>> {
@@ -247,13 +249,27 @@ impl Page {
     fn path_rev(&mut self) -> Result<String, ()> {
         let page_json = self.json().ok_or(())?;
         let rev = page_json.rev().ok_or(())?;
-        Ok(self.path_rev_form(rev))
+        // Ok(self.path_rev_form(rev))
+
+        let path_rev = self.path_rev_form(rev);
+        match path_rev.to_str() {
+            Some(v) => Ok(v.to_string()),
+            None => Err(()),
+        }
+        // or(Some("")).unwrap().to_string();
+
+        //
+        // Ok(self.path_rev_form(rev))
     }
 
-    /// This function take rev as a usize separated from self.json.rev().
-    /// So this works without self.json.rev().
-    pub fn path_rev_form(&self, rev: usize) -> String {
-        self.file_path() + "." + rev.to_string().as_str()
+    /// This function takes rev in arguments, not consering with self.json.rev().
+    /// This is only for a path format with rev numaber.
+    /// ./stor_root/page_path.html + "." + rev_no
+    // pub fn path_rev_form(&self, rev: usize) -> String {
+    pub fn path_rev_form(&self, rev: usize) -> PathBuf {
+        // self.file_path() + "." + rev.to_string().as_str()
+        let path = self.file_path() + "." + rev.to_string().as_str();
+        PathBuf::from(path)
     }
 
     /// Save self.source value to self.path_rev().
@@ -274,7 +290,7 @@ impl Page {
     }
 
     pub fn file_backup_delete(&mut self) {
-        page_backup_delete::backup_delete(self);
+        page_utility::page_backup_delete::backup_delete(self);
     }
 
     /// Save the file and its backup file wit rev suffix.

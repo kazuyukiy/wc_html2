@@ -13,6 +13,7 @@ mod page_move;
 mod page_upgrade;
 pub use super::page_json;
 pub use page_move::page_move;
+pub mod page_backup_delete;
 
 pub fn file_path(stor_root: &str, page_path: &str) -> String {
     // String + "." + &str
@@ -33,9 +34,8 @@ pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<String, String> {
 }
 
 /// Create dir of the path
-// pub fn dir_build(page: &mut super::Page) -> Result<(), ()> {
 pub fn dir_build(path: &std::path::Path, recursive: bool) -> Result<(), ()> {
-    // path : abc/def/ghi.html (Contains a file name.)
+    // path  : abc/def/ghi.html (Contains a file name.)
     // parent: abc/def (remain only directory path.)
     let parent = path.parent().ok_or(())?;
 

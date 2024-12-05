@@ -42,7 +42,32 @@ fn page_top(stor_root: &str, page_top_path: &str) -> Page {
         return page;
     }
 
-    // Create a new page Wc_top.html
+    page_top_new(stor_root, page_top_path)
+
+    // // Create a new page Wc_top.html
+    // let title = "Top";
+
+    // // json plain
+    // let mut page_json = page::page_json::page_json_plain();
+
+    // // title
+    // page_json["data"]["page"]["title"] = title.into();
+
+    // // navi
+    // let mut navi = json::JsonValue::Array(vec![]);
+    // let navi_top: Vec<json::JsonValue> = vec![title.into(), "".into()];
+
+    // let _ = navi.push(json::JsonValue::Array(navi_top));
+    // page_json["data"]["navi"] = navi;
+
+    // let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
+    // let _ = page.file_save_and_rev();
+
+    // page
+}
+
+/// Create a new page Wc_top.html
+fn page_top_new(stor_root: &str, page_top_path: &str) -> Page {
     let title = "Top";
 
     // json plain

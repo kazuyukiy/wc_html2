@@ -178,16 +178,24 @@ fn page_org_backup(page: &mut Page, rev_crt: &usize) -> Option<usize> {
 
     // let path_rev_uped = page.file_path() + "." + rev_uped.to_string().as_str();
     let path_rev_uped = page.path_rev_form(rev_uped);
+    let path_rev_uped_ref = match path_rev_uped.to_str() {
+        Some(v) => v,
+        None => {
+            error!("Failed to get str from: {:?}", &path_rev_uped);
+            return None;
+        }
+    };
 
     let source = page.source()?;
-    match super::fs_write(&path_rev_uped, source) {
+    // match super::fs_write(&path_rev_uped, source) {
+    match super::fs_write(path_rev_uped_ref, source) {
         Ok(_) => {
-            info!("Original backup: {}", &path_rev_uped);
+            info!("Original backup: {}", &path_rev_uped_ref);
             //
             Some(rev_uped)
         }
         Err(e) => {
-            error!("Failed, Original backup: {}, {}", &path_rev_uped, e);
+            error!("Failed, Original backup: {}, {}", &path_rev_uped_ref, e);
             None
         }
     }
