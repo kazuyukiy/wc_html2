@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,, warn
+use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug , warn,// ;
                             // pub mod page_backup_delete;
 pub mod page_json;
 pub mod page_utility;
@@ -85,39 +85,11 @@ impl Page {
     }
 
     // Create dirs saving this file.
-    pub fn dir_build(&self) -> Result<(), ()> {
+    // pub fn dir_build(&self) -> Result<(), ()> {
+    pub fn dir_build(&self) -> Result<String, String> {
         let recursive = true;
         page_utility::dir_build(self.path.as_path(), recursive)
         // return page_utility::dir_build(self.path.as_path(), recursive);
-
-        // // file_path : abc/def/ghi.html (Contains a file name.)
-        // let file_path = self.file_path();
-        // let path = Path::new(&file_path);
-        // // parent: abc/def (remain only directory path.)
-        // let parent = path.parent().ok_or(())?;
-
-        // // This count() counts depth of directory.
-        // // Consider how avoid too match deep directorys making.
-
-        // // Already exists.
-        // if let Ok(true) = parent.try_exists() {
-        //     return Ok(());
-        // }
-
-        // let parent_path = parent.to_str().ok_or(())?;
-        // match std::fs::DirBuilder::new()
-        //     .recursive(true)
-        //     .create(parent_path)
-        // {
-        //     Ok(_) => {
-        //         info!("dir created: {}", parent_path);
-        //         Ok(())
-        //     }
-        //     Err(_) => {
-        //         error!("Failed to create dir: {}", parent_path);
-        //         Err(())
-        //     }
-        // }
     }
 
     pub fn source(&mut self) -> Option<&Vec<u8>> {
@@ -295,6 +267,14 @@ impl Page {
 
     /// Save the file and its backup file wit rev suffix.
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
+        // DBG
+        // let dbg = true;
+        // // let dbg = false;
+        // if dbg {
+        //     warn!("DBG skipping file_save_and_rev");
+        //     return Ok(());
+        // }
+
         let mut saved = true;
 
         if let Err(emsg) = self.file_save() {
@@ -323,15 +303,33 @@ impl Page {
             .is_some_and(|page_json| page_json.subsections_data_exists())
     }
 
-    /// Upgrade the page of url, not self.
-    pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
+    pub fn upgrade_and_backup_delete(
+        &mut self,
+        recursive: bool,
+        upres: Option<Rc<RefCell<Upres>>>,
+    ) {
         let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
         page_utility::page_upgrade(self, upres2);
 
+        self.file_backup_delete();
+
         if recursive {
-            page_utility::page_upgrade_children(self, recursive, upres);
+            // page_utility::page_upgrade_children(self, recursive, upres);
+            page_utility::page_upgrade_and_delete_children(self, recursive, upres);
         }
     }
+
+    /// Upgrade the page of url, not self.
+    // pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
+    //     let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
+    //     page_utility::page_upgrade(self, upres2);
+
+    //     // self.file_backup_delete();
+
+    //     if recursive {
+    //         page_utility::page_upgrade_children(self, recursive, upres);
+    //     }
+    // }
 
     /// Move this page to dest_url as a child of parent_url.
     /// parent_url is an optional. If it is None, this page is a top page.

@@ -14,21 +14,22 @@ mod wc_handler;
 /// addr: host and port ex: "127.0.0.1:3000"
 /// stor_root: root path for storeage of the pages
 /// capa: number of thread_pool
+/// page_top_path: ex. "/wc_top.html"
 // pub fn wc_note(addr: &str, stor_root: &str, capa: usize) -> Result<TcpListener> {
 pub fn wc_note(addr: &str, stor_root: &str, page_top_path: &str, capa: usize) -> Result<()> {
     // let page_top_path = "/wc_top.html";
 
-    let page_test_path = "/page_test.html";
-    let page_test_path = "/Computing/computing_index.html";
+    // let page_top_path = "/page_test.html";
+    // let page_top_path = "/Computing/computing_index.html";
 
-    let mut page_test = wc_handler::page::Page::new(stor_root, page_test_path);
+    // let mut page_test = wc_handler::page::Page::new(stor_root, page_top_path);
     // let mut page_test = wc_handler::page::Page::new(stor_root, page_top_path);
     // info!("page_test:{}", page_test.file_path());
-    page_test.file_backup_delete();
+    // page_test.file_backup_delete();
 
     // DBG
     // do only backup for test
-    return Ok(());
+    // return Ok(());
 
     // Copy the latest wc.js, wc.css to ./page/.
     // It is done only once when wc_note() is called.
@@ -45,7 +46,10 @@ pub fn wc_note(addr: &str, stor_root: &str, page_top_path: &str, capa: usize) ->
         let stor_root_string = stor_root_string;
         let page_top_string = page_top_string;
         // page_upgrade_handle::pages_upgrade_handle(&stor_root2);
-        page_upgrade_handle::pages_upgrade_handle(&stor_root_string, &page_top_string);
+        page_upgrade_handle::pages_upgrade_handle_and_backup_delete(
+            &stor_root_string,
+            &page_top_string,
+        );
     });
 
     let listener = match TcpListener::bind(addr) {

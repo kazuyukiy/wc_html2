@@ -307,7 +307,7 @@ fn subsection(
     let subsection_node = match subsection_node_new(subsection_json) {
         Ok(v) => v,
         Err(e) => {
-            error!("{}", e);
+            // error!("{}", e);
             return Err(e);
         }
     };

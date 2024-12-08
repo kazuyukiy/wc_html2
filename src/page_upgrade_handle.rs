@@ -5,7 +5,7 @@ use tracing::{error, info};
 // {event, info, instrument, span, Level, Node, error, }
 use super::wc_handler::page::{self, Page};
 
-pub fn pages_upgrade_handle(stor_root: &str, page_top_path: &str) {
+pub fn pages_upgrade_handle_and_backup_delete(stor_root: &str, page_top_path: &str) {
     let upres = Upres {
         already: vec![],
         upgraded: vec![],
@@ -17,7 +17,8 @@ pub fn pages_upgrade_handle(stor_root: &str, page_top_path: &str) {
 
     // upgrade this page and its children as recursive option is ture.
     let mut page_top = page_top(stor_root, page_top_path);
-    page_top.upgrade(true, Some(Rc::clone(&upres)));
+    // page_top.upgrade(true, Some(Rc::clone(&upres)));
+    page_top.upgrade_and_backup_delete(true, Some(Rc::clone(&upres)));
 
     tracing_page_save(&mut page_top, Rc::clone(&upres));
 }

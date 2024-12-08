@@ -4,7 +4,7 @@ use super::Page;
 use super::Upres;
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
+use tracing::error; // {event, info, instrument, span, Level, Node, info}
 
 pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     // if the page already handle
@@ -31,20 +31,21 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
         return;
     }
 
-    // Get json_value from span element.
-    // <span id="page_json_str" style="display: none"></span>
-    let mut json_value = super::json_from_dom_span(page_node);
+    let json_value = super::json_from_dom(page_node);
+    // // Get json_value from span element.
+    // // <span id="page_json_str" style="display: none"></span>
+    // let mut json_value = super::json_from_dom_span(page_node);
 
-    // <script type="text/javascript" class="page_json">let page_json = {}</script>
-    if json_value.is_none() {
-        json_value = super::json_from_dom_script(page_node);
-    }
+    // // <script type="text/javascript" class="page_json">let page_json = {}</script>
+    // if json_value.is_none() {
+    //     json_value = super::json_from_dom_script(page_node);
+    // }
 
-    // json_value not found in the page, create it from page html.
-    if json_value.is_none() {
-        // parse html page in old style to josn_value
-        json_value = super::json_from_dom_html(page_node);
-    }
+    // // json_value not found in the page, create it from page html.
+    // if json_value.is_none() {
+    //     // parse html page in old style to josn_value
+    //     json_value = super::json_from_dom_html(page_node);
+    // }
 
     // Failed to get page_json
     if json_value.is_none() {
@@ -107,9 +108,9 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     }
 
     // on page.upgrade(), it will call page_upgrade_child() after this function.
-    // at there, it calls page.json()
-    // and page_urility::json_from_dom will be called, that almost as same as this function.
-    // To avoid same procedure again, set json_value on page.
+    // at there, it will call page.json()
+    // and page_urility::json_from_dom will be called again, that was called in this function.
+    // To avoid same procedure again, set json_value on the page.
     let page_json = page_json::PageJson::from(json_value.take());
     page.json.replace(Some(page_json));
 
@@ -190,7 +191,7 @@ fn page_org_backup(page: &mut Page, rev_crt: &usize) -> Option<usize> {
     // match super::fs_write(&path_rev_uped, source) {
     match super::fs_write(path_rev_uped_ref, source) {
         Ok(_) => {
-            info!("Original backup: {}", &path_rev_uped_ref);
+            // info!("Original backup: {}", &path_rev_uped_ref);
             //
             Some(rev_uped)
         }

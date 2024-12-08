@@ -34,32 +34,37 @@ pub fn fs_write(file_path: &str, contents: &Vec<u8>) -> Result<String, String> {
 }
 
 /// Create dir of the path
-pub fn dir_build(path: &std::path::Path, recursive: bool) -> Result<(), ()> {
+// pub fn dir_build(path: &std::path::Path, recursive: bool) -> Result<(), ()> {
+pub fn dir_build(path: &std::path::Path, recursive: bool) -> Result<String, String> {
     // path  : abc/def/ghi.html (Contains a file name.)
     // parent: abc/def (remain only directory path.)
-    let parent = path.parent().ok_or(())?;
+    let parent = path
+        .parent()
+        .ok_or(format!("Failed to get parent: {:?}", path))?;
 
     // This count() counts depth of directory.
     // Consider how avoid too match deep directorys making.
 
     // Already exists.
     if let Ok(true) = parent.try_exists() {
-        return Ok(());
+        return Ok(format!("Already exists: {:?}", path.parent()));
     }
 
-    let parent_path = parent.to_str().ok_or(())?;
+    // let parent_path = parent.to_str().ok_or(())?;
+    let parent_path = parent
+        .to_str()
+        .ok_or(format!("Failed to get parent in str: {:?}", parent))?;
     match std::fs::DirBuilder::new()
-        // .recursive(true)
         .recursive(recursive)
         .create(parent_path)
     {
         Ok(_) => {
             info!("dir created: {}", parent_path);
-            Ok(())
+            Ok(format!("dir created: {}", parent_path))
         }
         Err(_) => {
             error!("Failed to create dir: {}", parent_path);
-            Err(())
+            Err(format!("Failed to create dir: {}", parent_path))
         }
     }
 }
@@ -87,12 +92,14 @@ fn json_parse(str: &str) -> Option<json::JsonValue> {
 /// or parse html data.
 pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
     // current page stype, json value is in span element.
+    // <span id="page_json_str" style="display: none"></span>
     let mut json_value = json_from_dom_span(page_node);
 
     // The script in below may not need since page_upgrade is done in lib.rs.
     // All pages upgraded should have json_value in span element.
 
     // old stype, json value is in scritp element.
+    // <script type="text/javascript" class="page_json">let page_json = {}</script>
     if json_value.is_none() {
         json_value = json_from_dom_script(page_node);
     }
@@ -469,7 +476,9 @@ pub fn page_upgrade(page: &mut super::Page, upres: Option<Rc<RefCell<Upres>>>) {
     return page_upgrade::page_upgrade(page, upres);
 }
 
-pub fn page_upgrade_children(
+// upgrade_and_backup_delete
+
+pub fn page_upgrade_and_delete_children(
     page: &mut super::Page,
     recursive: bool,
     upres: Option<Rc<RefCell<Upres>>>,
@@ -494,17 +503,10 @@ pub fn page_upgrade_children(
         return;
     };
 
-    let subsection_top_json = &subsections_json["0"];
-    if subsection_top_json.is_null() {
-        return;
-    }
-    let children_id_json = match subsection_top_json["child"] {
-        json::JsonValue::Array(ref v) => v,
-        _ => return,
-    };
+    for (_, subsection_json) in subsections_json.iter() {
+        // subsection_json["href"]
+        // info!("href: {}", subsection_json["href"]);
 
-    for id in children_id_json {
-        let subsection_json = &subsections_json[id.to_string().as_str()];
         let Some(href) = subsection_json["href"].as_str() else {
             continue;
         };
@@ -521,8 +523,122 @@ pub fn page_upgrade_children(
             continue;
         };
 
+        // info!("href_url: {}", href_url);
+
         let mut child_page = super::Page::new(&stor_root, href_url.path());
         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
-        child_page.upgrade(recursive, upres_child);
+        // child_page.upgrade(recursive, upres_child);
+        child_page.upgrade_and_backup_delete(recursive, upres_child);
     }
 }
+
+// pub fn page_upgrade_children(
+//     page: &mut super::Page,
+//     recursive: bool,
+//     upres: Option<Rc<RefCell<Upres>>>,
+// ) {
+//     // info!("fn page_upgrade_children");
+
+//     // To avoid
+//     // error[E0499]: cannot borrow `*page` as mutable more than once at a time
+//     // get page_url at here previously
+//     let Ok(page_url) = page_url(page) else {
+//         return;
+//     };
+
+//     let stor_root = page.stor_root().to_string();
+
+//     // let page_json = page.json();
+//     let page_json = page.json_mut();
+//     if page_json.is_none() {
+//         return;
+//     }
+//     let Some(subsections_json) = page_json.unwrap().subsections() else {
+//         return;
+//     };
+
+//     for (_, subsection_json) in subsections_json.iter() {
+//         // subsection_json["href"]
+//         info!("href: {}", subsection_json["href"]);
+
+//         let Some(href) = subsection_json["href"].as_str() else {
+//             continue;
+//         };
+
+//         // href is not to child of the page
+//         let Some((_, is_child)) = href_on(&page_url, href) else {
+//             continue;
+//         };
+//         if !is_child {
+//             continue;
+//         }
+
+//         let Ok(href_url) = page_url.join(href) else {
+//             continue;
+//         };
+
+//         // info!("href_url: {}", href_url);
+
+//         let mut child_page = super::Page::new(&stor_root, href_url.path());
+//         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
+//         child_page.upgrade(recursive, upres_child);
+//     }
+// }
+
+// pub fn page_upgrade_children_(
+//     page: &mut super::Page,
+//     recursive: bool,
+//     upres: Option<Rc<RefCell<Upres>>>,
+// ) {
+//     // info!("fn page_upgrade_children");
+
+//     // To avoid
+//     // error[E0499]: cannot borrow `*page` as mutable more than once at a time
+//     // get page_url at here previously
+//     let Ok(page_url) = page_url(page) else {
+//         return;
+//     };
+
+//     let stor_root = page.stor_root().to_string();
+
+//     // let page_json = page.json();
+//     let page_json = page.json_mut();
+//     if page_json.is_none() {
+//         return;
+//     }
+//     let Some(subsections_json) = page_json.unwrap().subsections() else {
+//         return;
+//     };
+
+//     let subsection_top_json = &subsections_json["0"];
+//     if subsection_top_json.is_null() {
+//         return;
+//     }
+//     let children_id_json = match subsection_top_json["child"] {
+//         json::JsonValue::Array(ref v) => v,
+//         _ => return,
+//     };
+
+//     for id in children_id_json {
+//         let subsection_json = &subsections_json[id.to_string().as_str()];
+//         let Some(href) = subsection_json["href"].as_str() else {
+//             continue;
+//         };
+
+//         // href is not to child of the page
+//         let Some((_, is_child)) = href_on(&page_url, href) else {
+//             continue;
+//         };
+//         if !is_child {
+//             continue;
+//         }
+
+//         let Ok(href_url) = page_url.join(href) else {
+//             continue;
+//         };
+
+//         let mut child_page = super::Page::new(&stor_root, href_url.path());
+//         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
+//         child_page.upgrade(recursive, upres_child);
+//     }
+// }
