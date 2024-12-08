@@ -88,7 +88,7 @@ fn handle_post(
         return Err(format!("Failed to get wc_request: {}", http_request.path()));
     };
 
-    info!("wc_request: {}", wc_request);
+    // info!("wc_request: {}", wc_request);
 
     if wc_request == "json_save" {
         return json_save(http_request, stor_root);
@@ -156,16 +156,11 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     };
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
-        // Ok(_) => r#"{"res":"post_handle page_json_save"}"#.into(),
-        Ok(rev_uped) => {
-            //
-            // let str = r#"{"res":"post_handle page_json_save"}"#;
-            format!(
-                r#"{{"res":"post_handle page_json_save", "rev_uped": {}}}"#,
-                rev_uped
-            )
-            .into()
-        }
+        Ok(rev_uped) => format!(
+            r#"{{"res":"post_handle page_json_save", "rev_uped": {}}}"#,
+            rev_uped
+        )
+        .into(),
         Err(e) => {
             error!("fn json_save: {}", e);
             format!("{{\"res\":\"{}\"}}", e).into()
@@ -181,15 +176,11 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
     Ok(http_ok(&res))
 }
 
-// fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
 fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, String> {
     let mut parent_page = page_post(http_request, stor_root)?;
 
-    // let url = http_request.url().ok_or(())?;
-
     // title: title for new page
     // href: the location of the new page viewing from the parent.
-    // let json_post = http_request.body_json().ok_or(())?;
     let json_post = json_post(http_request)?;
 
     // title
@@ -217,7 +208,6 @@ fn page_new(http_request: &http_request::HttpRequest, stor_root: &str) -> Result
         ));
     };
 
-    // child_page.dir_build()?;
     if child_page.dir_build().is_err() {
         return Err(format!(
             "Failed to create dir for : {}",
@@ -238,7 +228,6 @@ fn handle_href(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, Stri
 }
 
 fn handle_href_temp(http_request: &http_request::HttpRequest) -> Result<Vec<u8>, String> {
-    // let json_post = http_request.body_json().ok_or(())?;
     let json_post = json_post(http_request)?;
 
     // href
@@ -273,8 +262,6 @@ fn handle_page_move(
         .trim();
 
     if dest_url.len() == 0 {
-        // return Err(());
-        // format!(r#"{{"Err":"dest_url is empty"}}"#)
         let msg = r#"{{"Err":"dest_url is empty"}}"#;
         return Ok(http_ok(&msg.as_bytes().to_vec()));
     }

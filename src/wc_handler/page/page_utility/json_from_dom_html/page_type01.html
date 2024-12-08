@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Html Drag & Drop</title>
+<link rel="stylesheet" href="../../stylesheet.css">
+<script type="text/javascript">
+<!--
+
+function dragstart1 (event) {
+  event.dataTransfer.setData("objId", event.target.id);
+}
+function dragstart1_1 (event) {
+  event.dataTransfer.setData("objId", "daa");
+}
+function dragover1 (event) {
+  event.preventDefault();
+}
+function drop1 (event) {
+  var objId = event.dataTransfer.getData("objId");
+  var ele = document.getElementById(objId);
+  event.currentTarget.appendChild(ele);
+  event.preventDefault();
+}
+function drop2 (event) {
+  var objId = event.dataTransfer.getData("objId");
+  var ele = document.getElementById(objId);
+  //event.currentTarget.appendChild(ele);
+  var tgtEle = event.currentTarget;
+  tgtEle.parentNode.insertBefore(ele, tgtEle);
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+//-->
+</script>
+
+<style type="text/css">
+.ddbox {
+ padding: 3px;
+  border: double 3px black;
+  -khtml-user-drag: element;
+}
+.ddele {
+  -khtml-user-drag: element;
+}
+
+[draggable="true"] {
+
+text-decoration: underline;
+}
+</style>
+
+</head>
+<body>
+<a name="top"></a>
+<div>
+<a href="../../WC_top.html">Top</a>
+&nbsp;&gt;&nbsp;
+<a href="../computing_index.html">Computing</a>
+&nbsp;&gt;&nbsp;
+<a href="./html_index.html">HTML</a>
+&nbsp;&gt;&nbsp;
+Drag & Drop
+</div>
+
+<ul>
+<li><a href="#dragable">ドラッグ可能オブジェクト</a></li>
+<li><a href="#"></a></li>
+</ul>
+
+<div class="subsection">
+<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+<a name="dragable"></a>
+<div class="subsectionTitle">
+ドラッグ可能オブジェクト
+</div>
+
+<div class="subsectionBody">
+項目1の内容<br>
+
+<textarea class="scriptSample" readonly style="height: 3em;">
+<div draggable="true">ドラッグ可能</div>
+<div draggable="false">ドラッグ不可</div>
+</textarea><br>
+
+<div class="ddbox" ondragover="dragover1(event)" ondrop="drop1(event)">
+.
+<span id="a" draggable="true" ondragstart="dragstart1(event)">A</span>
+<span id="b" draggable="true" ondragstart="dragstart1(event)">B</span>
+<span id="c" draggable="true" ondragstart="dragstart1(event)">C</span>
+</div>
+
+<span id="a2" draggable="true" ondragstart="dragstart1_1(event)">A</span>
+<br>
+<input draggable="true" ondragstart="dragstart1_1(event)" value="Atai1">
+<br>
+<span id="d" draggable="false">D</span>
+
+
+</div> <!-- end of subsectionBody -->
+</div> <!-- end of subsection -->
+
+<div class="subsection">
+<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+<a name="subsection1"></a>
+<div class="subsectionTitle">
+項目1
+</div>
+<div class="subsectionBody">
+項目1の内容<br>
+<textarea class="scriptSample" readonly style="height: 3em;">
+<sample>Sample Desu</sample>
+</textarea><br>
+</div> <!-- end of subsectionBody -->
+</div> <!-- end of subsection -->
+
+<a href="javascript:history.back();">back</a> <a href="#top">Top</a>
+</body>
+</html>

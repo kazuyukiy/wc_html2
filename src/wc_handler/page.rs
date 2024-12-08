@@ -4,18 +4,21 @@ use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
 use std::cell::RefCell;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug,
+use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug , warn,// ;
+                            // pub mod page_backup_delete;
 pub mod page_json;
 pub mod page_utility;
 
-/// path: the path of the page.
+/// path: the path of the page. ie: ./stor_root/page_path
 /// source: None: not tried to read, Some(None): Tried to read with faile,
 /// Some(Some(v)) : Tried to read and get the source.
 ///
 pub struct Page {
     stor_root: String,
     page_path: String,
+    path: PathBuf,
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
     json: Option<Option<page_json::PageJson>>,
@@ -26,9 +29,13 @@ impl Page {
     /// It is used for further creation of 'Page'
     /// page_path should start with "/" eg: "/Computing/computing.html".
     pub fn new(stor_root: &str, page_path: &str) -> Page {
+        let path = String::from(stor_root) + page_path;
+        let path = PathBuf::from(path);
+
         Page {
             stor_root: String::from(stor_root),
             page_path: String::from(page_path),
+            path,
             source: None,
             dom: None,
             json: None,
@@ -41,6 +48,14 @@ impl Page {
 
     pub fn page_path(&self) -> &str {
         self.page_path.as_str()
+    }
+
+    // pub fn page_path2(&self) -> Option<&str> {
+    //     self.path.to_str()
+    // }
+
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
     pub fn file_path(&self) -> String {
@@ -70,35 +85,11 @@ impl Page {
     }
 
     // Create dirs saving this file.
-    pub fn dir_build(&self) -> Result<(), ()> {
-        // file_path : abc/def/ghi.html (Contains a file name.)
-        let file_path = self.file_path();
-        let path = std::path::Path::new(&file_path);
-        // parent: abc/def (remain only directory path.)
-        let parent = path.parent().ok_or(())?;
-
-        // This count() counts depth of directory.
-        // Consider how avoid too match deep directorys making.
-
-        // Already exists.
-        if let Ok(true) = parent.try_exists() {
-            return Ok(());
-        }
-
-        let parent_path = parent.to_str().ok_or(())?;
-        match std::fs::DirBuilder::new()
-            .recursive(true)
-            .create(parent_path)
-        {
-            Ok(_) => {
-                info!("dir created: {}", parent_path);
-                Ok(())
-            }
-            Err(_) => {
-                error!("Failed to create dir: {}", parent_path);
-                Err(())
-            }
-        }
+    // pub fn dir_build(&self) -> Result<(), ()> {
+    pub fn dir_build(&self) -> Result<String, String> {
+        let recursive = true;
+        page_utility::dir_build(self.path.as_path(), recursive)
+        // return page_utility::dir_build(self.path.as_path(), recursive);
     }
 
     pub fn source(&mut self) -> Option<&Vec<u8>> {
@@ -167,6 +158,15 @@ impl Page {
         self.json.as_ref().unwrap().as_ref()
     }
 
+    fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
+        if self.json.is_none() {
+            if let Err(_) = self.json_parse() {
+                return None;
+            }
+        }
+        self.json.as_mut().unwrap().as_mut()
+    }
+
     ///
     pub fn json_value(&mut self) -> Option<&json::JsonValue> {
         self.json().and_then(|page_json| page_json.value())
@@ -193,8 +193,11 @@ impl Page {
 
     /// Save self.source data to the file.
     pub fn file_save(&mut self) -> Result<String, String> {
+        // DBG
+        // warn!("pub fn file_save returning Err in DBG");
+        // return Err("".into());
+
         let file_path = &self.file_path();
-        // let source = self.source().ok_or(())?;
         let source = match self.source() {
             Some(v) => v,
             None => return Err(format!("Failed to get source: {}", &self.file_path())),
@@ -202,13 +205,43 @@ impl Page {
         page_utility::fs_write(file_path, source)
     }
 
+    pub fn rev(&mut self) -> Result<usize, ()> {
+        let page_json = self.json().ok_or(())?;
+        // let rev = page_json.rev().ok_or(())?;
+        let rev = match page_json.rev() {
+            Some(v) => v,
+            None => {
+                error!("Failed to get rev on {}", self.file_path());
+                return Err(());
+            }
+        };
+        Ok(rev)
+    }
+
     fn path_rev(&mut self) -> Result<String, ()> {
         let page_json = self.json().ok_or(())?;
-        let rev = page_json
-            .rev()
-            .and_then(|v| Some(v.to_string()))
-            .ok_or(())?;
-        Ok(self.file_path() + "." + &rev)
+        let rev = page_json.rev().ok_or(())?;
+        // Ok(self.path_rev_form(rev))
+
+        let path_rev = self.path_rev_form(rev);
+        match path_rev.to_str() {
+            Some(v) => Ok(v.to_string()),
+            None => Err(()),
+        }
+        // or(Some("")).unwrap().to_string();
+
+        //
+        // Ok(self.path_rev_form(rev))
+    }
+
+    /// This function takes rev in arguments, not consering with self.json.rev().
+    /// This is only for a path format with rev numaber.
+    /// ./stor_root/page_path.html + "." + rev_no
+    // pub fn path_rev_form(&self, rev: usize) -> String {
+    pub fn path_rev_form(&self, rev: usize) -> PathBuf {
+        // self.file_path() + "." + rev.to_string().as_str()
+        let path = self.file_path() + "." + rev.to_string().as_str();
+        PathBuf::from(path)
     }
 
     /// Save self.source value to self.path_rev().
@@ -228,7 +261,20 @@ impl Page {
         page_utility::fs_write(&path_rev, source)
     }
 
+    pub fn file_backup_delete(&mut self) {
+        page_utility::page_backup_delete::backup_delete(self);
+    }
+
+    /// Save the file and its backup file wit rev suffix.
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
+        // DBG
+        // let dbg = true;
+        // // let dbg = false;
+        // if dbg {
+        //     warn!("DBG skipping file_save_and_rev");
+        //     return Ok(());
+        // }
+
         let mut saved = true;
 
         if let Err(emsg) = self.file_save() {
@@ -241,6 +287,7 @@ impl Page {
             Ok(v) => info!("Saved: {}", v),
             Err(e) => error!("{}", e),
             // comment out as intended because file_save_rev is for backup
+            // Dicide result on self.file_save()
             // saved = false;
         }
 
@@ -252,19 +299,37 @@ impl Page {
     }
 
     pub fn json_subsections_data_exists(&mut self) -> bool {
-        self.json()
+        self.json_mut()
             .is_some_and(|page_json| page_json.subsections_data_exists())
     }
 
-    /// Upgrade the page of url, not self.
-    pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
+    pub fn upgrade_and_backup_delete(
+        &mut self,
+        recursive: bool,
+        upres: Option<Rc<RefCell<Upres>>>,
+    ) {
         let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
         page_utility::page_upgrade(self, upres2);
 
+        self.file_backup_delete();
+
         if recursive {
-            page_utility::page_upgrade_children(self, recursive, upres);
+            // page_utility::page_upgrade_children(self, recursive, upres);
+            page_utility::page_upgrade_and_delete_children(self, recursive, upres);
         }
     }
+
+    /// Upgrade the page of url, not self.
+    // pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
+    //     let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
+    //     page_utility::page_upgrade(self, upres2);
+
+    //     // self.file_backup_delete();
+
+    //     if recursive {
+    //         page_utility::page_upgrade_children(self, recursive, upres);
+    //     }
+    // }
 
     /// Move this page to dest_url as a child of parent_url.
     /// parent_url is an optional. If it is None, this page is a top page.

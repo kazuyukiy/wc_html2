@@ -61,12 +61,13 @@ fn page_html_static_set(
     // <div id="page_top_node">
     let top_node = dom_utility::div_page_top_new();
 
-    let title_text = dom_utility::node_text("static page");
-    top_node.children.borrow_mut().push(title_text);
-
     // navi
     let navi_node = navi(page_json)?;
     top_node.children.borrow_mut().push(navi_node);
+
+    // static stamp
+    let title_text = dom_utility::node_text("static page");
+    top_node.children.borrow_mut().push(title_text);
 
     // index
     let index_node = index(page_json)?;
@@ -139,15 +140,6 @@ fn style_link_relative_set(page_dom: &RcDom, page_path: &str) {
             break;
         }
     }
-
-    // DBG monitor
-    // let Ok(link_u8) = super::dom_serialize(page_dom.document.clone()) else {
-    //     return;
-    // };
-    // let Ok(link_str) = std::str::from_utf8(&link_u8) else {
-    //     return;
-    // };
-    // info!("style_link: {}", link_str);
 }
 
 fn navi(page_json: &json::JsonValue) -> Result<Rc<Node>, String> {
@@ -297,7 +289,7 @@ fn subsections(
     subsections_node.children.borrow_mut().push(navi_back());
     let subsection_children_i = subsection_children_indexes(subsections_json, &parent_index_key)?;
     for child_i in subsection_children_i.iter() {
-        subsection(subsections_json, &subsections_node, parent_handled, child_i)?;
+        let _ = subsection(subsections_json, &subsections_node, parent_handled, child_i);
     }
 
     Ok(())
@@ -312,15 +304,13 @@ fn subsection(
 ) -> Result<(), String> {
     let subsection_json = &subsections_json[id.to_string().as_str()];
 
-    // href not starts with #
-    if !subsection_start_with_sharp(subsection_json, id)? {
-        return Ok(());
-    }
-
-    // top element and id
-    let id_str = id.to_string();
-    let attrs = &vec![("id", id_str.as_str())];
-    let subsection_node = dom_utility::node_element("div", attrs);
+    let subsection_node = match subsection_node_new(subsection_json) {
+        Ok(v) => v,
+        Err(e) => {
+            // error!("{}", e);
+            return Err(e);
+        }
+    };
 
     // title
     let attrs = &vec![("class", "subsectionTitle")];
@@ -361,22 +351,28 @@ fn subsection(
     return Ok(());
 }
 
-fn subsection_start_with_sharp(
-    subsection_json: &json::JsonValue,
-    id: &usize,
-) -> Result<bool, String> {
-    let href = subsection_json["href"].as_str();
-    if href.is_none() {
-        return Err(format!("Failed to get href on id: {}", id));
+/// Create subsection_node <div id="href_value">
+/// If href is not appropriate, return <div class="id_undefined">
+fn subsection_node_new(subsection_json: &json::JsonValue) -> Result<Rc<Node>, String> {
+    let Some(href) = subsection_json["href"].as_str() else {
+        return Err("Failed to get href".to_string());
+    };
+
+    if !href.starts_with("#") {
+        return Err("href not start with #".to_string());
     }
 
-    let href = href.unwrap();
+    let Some(href) = href.get(1..) else {
+        return Err("Failed to remove #".to_string());
+    };
 
-    if href.starts_with("#") {
-        return Ok(true);
-    }
-
-    Ok(false)
+    Ok(if href.len() == 0 {
+        let attrs = &vec![("class", "id_undefined")];
+        dom_utility::node_element("div", attrs)
+    } else {
+        let attrs = &vec![("id", href)];
+        dom_utility::node_element("div", attrs)
+    })
 }
 
 fn content(content_json: &json::JsonValue) -> Result<Rc<Node>, String> {

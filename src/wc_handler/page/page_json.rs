@@ -1,5 +1,5 @@
 use std::str::FromStr;
-// use tracing::info;
+use tracing::error;
 // {error, event, info, instrument, span, Level, Node}
 
 pub struct PageJson {
@@ -36,34 +36,20 @@ impl PageJson {
     }
 
     pub fn rev(&self) -> Option<usize> {
-        // case rev=10: Number(Number { category: 1, exponent: 0, mantissa: 10 })
-        if let Ok(rev) = to_usize(&self.value()?["data"]["page"]["rev"]) {
-            return Some(rev);
-        }
-
-        // case: rev="12" ( with "" )
-        match self.value()?["data"]["page"]["rev"] {
-            json::JsonValue::Short(short) => {
-                let rev = short.as_str();
-                match usize::from_str(rev) {
-                    // Ok(v) => Some(v),
-                    Ok(v) => return Some(v),
-                    Err(_) => {
-                        eprintln!("Failed to get rev");
-                        return None;
-                    }
-                }
+        match to_usize(&self.value()?["data"]["page"]["rev"]) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                error!("rev: {}", e);
+                None
             }
-            _ => None::<usize>,
-        };
-
-        None
+        }
     }
 
     // rev counted up from current rev
     pub fn rev_uped(&self) -> Option<usize> {
         let rev = self.rev()?;
-        Some(rev + 1)
+        // Some(rev + 1)
+        rev.checked_add(1)
     }
 
     pub fn subsection_id_next(&self) -> Option<usize> {
@@ -82,32 +68,34 @@ impl PageJson {
     }
 
     pub fn subsection_new(&mut self, parent_id: &usize) -> Option<Subsection> {
-        let parent_id_str = parent_id.to_string();
+        let parent_id_string = parent_id.to_string();
+        let parent_id_str = parent_id_string.as_str();
 
         // get id hrer before self is borrowed as mutable.
         let id = self.subsection_id_new()?;
-        let id_str = id.to_string();
+        let id_string = id.to_string();
+        let id_str = id_string.as_str();
 
         let subsections = self.subsections_mut()?;
 
         // subsection for paren_id must exists.
-        if subsections[parent_id_str.as_str()].is_null() {
+        if subsections[parent_id_str].is_null() {
             return None;
         }
 
         // already exists
-        if !subsections[id_str.as_str()].is_null() {
+        if !subsections[id_str].is_null() {
             return None;
         }
 
-        subsections[id_str.as_str()] = json::object! {
+        subsections[id_str] = json::object! {
             "parent_id" : *parent_id,
             "id":  id,
         };
 
         // Set new subsection's id to parent subsection
         {
-            let parent = &mut subsections[parent_id_str.as_str()];
+            let parent = &mut subsections[parent_id_str];
             let _ = parent["child"].push(id);
         }
 
@@ -118,9 +106,6 @@ impl PageJson {
     }
 
     pub fn subsection_by_name(&mut self, href_arg: &str) -> Option<Subsection> {
-        // DBG
-        // info!("fn subsection_by_name");
-
         let subsections = self.subsections()?;
 
         // Search subsection that has the href_arg value.
@@ -150,10 +135,12 @@ impl PageJson {
         None
     }
 
-    pub fn subsections(&self) -> Option<&json::object::Object> {
-        let value = self.value()?;
+    pub fn subsections(&mut self) -> Option<&json::object::Object> {
+        // let value = self.value()?;
+        let value = self.value_mut()?;
         if value["data"]["subsection"]["data"].is_empty() {
-            return None;
+            value["data"]["subsection"]["data"] = json::array! {};
+            // return None;
         }
         match value["data"]["subsection"]["data"] {
             json::JsonValue::Object(ref object) => Some(object),
@@ -172,11 +159,11 @@ impl PageJson {
         }
     }
 
-    pub fn subsections_data_exists(&self) -> bool {
+    // pub fn subsections_data_exists(&self) -> bool {
+    pub fn subsections_data_exists(&mut self) -> bool {
         self.subsections()
             .and_then(|subsections| {
                 // value["data"]["subsection"]["data"][0] is not real content.
-                // if 1 < subsections["data"].len() {
                 if 1 < subsections.len() {
                     Some(subsections) // true for is_some()
                 } else {
@@ -199,20 +186,24 @@ impl PageJson {
     }
 }
 
-fn to_usize(v: &json::JsonValue) -> Result<usize, String> {
-    match v {
-        json::JsonValue::Number(number) => {
-            match <json::number::Number as TryInto<usize>>::try_into(*number) {
-                Ok(num) => return Ok(num),
-                Err(_) => {
-                    return Err("Failed to convert to usize.".to_string());
-                }
-            };
-        }
-        _ => {
-            return Err("It is not number".to_string());
+pub fn to_usize(v: &json::JsonValue) -> Result<usize, String> {
+    // case v = 10; Number(Number { category: 1, exponent: 0, mantissa: 10 }
+    if let json::JsonValue::Number(number) = v {
+        // v can be usize
+        if let Ok(num) = <json::number::Number as TryInto<usize>>::try_into(*number) {
+            return Ok(num);
         }
     }
+
+    // case: r = "12"; ( string with "" )
+    if let json::JsonValue::Short(short) = v {
+        let rev = short.as_str();
+        if let Ok(v) = usize::from_str(rev) {
+            return Ok(v);
+        }
+    }
+
+    Err("Failed to get value in usize.".to_string())
 }
 
 pub struct Subsection<'a> {

@@ -5,38 +5,70 @@ use tracing::{error, info};
 // {event, info, instrument, span, Level, Node, error, }
 use super::wc_handler::page::{self, Page};
 
-pub fn pages_upgrade_handle(stor_root: &str) {
+pub fn pages_upgrade_handle_and_backup_delete(stor_root: &str, page_top_path: &str) {
     let upres = Upres {
         already: vec![],
         upgraded: vec![],
         failed: vec![],
         handled: HashSet::new(),
     };
+
     let upres = Rc::new(RefCell::new(upres));
 
     // upgrade this page and its children as recursive option is ture.
-    let mut page_top = page_top(stor_root);
-    page_top.upgrade(true, Some(Rc::clone(&upres)));
+    let mut page_top = page_top(stor_root, page_top_path);
+    // page_top.upgrade(true, Some(Rc::clone(&upres)));
+    page_top.upgrade_and_backup_delete(true, Some(Rc::clone(&upres)));
 
     tracing_page_save(&mut page_top, Rc::clone(&upres));
 }
 
 /// Return top page.
 /// If not exists, create top page.
-fn page_top(stor_root: &str) -> Page {
-    let page_path = "/wc_top.html";
+fn page_top(stor_root: &str, page_top_path: &str) -> Page {
+    // let page_path = "/wc_top.html";
 
+    // DBG
     // let page_path = "/Computing/Html/html_basic.html";
     // let page_path = "/Computing/computing_iroiro.html";
     // let page_path = "/Computing/computing_index.html";
+    // let page_path = "/Computing/windows/windows10/windows10openssh.html";
+    // let page_path = "/Computing/Linux/Package/Yum/linux_yum_index.html";
+    // let page_path = "/Computing/Language/computer_language_index.html";
+    // let page_path = "/pages/Computing/Windows/windows10/windows10openssh.html";
 
-    let mut page = Page::new(stor_root, page_path);
+    let mut page = Page::new(stor_root, page_top_path);
     // Already exists.
     if page.source().is_some() {
         return page;
     }
 
-    // Create a new page Wc_top.html
+    page_top_new(stor_root, page_top_path)
+
+    // // Create a new page Wc_top.html
+    // let title = "Top";
+
+    // // json plain
+    // let mut page_json = page::page_json::page_json_plain();
+
+    // // title
+    // page_json["data"]["page"]["title"] = title.into();
+
+    // // navi
+    // let mut navi = json::JsonValue::Array(vec![]);
+    // let navi_top: Vec<json::JsonValue> = vec![title.into(), "".into()];
+
+    // let _ = navi.push(json::JsonValue::Array(navi_top));
+    // page_json["data"]["navi"] = navi;
+
+    // let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
+    // let _ = page.file_save_and_rev();
+
+    // page
+}
+
+/// Create a new page Wc_top.html
+fn page_top_new(stor_root: &str, page_top_path: &str) -> Page {
     let title = "Top";
 
     // json plain
@@ -52,7 +84,7 @@ fn page_top(stor_root: &str) -> Page {
     let _ = navi.push(json::JsonValue::Array(navi_top));
     page_json["data"]["navi"] = navi;
 
-    let mut page = page::page_utility::page_from_json(stor_root, page_path, &page_json);
+    let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
     let _ = page.file_save_and_rev();
 
     page
