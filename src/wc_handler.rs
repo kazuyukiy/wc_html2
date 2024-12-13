@@ -106,6 +106,10 @@ fn handle_post(
         return handle_page_move(http_request, stor_root);
     }
 
+    if wc_request == "page_mainte" {
+        return handle_page_mainte(http_request, stor_root);
+    }
+
     // temp
     Ok(http_hello())
 }
@@ -291,6 +295,48 @@ fn handle_page_move(
         Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
     };
 
+    info!("{}", res);
+
+    Ok(http_ok(&res.as_bytes().to_vec()))
+}
+
+fn handle_page_mainte(
+    http_request: &http_request::HttpRequest,
+    stor_root: &str,
+) -> Result<Vec<u8>, String> {
+    //
+
+    let json_post = json_post(http_request)?;
+    let mainte_url = json_post["mainte_url"]
+        .as_str()
+        .ok_or(format!("Faild to get mainte_url: {}", http_request.path()))?
+        .trim();
+
+    let mut page = page_post(http_request, stor_root)?;
+    let page_url = http_request
+        .url()
+        .ok_or(format!("Failed to get url: {}", http_request.path()))?;
+
+    let mainte_url = page_url.join(mainte_url).or(Err(format!(
+        "Failed to join maintePurl: {}",
+        http_request.path()
+    )))?;
+
+    let mut mainte_page = page::Page::new(stor_root, mainte_url.path());
+
+    let recursive = true;
+    let upres = None;
+    mainte_page.mainte(recursive, upres);
+
+    // info!("mainte_url: {}", mainte_url);
+
+    // let res = match page.page_move(page_url, dest_url, parent_url) {
+    //     Ok(_) => format!(r#"{{"res":"maintained"}}"#),
+    //     Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
+    // };
+
+    // temp
+    let res = format!(r#"{{"res":"maintained"}}"#);
     info!("{}", res);
 
     Ok(http_ok(&res.as_bytes().to_vec()))

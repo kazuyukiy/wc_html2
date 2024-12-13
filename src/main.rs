@@ -10,7 +10,7 @@ fn main() {
     // info!("hooll");
 
     let addr = "127.0.0.1:8080";
-    // let addr = "127.0.0.1:3000";
+    let addr = "127.0.0.1:3000";
     let page_root_path = "./pages";
 
     // DBG

@@ -9,11 +9,13 @@ use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
 mod dom_utility;
 mod json_from_dom_html;
 pub mod page_dom_from_json;
+// mod page_form_update;
 mod page_move;
 mod page_upgrade;
 pub use super::page_json;
 pub use page_move::page_move;
 pub mod page_backup_delete;
+pub mod page_mainte;
 
 pub fn file_path(stor_root: &str, page_path: &str) -> String {
     // String + "." + &str
@@ -469,6 +471,14 @@ fn href_on(base_url: &url::Url, org_href: &str) -> Option<(String, bool)> {
     }
 
     Some((href, is_not_child))
+}
+
+fn page_mainte(
+    page: &mut super::Page,
+    recursive: bool,
+    log: Option<Rc<RefCell<page_mainte::page_form_update::Log>>>,
+) {
+    page_mainte::page_mainte(page, recursive, log)
 }
 
 /// Upgrade old page type.

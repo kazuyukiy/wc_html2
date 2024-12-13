@@ -22,6 +22,7 @@ pub struct Page {
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
     json: Option<Option<page_json::PageJson>>,
+    json_muted: bool,
 }
 
 impl Page {
@@ -39,6 +40,7 @@ impl Page {
             source: None,
             dom: None,
             json: None,
+            json_muted: false,
         }
     }
 
@@ -159,11 +161,12 @@ impl Page {
     }
 
     fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
-        if self.json.is_none() {
-            if let Err(_) = self.json_parse() {
-                return None;
-            }
-        }
+        // if self.json.is_none() {
+        //     if let Err(_) = self.json_parse() {
+        //         return None;
+        //     }
+        // }
+        let _ = self.json()?;
         self.json.as_mut().unwrap().as_mut()
     }
 
@@ -174,20 +177,50 @@ impl Page {
 
     /// Updata the page with json_data2
     /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
-    /// Return Ok(rev_uped), new rev number
+    /// json_data2["data"]["page"]["rev"] will be replaced with page_json.rev_plus_one()
+    /// Return Ok(rev_plus_one), new rev number
     pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<usize, String> {
         page_utility::json_rev_match(self, &json_data2)?;
 
-        // Updata rev no.
-        let page_json = self.json().ok_or("Failed to get page_json.")?;
-        let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
-        json_data2["data"]["page"]["rev"] = rev_uped.into();
+        // DBG
+        info!(
+            "json_replace_save rev arg: {}",
+            json_data2["data"]["page"]["rev"]
+        );
 
         let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
 
+        // DBG
+        let json_value = page2.json_value().ok_or("Failed to get json_value.")?;
+        info!(
+            "json_replace_save rev page2(arg): {}",
+            json_value["data"]["page"]["rev"]
+        );
+
+        page2.rev_replace_one_up()?;
+
+        // DBG
+        let json_value = page2.json_value().ok_or("Failed to get json_value.")?;
+        info!(
+            "json_replace_save rev page2(one_up): {}",
+            json_value["data"]["page"]["rev"]
+        );
+
+        // // Updata rev no.
+        // page_json
+        //     .rev_replace_one_up()
+        //     .or(Err("Failed to repace rev one up."))?;
+
+        // let rev_plus_one = page_json.rev().ok_or("Failed to get rev one uped")?;
+
+        // let rev_plus_one = page2.rev()?;
+        let rev_plus_one = page2
+            .rev()
+            .or(Err(format!("Failed to get rev on :{}", &page2.file_path())))?;
+
         page2
             .file_save_and_rev()
-            .and(Ok(rev_uped))
+            .and(Ok(rev_plus_one))
             .or(Err(format!("Failed to save json of  {}", &self.page_path)))
     }
 
@@ -216,6 +249,13 @@ impl Page {
             }
         };
         Ok(rev)
+    }
+
+    fn rev_replace_one_up(&mut self) -> Result<(), String> {
+        let page_json = self.json_mut().ok_or("Failed to get page_json.")?;
+        page_json
+            .rev_replace_one_up()
+            .or(Err("Failed to repace rev one up.".to_string()))
     }
 
     fn path_rev(&mut self) -> Result<String, ()> {
@@ -275,6 +315,13 @@ impl Page {
         //     return Ok(());
         // }
 
+        // DBG
+        let json_value = self.json_value().ok_or(())?;
+        info!(
+            "file_save_and_rev rev: {}",
+            json_value["data"]["page"]["rev"]
+        );
+
         let mut saved = true;
 
         if let Err(emsg) = self.file_save() {
@@ -301,6 +348,15 @@ impl Page {
     pub fn json_subsections_data_exists(&mut self) -> bool {
         self.json_mut()
             .is_some_and(|page_json| page_json.subsections_data_exists())
+    }
+
+    pub fn mainte(
+        &mut self,
+        recursive: bool,
+        log: Option<Rc<RefCell<page_utility::page_mainte::page_form_update::Log>>>,
+    ) {
+        // page_utility::
+        page_utility::page_mainte::page_mainte(self, recursive, log);
     }
 
     pub fn upgrade_and_backup_delete(

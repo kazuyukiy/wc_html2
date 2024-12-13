@@ -3,6 +3,7 @@ use std::io::Write;
 use std::net::TcpListener;
 use std::net::TcpStream;
 // use tracing::{info, info_span}; //  event, instrument, span, Level debug,
+use tracing::warn; //  event, instrument, span, Level debug,
 mod js_css;
 mod page_upgrade_handle;
 mod thread_pool;
@@ -37,20 +38,26 @@ pub fn wc_note(addr: &str, stor_root: &str, page_top_path: &str, capa: usize) ->
     js_css::setup();
 
     // page type upgrade
-    // let stor_root2 = stor_root.to_string();
-    let stor_root_string = stor_root.to_string();
-    let page_top_string = page_top_path.to_string();
-    let upgrade_handle = std::thread::spawn(|| {
-        // let stor_root2 = stor_root2;
-        // move
-        let stor_root_string = stor_root_string;
-        let page_top_string = page_top_string;
-        // page_upgrade_handle::pages_upgrade_handle(&stor_root2);
-        page_upgrade_handle::pages_upgrade_handle_and_backup_delete(
-            &stor_root_string,
-            &page_top_string,
-        );
-    });
+    // DBG
+    let dbg = true;
+
+    if dbg {
+    } else {
+        // let stor_root2 = stor_root.to_string();
+        let stor_root_string = stor_root.to_string();
+        let page_top_string = page_top_path.to_string();
+        let upgrade_handle = std::thread::spawn(|| {
+            // let stor_root2 = stor_root2;
+            // move
+            let stor_root_string = stor_root_string;
+            let page_top_string = page_top_string;
+            // page_upgrade_handle::pages_upgrade_handle(&stor_root2);
+            page_upgrade_handle::pages_upgrade_handle_and_backup_delete(
+                &stor_root_string,
+                &page_top_string,
+            );
+        });
+    }
 
     let listener = match TcpListener::bind(addr) {
         Ok(v) => v,
@@ -78,7 +85,10 @@ pub fn wc_note(addr: &str, stor_root: &str, page_top_path: &str, capa: usize) ->
 
     // wondering this join() needed.
     // Handling listener does not wait end of upgrade_handles
-    upgrade_handle.join().unwrap();
+
+    //
+    warn!("DBG comment out upgrade_handle.join().unwrap()");
+    // upgrade_handle.join().unwrap();
 
     // Ok(listener)
     Ok(())

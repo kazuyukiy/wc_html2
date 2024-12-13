@@ -46,10 +46,21 @@ impl PageJson {
     }
 
     // rev counted up from current rev
-    pub fn rev_uped(&self) -> Option<usize> {
+
+    /// Return a value adding one to rev
+    // pub fn rev_uped(&self) -> Option<usize> {
+    pub fn rev_plus_one(&self) -> Option<usize> {
         let rev = self.rev()?;
         // Some(rev + 1)
         rev.checked_add(1)
+    }
+
+    /// Replace rev (json_value["data"]["page"]["rev"]) with fn rev_plus_one() (one up).
+    pub fn rev_replace_one_up(&mut self) -> Result<(), ()> {
+        let rev_one_up = self.rev_plus_one().ok_or(())?;
+        let json_value = self.value_mut().ok_or(())?;
+        json_value["data"]["page"]["rev"] = rev_one_up.into();
+        Ok(())
     }
 
     pub fn subsection_id_next(&self) -> Option<usize> {
