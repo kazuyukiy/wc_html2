@@ -1,5 +1,6 @@
-use super::page_from_json;
+// use super::page_from_json;
 use super::page_json;
+use super::Page;
 use std::collections::HashMap;
 use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
 
@@ -11,10 +12,10 @@ pub fn page_move(
     dest_url: url::Url,
     dest_parent_url: Option<&url::Url>,
 ) -> Result<(), String> {
-    let mut org_page = super::Page::new(stor_root, org_url.path());
+    let mut org_page = Page::new(stor_root, org_url.path());
 
     let mut dest_parent_page = dest_parent_url.and_then(|url| {
-        let dest_parent_page = super::Page::new(stor_root, url.path());
+        let dest_parent_page = Page::new(stor_root, url.path());
         Some(dest_parent_page)
     });
 
@@ -156,12 +157,12 @@ fn page_move_json(
 
 /// Return Err if page in dest_url has subsection data.
 fn page_move_dest_already_data(
-    // a_page: &mut super::Page,
+    // a_page: &mut Page,
     stor_root: &str,
     dest_url: &url::Url,
 ) -> Result<(), String> {
     // Return Err if dest_page already exists, except no data in the page.
-    let mut dest_page = super::Page::new(stor_root, dest_url.path());
+    let mut dest_page = Page::new(stor_root, dest_url.path());
     // Case the page already has subsection data, abort moving.
     // It consider if no subsecitons data, it can be over written.
     if dest_page.json_subsections_data_exists() {
@@ -349,7 +350,7 @@ fn page_move_children_prepare(
         Err(_) => return Err(format!("Failed to get url for : {}", child_org_href)),
     };
 
-    let mut child_org_page = super::Page::new(stor_root, child_org_url.path());
+    let mut child_org_page = Page::new(stor_root, child_org_url.path());
 
     // If child_prg_page does not exists, child_org_page.json returns None
     let child_org_json = match child_org_page
@@ -421,7 +422,7 @@ fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
                 continue;
             }
         };
-        let mut dest_page = page_from_json(stor_root, dest_url.path(), dest_json);
+        let mut dest_page = Page::from_json(stor_root, dest_url.path(), dest_json);
         if dest_page.dir_build().is_err() {
             continue;
         }
@@ -452,13 +453,13 @@ fn page_org_page_moved(
     stor_root: &str,
     org_path: &str,
     page_moving: &PageMoving,
-) -> Result<(super::Page, json::JsonValue), String> {
+) -> Result<(Page, json::JsonValue), String> {
     let (org_url, dest_url, _dest_json) = match page_moving.get(org_path) {
         Some(v) => v,
         None => return Err(format!("No page2Moving for {}", org_path)),
     };
 
-    let mut org_page = super::Page::new(stor_root, org_url.path());
+    let mut org_page = Page::new(stor_root, org_url.path());
     let org_json = org_page
         .json_value()
         .ok_or(format!("Failed to get page_json.data of {}", org_url))?;

@@ -103,48 +103,6 @@ fn delete_html_dot_rev_s(
         if let Ok(()) = delete_html_dot_rev(page, rev_app, days_keep, dir_gabage) {
             moved_rev.push(rev_app);
         };
-
-        // let path_rev = page.path_rev_form(rev_app);
-
-        // // this is_file() filter avoids error message at duration_modified_days call later.
-        // if !path_rev.is_file() {
-        //     break;
-        // }
-
-        // let modified_days = match duration_modified_days(&path_rev) {
-        //     Ok(v) => v,
-        //     Err(e) => {
-        //         error!("Failed to get duration days: {} on {:?}", e, path_rev);
-        //         // continue;
-        //         break;
-        //     }
-        // };
-
-        // // info!("{:?}: {}", path_rev, modified_days);
-
-        // if modified_days < days_keep {
-        //     info!("Less than days_keep ({})", days_keep);
-        //     break;
-        // }
-
-        // // file;
-        // // dir_gabage;
-
-        // let Some(filename_rev) = path_rev.file_name() else {
-        //     break;
-        // };
-        // let path_gabage = dir_gabage.join(filename_rev);
-
-        // // info!("move {:?} to {:?}", &path_rev, path_gabage);
-
-        // // info!("path_gabage: {:?}", path_gabage);
-
-        // // if let Err(e) = std::fs::rename(&path_rev, &path_gabage) {
-        // if let Err(e) = rename(&path_rev, &path_gabage) {
-        //     error!("{} on {:?}", e, &path_rev);
-        // } else {
-        //     moved_rev.push(rev_app);
-        // }
     }
 
     info!(

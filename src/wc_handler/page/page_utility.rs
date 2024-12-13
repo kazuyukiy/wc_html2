@@ -215,19 +215,19 @@ fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error>
     Ok(page_bytes)
 }
 
-/// Create `super::Page` from json.
-pub fn page_from_json(
-    stor_root: &str,
-    page_path: &str,
-    page_json: &json::JsonValue,
-) -> super::Page {
-    let source = source_from_json(page_path, page_json); // bytes
+// /// Create `super::Page` from json.
+// pub fn page_from_json2(
+//     stor_root: &str,
+//     page_path: &str,
+//     page_json: &json::JsonValue,
+// ) -> super::Page {
+//     let source = source_from_json(page_path, page_json); // bytes
 
-    let mut page = super::Page::new(stor_root, page_path);
-    page.source.replace(Some(source));
+//     let mut page = super::Page::new(stor_root, page_path);
+//     page.source.replace(Some(source));
 
-    page
-}
+//     page
+// }
 
 pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> Result<(), String> {
     if page.json().is_none() {
@@ -321,7 +321,8 @@ pub fn page_child_new(
 
     child_json["data"]["navi"] = child_navi;
 
-    let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
+    // let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
+    let child_page = Page::from_json(parent_page.stor_root(), child_path, &child_json);
     Ok(child_page)
 }
 

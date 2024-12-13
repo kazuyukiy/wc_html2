@@ -84,7 +84,8 @@ fn page_top_new(stor_root: &str, page_top_path: &str) -> Page {
     let _ = navi.push(json::JsonValue::Array(navi_top));
     page_json["data"]["navi"] = navi;
 
-    let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
+    // let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
+    let mut page = Page::from_json(stor_root, page_top_path, &page_json);
     let _ = page.file_save_and_rev();
 
     page

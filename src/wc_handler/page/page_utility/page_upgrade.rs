@@ -97,7 +97,8 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
+    // let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
 
     // DBG
     // page_upgrade_upgraded(page, &upres);

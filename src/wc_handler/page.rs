@@ -44,6 +44,11 @@ impl Page {
         }
     }
 
+    pub fn from_json(stor_root: &str, page_path: &str, page_json: &json::JsonValue) -> Page {
+        // page_utility::page_from_json2(stor_root, page_path, page_json)
+        Page::from_json(stor_root, page_path, page_json)
+    }
+
     pub fn stor_root(&self) -> &str {
         self.stor_root.as_str()
     }
@@ -188,7 +193,8 @@ impl Page {
             json_data2["data"]["page"]["rev"]
         );
 
-        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
+        // let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
+        let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2);
 
         // DBG
         let json_value = page2.json_value().ok_or("Failed to get json_value.")?;

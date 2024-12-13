@@ -3,7 +3,6 @@ use super::fs_write;
 use super::href_on;
 use super::json_from_dom;
 use super::page_child_new;
-use super::page_from_json;
 use super::page_json;
 use super::page_url;
 use tracing::info; // {error, event, info, instrument, span, Level, Node}
@@ -102,8 +101,7 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    // let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
-    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
     let _ = page2.rev_replace_one_up();
 
     if let Ok(_) = page2.file_save_and_rev() {
@@ -213,8 +211,7 @@ pub fn page_form_update_(page: &mut Page, recursive: bool, log: Option<Rc<RefCel
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    // let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
-    let mut page2 = page_from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
 
     if let Ok(_) = page2.file_save_and_rev() {
         // page_upgrade_upgraded(page, &upres);
