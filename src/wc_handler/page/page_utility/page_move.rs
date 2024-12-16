@@ -43,7 +43,7 @@ pub fn page_move(
         dest_parent_json,
     )?;
 
-    dest_page_save(stor_root, &page_moving);
+    dest_page_save(stor_root, &page_moving)?;
     org_page_save(stor_root, &page_moving);
 
     Ok(())
@@ -413,7 +413,8 @@ fn page_move_subsection_content(
     Ok(dest_contents)
 }
 
-fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
+// fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
+fn dest_page_save(stor_root: &str, page_moving: &PageMoving) -> Result<(), String> {
     for org_path in page_moving.org_path_list() {
         let (_org_url, dest_url, dest_json) = match page_moving.get(org_path) {
             Some(v) => v,
@@ -422,13 +423,16 @@ fn dest_page_save(stor_root: &str, page_moving: &PageMoving) {
                 continue;
             }
         };
-        let mut dest_page = Page::from_json(stor_root, dest_url.path(), dest_json);
+        // let mut dest_page = Page::from_json(stor_root, dest_url.path(), dest_json);
+        let mut dest_page = Page::from_json(stor_root, dest_url.path(), dest_json)?;
         if dest_page.dir_build().is_err() {
             continue;
         }
 
         let _r = dest_page.file_save_and_rev();
     }
+
+    Ok(())
 }
 
 fn org_page_save(stor_root: &str, page_moving: &PageMoving) {

@@ -101,7 +101,15 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    // let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = match Page::from_json(page.stor_root(), page.page_path(), &json_value) {
+        Ok(v) => v,
+        Err(e) => {
+            log.borrow_mut().failed(page);
+            error!("Failed to get page2 {}, on: {}", e, &page.file_path());
+            return;
+        }
+    };
     let _ = page2.rev_replace_one_up();
 
     if let Ok(_) = page2.file_save_and_rev() {
@@ -211,7 +219,15 @@ pub fn page_form_update_(page: &mut Page, recursive: bool, log: Option<Rc<RefCel
     // page.json_replace_save(json_data) does not work
     // because it needs original json value of the page
     // in span element of the body that does not exists.
-    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    // let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = match Page::from_json(page.stor_root(), page.page_path(), &json_value) {
+        Ok(v) => v,
+        Err(e) => {
+            log.borrow_mut().failed(page);
+            error!("Failed to get page2 {}, on: {}", e, &page.file_path());
+            return;
+        }
+    };
 
     if let Ok(_) = page2.file_save_and_rev() {
         // page_upgrade_upgraded(page, &upres);

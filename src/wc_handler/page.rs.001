@@ -22,7 +22,7 @@ pub struct Page {
     source: Option<Option<Vec<u8>>>,
     dom: Option<Option<RcDom>>,
     json: Option<Option<page_json::PageJson>>,
-    // json_mut_borrowed: bool,
+    json_muted: bool,
 }
 
 impl Page {
@@ -40,33 +40,19 @@ impl Page {
             source: None,
             dom: None,
             json: None,
-            // json_mut_borrowed: false,
+            json_muted: false,
         }
     }
 
-    pub fn from_json(
-        stor_root: &str,
-        page_path: &str,
-        page_json: &json::JsonValue,
-    ) -> Result<Page, String> {
+    pub fn from_json(stor_root: &str, page_path: &str, page_json: &json::JsonValue) -> Page {
         // page_utility::page_from_json2(stor_root, page_path, page_json)
         // Page::from_json(stor_root, page_path, page_json)
 
-        // fn page_dom_from_json(page_path: &str, page_json: &json::JsonValue) -> Result<RcDom, String> {
-        let page_dom = page_utility::page_dom_from_json(page_path, page_json)?;
-        let node = Rc::clone(&page_dom.document);
-        let source =
-            // page_utility::source_from_dom(page_dom.document).or_else(|e| Err(format!("{}", e)))?;
-            page_utility::source_from_dom(node).or_else(|e| Err(format!("{}", e)))?;
-
-        // let source = page_utility::source_from_json(page_path, page_json); // bytes
+        let source = page_utility::source_from_json(page_path, page_json); // bytes
         let mut page = Page::new(stor_root, page_path);
-        page.source.replace(Some(source));
-        // page.source_replace_some(source);
-
-        page.dom.replace(Some(page_dom));
-
-        Ok(page)
+        //page.source.replace(Some(source));
+        page.source_replace_some(source);
+        page
     }
 
     pub fn stor_root(&self) -> &str {
@@ -94,13 +80,11 @@ impl Page {
         reg.is_match(&self.page_path)
     }
 
-    // pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
-    fn read(&mut self) -> Result<&Vec<u8>, ()> {
+    pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
         let file_path = &self.file_path();
         match fs::read(&file_path) {
             Ok(s) => {
-                // self.source_replace_some(s);
-                self.source.replace(Some(s));
+                self.source_replace_some(s);
                 return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
             }
             // file not found
@@ -122,13 +106,6 @@ impl Page {
     }
 
     pub fn source(&mut self) -> Option<&Vec<u8>> {
-        info!("fn source");
-
-        page_utility::json_mut_borrowed_handle(self);
-        // if self.json_mut_borrowed {
-        //     page_utility::json_mut_borrowed_handle(self);
-        // }
-
         if self.source.is_none() {
             let _ = self.read();
         }
@@ -164,11 +141,6 @@ impl Page {
     }
 
     pub fn dom(&mut self) -> Option<&RcDom> {
-        page_utility::json_mut_borrowed_handle(self);
-        // if self.json_mut_borrowed {
-        //     page_utility::json_mut_borrowed_handle(self);
-        // }
-
         if self.dom.is_none() {
             let _ = self.dom_parse().ok()?;
         };
@@ -190,10 +162,6 @@ impl Page {
         }
     }
 
-    fn json_is_none(&self) -> bool {
-        self.json.is_none()
-    }
-
     fn json(&mut self) -> Option<&page_json::PageJson> {
         if self.json.is_none() {
             if let Err(_) = self.json_parse() {
@@ -210,7 +178,6 @@ impl Page {
         //     }
         // }
         let _ = self.json()?;
-        // self.json_mut_borrowed = true;
         self.json.as_mut().unwrap().as_mut()
     }
 
@@ -232,68 +199,8 @@ impl Page {
             json_data2["data"]["page"]["rev"]
         );
 
-        let page_json = self.json_mut().ok_or("Failed to get page_json.")?;
-        page_json.value_replace(json_data2);
-
         // let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
-        // let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2);
-        // let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2)?;
-
-        // DBG
-        // let json_value = page2.json_value().ok_or("Failed to get json_value.")?;
-        // info!(
-        //     "json_replace_save rev page2(arg): {}",
-        //     json_value["data"]["page"]["rev"]
-        // );
-
-        // page2.rev_replace_one_up()?;
-
-        // // DBG
-        // let json_value = page2.json_value().ok_or("Failed to get json_value.")?;
-        // info!(
-        //     "json_replace_save rev page2(one_up): {}",
-        //     json_value["data"]["page"]["rev"]
-        // );
-
-        // Updata rev no.
-        page_json
-            .rev_replace_one_up()
-            .or(Err("Failed to repace rev one up."))?;
-
-        let rev_plus_one = page_json.rev().ok_or("Failed to get rev one uped")?;
-
-        // let rev_plus_one = page2.rev()?;
-        // let rev_plus_one = page2
-        //     .rev()
-        //     .or(Err(format!("Failed to get rev on :{}", &page2.file_path())))?;
-
-        // page2
-        //     .file_save_and_rev()
-        //     .and(Ok(rev_plus_one))
-        //     .or(Err(format!("Failed to save json of  {}", &self.page_path)))
-
-        self.file_save_and_rev()
-            .or(Err("Failed to save_and_rev".to_string()))?;
-
-        self.rev().or(Err("Failed to tet rev".to_string()))
-    }
-
-    /// Updata the page with json_data2
-    /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
-    /// json_data2["data"]["page"]["rev"] will be replaced with page_json.rev_plus_one()
-    /// Return Ok(rev_plus_one), new rev number
-    pub fn json_replace_save2(&mut self, json_data2: json::JsonValue) -> Result<usize, String> {
-        page_utility::json_rev_match(self, &json_data2)?;
-
-        // DBG
-        info!(
-            "json_replace_save rev arg: {}",
-            json_data2["data"]["page"]["rev"]
-        );
-
-        // let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
-        // let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2);
-        let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2)?;
+        let mut page2 = Page::from_json(&self.stor_root, &self.page_path, &json_data2);
 
         // DBG
         let json_value = page2.json_value().ok_or("Failed to get json_value.")?;

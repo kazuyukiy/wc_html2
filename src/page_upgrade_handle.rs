@@ -16,7 +16,9 @@ pub fn pages_upgrade_handle_and_backup_delete(stor_root: &str, page_top_path: &s
     let upres = Rc::new(RefCell::new(upres));
 
     // upgrade this page and its children as recursive option is ture.
-    let mut page_top = page_top(stor_root, page_top_path);
+    let Ok(mut page_top) = page_top(stor_root, page_top_path) else {
+        return;
+    };
     // page_top.upgrade(true, Some(Rc::clone(&upres)));
     page_top.upgrade_and_backup_delete(true, Some(Rc::clone(&upres)));
 
@@ -25,7 +27,7 @@ pub fn pages_upgrade_handle_and_backup_delete(stor_root: &str, page_top_path: &s
 
 /// Return top page.
 /// If not exists, create top page.
-fn page_top(stor_root: &str, page_top_path: &str) -> Page {
+fn page_top(stor_root: &str, page_top_path: &str) -> Result<Page, String> {
     // let page_path = "/wc_top.html";
 
     // DBG
@@ -40,35 +42,14 @@ fn page_top(stor_root: &str, page_top_path: &str) -> Page {
     let mut page = Page::new(stor_root, page_top_path);
     // Already exists.
     if page.source().is_some() {
-        return page;
+        return Ok(page);
     }
 
     page_top_new(stor_root, page_top_path)
-
-    // // Create a new page Wc_top.html
-    // let title = "Top";
-
-    // // json plain
-    // let mut page_json = page::page_json::page_json_plain();
-
-    // // title
-    // page_json["data"]["page"]["title"] = title.into();
-
-    // // navi
-    // let mut navi = json::JsonValue::Array(vec![]);
-    // let navi_top: Vec<json::JsonValue> = vec![title.into(), "".into()];
-
-    // let _ = navi.push(json::JsonValue::Array(navi_top));
-    // page_json["data"]["navi"] = navi;
-
-    // let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
-    // let _ = page.file_save_and_rev();
-
-    // page
 }
 
 /// Create a new page Wc_top.html
-fn page_top_new(stor_root: &str, page_top_path: &str) -> Page {
+fn page_top_new(stor_root: &str, page_top_path: &str) -> Result<Page, String> {
     let title = "Top";
 
     // json plain
@@ -85,10 +66,10 @@ fn page_top_new(stor_root: &str, page_top_path: &str) -> Page {
     page_json["data"]["navi"] = navi;
 
     // let mut page = page::page_utility::page_from_json(stor_root, page_top_path, &page_json);
-    let mut page = Page::from_json(stor_root, page_top_path, &page_json);
+    let mut page = Page::from_json(stor_root, page_top_path, &page_json)?;
     let _ = page.file_save_and_rev();
 
-    page
+    Ok(page)
 }
 
 pub struct Upres {

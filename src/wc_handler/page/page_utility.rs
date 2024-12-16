@@ -22,7 +22,7 @@ pub fn file_path(stor_root: &str, page_path: &str) -> String {
     stor_root.to_string() + page_path
 }
 
-pub fn page_url(page: &mut super::Page) -> Result<url::Url, String> {
+pub fn page_url(page: &mut Page) -> Result<url::Url, String> {
     let local_host = "127.0.0.1";
     let page_path = page.page_path();
     let url = format!("http://{}{}", local_host, page_path);
@@ -189,6 +189,104 @@ fn page_html_plain() -> &'static str {
 "#
 }
 
+pub fn page_dom_from_json(page_path: &str, page_json: &json::JsonValue) -> Result<RcDom, String> {
+    page_dom_from_json::page_dom_from_json(page_path, page_json)
+}
+
+/// Serialize dom
+pub fn source_from_dom(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
+    let sh = SerializableHandle::from(node);
+    let mut page_bytes = vec![];
+
+    let _r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
+    Ok(page_bytes)
+}
+
+pub fn json_mut_borrowed_handle(page: &mut Page) {
+    info!("fn json_mut_borrowed_handle");
+
+    if page.json_is_none() {
+        return;
+    }
+
+    let page_json = match page.json() {
+        // let page_json = match page.json_mut() {
+        Some(v) => v,
+        None => return,
+    };
+
+    if !page_json.may_changed() {
+        return;
+    }
+
+    let page_json = match page.json_mut() {
+        Some(v) => v,
+        None => return,
+    };
+    page_json.may_changed_clear();
+
+    if let Err(_) = set_source_dom_from_json(page) {
+        page.source.replace(None);
+        page.dom.replace(None);
+        return;
+    }
+
+    // match set_source_dom_from_json(page) {
+    //     Ok(_) => (),
+    //     Err(_) => {
+    //         page.source.replace(None);
+    //         page.dom.replace(None);
+    //         return;
+    //     }
+    // }
+
+    // let page_json = match page.json_mut() {
+    //     Some(v) => v,
+    //     None => return,
+    // };
+    // page_json.may_changed_clear();
+}
+
+pub fn set_source_dom_from_json(page: &mut Page) -> Result<(), String> {
+    let page_path = page.page_path().to_string();
+
+    let json_value = page
+        .json_value()
+        .ok_or(format!("Failed to get json_value on {}", &page_path))?;
+    let page_dom = page_dom_from_json(&page_path, json_value)?;
+    page.dom.replace(Some(page_dom));
+
+    let page_dom = page
+        .dom()
+        .ok_or(format!("Failed to get dom: {}", &page_path))?;
+    let page_node = Rc::clone(&page_dom.document);
+    let source = source_from_dom(page_node).or_else(|e| Err(format!("{}", e)))?;
+    page.source.replace(Some(source));
+
+    Ok(())
+}
+
+// /// Create a page dom and source from json value.
+// pub fn dom_source_from_json(
+//     page_path: &str,
+//     page_json: &json::JsonValue,
+// ) -> Result<(RcDom, Vec<u8>), ()> {
+//     let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
+//     if page_dom.is_err() {
+//         return Err(());
+//     }
+
+//     // dom.document
+//     // match dom_serialize(page_dom.unwrap().document) {
+//     match source_from_dom(page_dom.unwrap().document) {
+//         Ok(v) => v,
+//         Err(e) => {
+//             error!("Failed to get source from json: {}", e);
+//             vec![]
+//         }
+//     }
+// }
+
 /// Create a page source from json value.
 pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
     let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
@@ -197,7 +295,8 @@ pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8>
     }
 
     // dom.document
-    match dom_serialize(page_dom.unwrap().document) {
+    // match dom_serialize(page_dom.unwrap().document) {
+    match source_from_dom(page_dom.unwrap().document) {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to get source from json: {}", e);
@@ -206,7 +305,7 @@ pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8>
     }
 }
 
-fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
+fn _dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
     // let sh = SerializableHandle::from(dom.document);
     let sh = SerializableHandle::from(node);
     let mut page_bytes = vec![];
@@ -215,21 +314,21 @@ fn dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error>
     Ok(page_bytes)
 }
 
-// /// Create `super::Page` from json.
+// /// Create `Page` from json.
 // pub fn page_from_json2(
 //     stor_root: &str,
 //     page_path: &str,
 //     page_json: &json::JsonValue,
-// ) -> super::Page {
+// ) -> Page {
 //     let source = source_from_json(page_path, page_json); // bytes
 
-//     let mut page = super::Page::new(stor_root, page_path);
+//     let mut page = Page::new(stor_root, page_path);
 //     page.source.replace(Some(source));
 
 //     page
 // }
 
-pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> Result<(), String> {
+pub fn json_rev_match(page: &mut Page, json_data2: &json::JsonValue) -> Result<(), String> {
     if page.json().is_none() {
         return Err(format!("Failed to get json of {}", page.page_path));
     }
@@ -258,7 +357,7 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
 }
 
 /// Create a new page under the parent_page
-/// It returns an instance of super::Page
+/// It returns an instance of Page
 /// but its file is not saved.
 /// You need to save the file if needs.
 ///
@@ -273,10 +372,10 @@ pub fn json_rev_match(page: &mut super::Page, json_data2: &json::JsonValue) -> R
 /// child_href: absolute or related location based on parent_page
 ///
 pub fn page_child_new(
-    parent_page: &mut super::Page,
+    parent_page: &mut Page,
     child_title: &str,
     child_href: &str,
-) -> Result<super::Page, ()> {
+) -> Result<Page, ()> {
     // If no parent json, no file or no data, return Err(())
     let _parent_json = parent_page.json().ok_or(())?;
 
@@ -286,7 +385,8 @@ pub fn page_child_new(
 
     // let child_url = url_on(&parent_url, child_href).or(Err(()))?;
     let child_url = parent_url.join(child_href).or_else(|_| {
-        eprintln!("parent_url.join failed");
+        // eprintln!("parent_url.join failed");
+        error!("parent_url.join failed");
         Err(())
     })?;
 
@@ -294,7 +394,7 @@ pub fn page_child_new(
 
     // child_href might be a relative: ex: ./move2/move2.html, not for Page::new()
     // child_url.path(): /Computing/move2/move2.html
-    let mut child_page_crt = super::Page::new(&parent_page.stor_root, child_path);
+    let mut child_page_crt = Page::new(&parent_page.stor_root, child_path);
 
     // If the file already exists, return Err(())
     if child_page_crt.source().is_some() {
@@ -322,8 +422,15 @@ pub fn page_child_new(
     child_json["data"]["navi"] = child_navi;
 
     // let child_page = page_from_json(parent_page.stor_root(), child_path, &child_json);
-    let child_page = Page::from_json(parent_page.stor_root(), child_path, &child_json);
-    Ok(child_page)
+    // let child_page = Page::from_json(parent_page.stor_root(), child_path, &child_json);
+    // Ok(child_page)
+    match Page::from_json(parent_page.stor_root(), child_path, &child_json) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            error!("Failed to get page from_json: {}", e);
+            Err(())
+        }
+    }
 }
 
 /// Check title and href
@@ -350,7 +457,7 @@ fn title_href_check<'a>(title: &'a str, href: &'a str) -> Result<(&'a str, &'a s
 /// Create a navi data from parent_page except child_url and its title.
 /// Convert href based on child_url as relative if possible.
 fn child_navi(
-    parent_page: &mut super::Page,
+    parent_page: &mut Page,
     parent_url: &url::Url,
     child_url: &url::Url,
 ) -> Result<json::JsonValue, ()> {
@@ -475,7 +582,7 @@ fn href_on(base_url: &url::Url, org_href: &str) -> Option<(String, bool)> {
 }
 
 fn page_mainte(
-    page: &mut super::Page,
+    page: &mut Page,
     recursive: bool,
     log: Option<Rc<RefCell<page_mainte::page_form_update::Log>>>,
 ) {
@@ -483,14 +590,14 @@ fn page_mainte(
 }
 
 /// Upgrade old page type.
-pub fn page_upgrade(page: &mut super::Page, upres: Option<Rc<RefCell<Upres>>>) {
+pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     return page_upgrade::page_upgrade(page, upres);
 }
 
 // upgrade_and_backup_delete
 
 pub fn page_upgrade_and_delete_children(
-    page: &mut super::Page,
+    page: &mut Page,
     recursive: bool,
     upres: Option<Rc<RefCell<Upres>>>,
 ) {
@@ -536,7 +643,7 @@ pub fn page_upgrade_and_delete_children(
 
         // info!("href_url: {}", href_url);
 
-        let mut child_page = super::Page::new(&stor_root, href_url.path());
+        let mut child_page = Page::new(&stor_root, href_url.path());
         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
         // child_page.upgrade(recursive, upres_child);
         child_page.upgrade_and_backup_delete(recursive, upres_child);
@@ -544,7 +651,7 @@ pub fn page_upgrade_and_delete_children(
 }
 
 // pub fn page_upgrade_children(
-//     page: &mut super::Page,
+//     page: &mut Page,
 //     recursive: bool,
 //     upres: Option<Rc<RefCell<Upres>>>,
 // ) {
@@ -590,14 +697,14 @@ pub fn page_upgrade_and_delete_children(
 
 //         // info!("href_url: {}", href_url);
 
-//         let mut child_page = super::Page::new(&stor_root, href_url.path());
+//         let mut child_page = Page::new(&stor_root, href_url.path());
 //         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
 //         child_page.upgrade(recursive, upres_child);
 //     }
 // }
 
 // pub fn page_upgrade_children_(
-//     page: &mut super::Page,
+//     page: &mut Page,
 //     recursive: bool,
 //     upres: Option<Rc<RefCell<Upres>>>,
 // ) {
@@ -648,7 +755,7 @@ pub fn page_upgrade_and_delete_children(
 //             continue;
 //         };
 
-//         let mut child_page = super::Page::new(&stor_root, href_url.path());
+//         let mut child_page = Page::new(&stor_root, href_url.path());
 //         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
 //         child_page.upgrade(recursive, upres_child);
 //     }

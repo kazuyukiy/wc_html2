@@ -98,7 +98,20 @@ pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
     // because it needs original json value of the page
     // in span element of the body that does not exists.
     // let mut page2 = super::page_from_json(page.stor_root(), page.page_path(), &json_value);
-    let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    // let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
+    let mut page2 = match Page::from_json(page.stor_root(), page.page_path(), &json_value) {
+        Ok(v) => v,
+        Err(e) => {
+            page_upgrade_failed(page, &upres);
+            error!(
+                "Failed to get page2 form_json : {} + , on {}",
+                e,
+                &page.file_path()
+            );
+
+            return;
+        }
+    };
 
     // DBG
     // page_upgrade_upgraded(page, &upres);

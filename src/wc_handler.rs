@@ -77,7 +77,8 @@ fn http_form(status: &str, contents: &Vec<u8>) -> Vec<u8> {
 
 fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
     let mut page = page::Page::new(&stor_root, http_request.path());
-    page.read().map_or(Err(()), |v| Ok(http_ok(v)))
+    // page.read().map_or(Err(()), |v| Ok(http_ok(v)))
+    page.source().map_or(Err(()), |v| Ok(http_ok(v)))
 }
 
 fn handle_post(
