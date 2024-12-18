@@ -68,10 +68,7 @@ impl PageJson {
         }
     }
 
-    // rev counted up from current rev
-
     /// Return a value adding one to rev
-    // pub fn rev_uped(&self) -> Option<usize> {
     pub fn rev_plus_one(&self) -> Option<usize> {
         let rev = self.rev()?;
         // Some(rev + 1)
@@ -176,16 +173,7 @@ impl PageJson {
 
     // pub fn subsections(&mut self) -> Option<&json::object::Object> {
     pub fn subsections(&self) -> Option<&json::object::Object> {
-        // let value = self.value()?;
-        // let value = self.value_mut()?;
         let value = self.value()?;
-
-        // if value["data"]["subsection"]["data"].is_empty() {
-        //     // let value = self.value_mut()?;
-        //     // DEB temp comment out
-        //     value["data"]["subsection"]["data"] = json::array! {};
-        //     // return None;
-        // }
         match value["data"]["subsection"]["data"] {
             json::JsonValue::Object(ref object) => Some(object),
             _ => None,
@@ -199,7 +187,7 @@ impl PageJson {
             // return None;
         }
 
-        if let json::JsonValue::Object(ref mut object) = value["data"]["subsection"]["data"] {
+        if let json::JsonValue::Object(_) = value["data"]["subsection"]["data"] {
             // return None;
         } else {
             return None;

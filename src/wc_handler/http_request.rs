@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::net::TcpStream;
 // use tracing::info; //  event, instrument, span, Level
-use tracing::{error, info}; //  event, instrument, span, Level
+use tracing::error; //  event, info, instrument, span, Level
 
 pub struct HttpRequest {
     method: String,
@@ -15,24 +15,13 @@ impl HttpRequest {
     pub fn from(stream: &mut TcpStream) -> Result<HttpRequest, ()> {
         let stream_data = stream_read(stream);
 
-        // DBG
-        info!("request.parse stream_data.len(): {}", stream_data.len());
-
         let mut headers = [httparse::EMPTY_HEADER; 64];
         let mut request = httparse::Request::new(&mut headers);
 
         let body_offset = match request.parse(&stream_data) {
             Ok(s) => match s {
-                httparse::Status::Complete(l) => {
-                    // DBG
-                    info!("request.parse Complete body_offset: {}", l);
-                    Some(l)
-                }
-                httparse::Status::Partial => {
-                    // DBG
-                    info!("request.parse httparse Partial");
-                    None
-                }
+                httparse::Status::Complete(l) => Some(l),
+                httparse::Status::Partial => None,
             },
             Err(_) => {
                 error!("request.parse Failed to parse request.");
@@ -114,13 +103,6 @@ impl HttpRequest {
             .and_then(|v| String::from_utf8(v).ok())
     }
 
-    // pub fn _body_string_dbg(&self) -> Option<String> {
-    //     self.body
-    //         .as_ref()
-    //         .and_then(|v| Some(v.to_vec()))
-    //         .and_then(|v| String::from_utf8(v).ok())
-    // }
-
     pub fn body_json(&self) -> Option<json::JsonValue> {
         let json_post = self.body_string()?;
         json::parse(&json_post).ok()
@@ -143,27 +125,16 @@ fn stream_read(stream: &mut TcpStream) -> Vec<u8> {
     let mut stream_data: Vec<u8> = vec![];
 
     loop {
-        // DBG
-        info!("read one");
         match stream.read(&mut rx_bytes) {
             Ok(bytes_read) => {
                 stream_data.extend_from_slice(&rx_bytes[..bytes_read]);
-
-                // DBG
-                info!("read {} bytes", bytes_read);
-
                 if bytes_read < MESSAGE_SIZE {
-                    // DBG
-                    info!("read end");
-
                     break;
                 }
             }
 
             Err(e) => {
-                // DBG
-                error!("read: {:?}", e);
-
+                error!("stream_read: {:?}", e);
                 break;
             }
         }

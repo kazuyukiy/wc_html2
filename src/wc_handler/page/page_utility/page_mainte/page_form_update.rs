@@ -1,17 +1,15 @@
 use super::dom_utility;
 use super::fs_write;
-use super::href_on;
 use super::json_from_dom;
 use super::page_child_new;
+pub use super::page_children_url;
 use super::page_json;
-use super::page_url;
-use tracing::info; // {error, event, info, instrument, span, Level, Node}
-                   // use super::page_utility;
 use super::Page;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
-use tracing::error; // {event, info, instrument, span, Level, Node, info}
+use tracing::error;
+use tracing::info; // {error, event, info, instrument, span, Level, Node} // {event, info, instrument, span, Level, Node, info}
 
 /// Update page form converting from old page style to the latest one.
 pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell<Log>>>) {
@@ -25,7 +23,6 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     let page_dom = match page.dom() {
         Some(v) => v,
         None => {
-            // page_upgrade_failed(page, &upres);
             log.borrow_mut().failed(page);
             error!("Failed to get page_dom: {}", &page.file_path());
             return;
@@ -38,17 +35,14 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     // page_top found
     // It is current page style, not for upgrade
     if dom_utility::get_div_page_top(&page_node).is_some() {
-        // page_upgrade_already(page, &upres);
         log.borrow_mut().already(page);
         return;
     }
 
-    // let json_value = super::json_from_dom(page_node);
     let json_value = json_from_dom(page_node);
 
     // Failed to get page_json
     if json_value.is_none() {
-        // page_upgrade_failed(page, &upres);
         log.borrow_mut().failed(page);
         error!("Failed to get page_json: {}", page.page_path());
         return;
@@ -70,38 +64,12 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     // last_rev +_1 will be used for back up of the original file and
     // rev_backup (last_rev + 1) will be retuned.
     let Some(rev_backup) = page_org_backup(page, &last_rev) else {
-        // page_upgrade_failed(page, &upres);
         log.borrow_mut().failed(page);
         error!("Failed to make an original backup: {}", &page.file_path());
         return;
     };
     json_value["data"]["page"]["rev"] = rev_backup.into();
 
-    // // rev_backup;
-
-    // // rev_upded was used for the original backup.
-    // // Get new rev: rev_upgrade = rev_upded + 1
-    // let rev_upgrade = match rev_backup.checked_add(1) {
-    //     Some(v) => v,
-    //     None => {
-    //         // page_upgrade_failed(page, &upres);
-    //         log.borrow_mut().failed(page);
-    //         error!(
-    //             "Failed to get new rev: {} + 1, on {}",
-    //             rev_backup,
-    //             &page.file_path()
-    //         );
-    //         return;
-    //     }
-    // };
-
-    // Set last rev not to overwrite on old file.
-    // json_value["data"]["page"]["rev"] = rev_upgrade.into();
-
-    // page.json_replace_save(json_data) does not work
-    // because it needs original json value of the page
-    // in span element of the body that does not exists.
-    // let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
     let mut page2 = match Page::from_json(page.stor_root(), page.page_path(), &json_value) {
         Ok(v) => v,
         Err(e) => {
@@ -113,7 +81,6 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
     let _ = page2.rev_replace_one_up();
 
     if let Ok(_) = page2.file_save_and_rev() {
-        // page_upgrade_upgraded(page, &upres);
         log.borrow_mut().updated(page);
     }
 
@@ -124,124 +91,6 @@ pub fn page_form_update(page: &mut Page, recursive: bool, log: Option<Rc<RefCell
 
     //
     if recursive {
-        // page_form_update_children(page, recursive, Some(log));
-        page_form_update_children(page, recursive, Some(Rc::clone(&log)));
-    }
-
-    if log_org {
-        tracing_page_save(page, Rc::clone(&log));
-    }
-}
-
-pub fn page_form_update_(page: &mut Page, recursive: bool, log: Option<Rc<RefCell<Log>>>) {
-    let (log_org, log) = log_ini(log);
-
-    // alredy handled
-    if log.borrow().handled(page) {
-        return;
-    }
-
-    let page_dom = match page.dom() {
-        Some(v) => v,
-        None => {
-            // page_upgrade_failed(page, &upres);
-            log.borrow_mut().failed(page);
-            error!("Failed to get page_dom: {}", &page.file_path());
-            return;
-        }
-    };
-    let page_node = &page_dom.document;
-
-    // check if page type is the latest or to be updated.
-
-    // page_top found
-    // It is current page style, not for upgrade
-    if dom_utility::get_div_page_top(&page_node).is_some() {
-        // page_upgrade_already(page, &upres);
-        log.borrow_mut().already(page);
-        return;
-    }
-
-    // let json_value = super::json_from_dom(page_node);
-    let json_value = json_from_dom(page_node);
-
-    // Failed to get page_json
-    if json_value.is_none() {
-        // page_upgrade_failed(page, &upres);
-        log.borrow_mut().failed(page);
-        error!("Failed to get page_json: {}", page.page_path());
-        return;
-    }
-
-    // Save the page updated.
-
-    let mut json_value = json_value.unwrap();
-
-    // Get the last_rev, otherwise use 1.
-    // Not sure if page has a valud rev in page.json.
-    // So you can not use page_json.rev(), get it from json_value.
-    let rev = super::page_json::to_usize(&json_value["data"]["page"]["rev"]).ok();
-
-    // Confirm last rev on real files.
-    let last_rev = last_rev_of_files(page, rev).or(Some(1)).unwrap();
-
-    // Make an origin backup of the file before changes.
-    // last_rev +_1 will be used for back up of the original file and
-    // rev_backup (last_rev + 1) will be retuned.
-    let Some(rev_backup) = page_org_backup(page, &last_rev) else {
-        // page_upgrade_failed(page, &upres);
-        log.borrow_mut().failed(page);
-        error!("Failed to make an original backup: {}", &page.file_path());
-        return;
-    };
-
-    // rev_backup;
-
-    // rev_upded was used for the original backup.
-    // Get new rev: rev_upgrade = rev_upded + 1
-    let rev_upgrade = match rev_backup.checked_add(1) {
-        Some(v) => v,
-        None => {
-            // page_upgrade_failed(page, &upres);
-            log.borrow_mut().failed(page);
-            error!(
-                "Failed to get new rev: {} + 1, on {}",
-                rev_backup,
-                &page.file_path()
-            );
-            return;
-        }
-    };
-
-    // Set last rev not to overwrite on old file.
-    json_value["data"]["page"]["rev"] = rev_upgrade.into();
-
-    // page.json_replace_save(json_data) does not work
-    // because it needs original json value of the page
-    // in span element of the body that does not exists.
-    // let mut page2 = Page::from_json(page.stor_root(), page.page_path(), &json_value);
-    let mut page2 = match Page::from_json(page.stor_root(), page.page_path(), &json_value) {
-        Ok(v) => v,
-        Err(e) => {
-            log.borrow_mut().failed(page);
-            error!("Failed to get page2 {}, on: {}", e, &page.file_path());
-            return;
-        }
-    };
-
-    if let Ok(_) = page2.file_save_and_rev() {
-        // page_upgrade_upgraded(page, &upres);
-        log.borrow_mut().updated(page);
-    }
-
-    // It will call page_form_update_children() and json_from_dom() later;
-    // To avoid same procedure again, set json_value on the page.
-    let page_json = page_json::PageJson::from(json_value.take());
-    page.json.replace(Some(page_json));
-
-    //
-    if recursive {
-        // page_form_update_children(page, recursive, Some(log));
         page_form_update_children(page, recursive, Some(Rc::clone(&log)));
     }
 
@@ -251,52 +100,13 @@ pub fn page_form_update_(page: &mut Page, recursive: bool, log: Option<Rc<RefCel
 }
 
 fn page_form_update_children(page: &mut Page, recursive: bool, log: Option<Rc<RefCell<Log>>>) {
-    // To avoid
-    // error[E0499]: cannot borrow `*page` as mutable more than once at a time
-    // get page_url at here previously
-    let Ok(page_url) = page_url(page) else {
-        return;
-    };
-
     let stor_root = page.stor_root().to_string();
-
-    let page_json = page.json_mut();
-    if page_json.is_none() {
-        return;
-    }
-    let Some(subsections_json) = page_json.unwrap().subsections() else {
-        return;
-    };
-
-    for (_, subsection_json) in subsections_json.iter() {
-        // subsection_json["href"]
-        // info!("href: {}", subsection_json["href"]);
-
-        let Some(href) = subsection_json["href"].as_str() else {
-            continue;
-        };
-
-        // href is not to child of the page
-        let Some((_, is_child)) = href_on(&page_url, href) else {
-            continue;
-        };
-        if !is_child {
-            continue;
-        }
-
-        let Ok(href_url) = page_url.join(href) else {
-            continue;
-        };
-
-        // info!("href_url: {}", href_url);
-
-        let mut child_page = super::Page::new(&stor_root, href_url.path());
+    let child_url_s = page_children_url(page);
+    for child_url in child_url_s {
+        let mut child_page = super::Page::new(&stor_root, child_url.path());
         let log_child = log.as_ref().and_then(|ref v| Some(Rc::clone(v)));
-        // child_page.upgrade(recursive, log_child);
-        // child_page.mainte(recursive, log_child);
         page_form_update(&mut child_page, recursive, log_child);
     }
-    // pag_utility.rs pub fn page_upgrade_and_delete_children(
 }
 
 pub struct Log {

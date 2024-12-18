@@ -114,12 +114,9 @@ fn style_link_relative_set(page_dom: &RcDom, page_path: &str) {
         return;
     };
 
-    // info!("page_path: {}", page_path);
-
     let Some(relative) = page_url.make_relative(&href_url) else {
         return;
     };
-    // info!("relative: {}", relative);
 
     // <link rel="stylesheet" href="/wc.css"></link>
     let attrs = &vec![("href", "/wc.css")];

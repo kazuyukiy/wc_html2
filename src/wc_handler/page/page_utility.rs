@@ -1,4 +1,3 @@
-use super::super::super::page_upgrade_handle::Upres;
 use super::Page;
 use html5ever::serialize::SerializeOpts;
 use markup5ever_rcdom::{Handle, Node, NodeData, RcDom, SerializableHandle};
@@ -9,12 +8,9 @@ use tracing::{error, info}; // {event, info, instrument, span, Level, Node}
 mod dom_utility;
 mod json_from_dom_html;
 pub mod page_dom_from_json;
-// mod page_form_update;
 mod page_move;
-mod page_upgrade;
 pub use super::page_json;
 pub use page_move::page_move;
-pub mod page_backup_delete;
 pub mod page_mainte;
 
 pub fn file_path(stor_root: &str, page_path: &str) -> String {
@@ -97,8 +93,8 @@ pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
     // <span id="page_json_str" style="display: none"></span>
     let mut json_value = json_from_dom_span(page_node);
 
-    // The script in below may not need since page_upgrade is done in lib.rs.
-    // All pages upgraded should have json_value in span element.
+    // The script in below may not need since page_form_update is done in lib.rs.
+    // All pages those page_form_update weren done should have json_value in span element.
 
     // old stype, json value is in scritp element.
     // <script type="text/javascript" class="page_json">let page_json = {}</script>
@@ -203,14 +199,11 @@ pub fn source_from_dom(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::
 }
 
 pub fn json_mut_borrowed_handle(page: &mut Page) {
-    info!("fn json_mut_borrowed_handle");
-
     if page.json_is_none() {
         return;
     }
 
     let page_json = match page.json() {
-        // let page_json = match page.json_mut() {
         Some(v) => v,
         None => return,
     };
@@ -230,21 +223,6 @@ pub fn json_mut_borrowed_handle(page: &mut Page) {
         page.dom.replace(None);
         return;
     }
-
-    // match set_source_dom_from_json(page) {
-    //     Ok(_) => (),
-    //     Err(_) => {
-    //         page.source.replace(None);
-    //         page.dom.replace(None);
-    //         return;
-    //     }
-    // }
-
-    // let page_json = match page.json_mut() {
-    //     Some(v) => v,
-    //     None => return,
-    // };
-    // page_json.may_changed_clear();
 }
 
 pub fn set_source_dom_from_json(page: &mut Page) -> Result<(), String> {
@@ -265,68 +243,6 @@ pub fn set_source_dom_from_json(page: &mut Page) -> Result<(), String> {
 
     Ok(())
 }
-
-// /// Create a page dom and source from json value.
-// pub fn dom_source_from_json(
-//     page_path: &str,
-//     page_json: &json::JsonValue,
-// ) -> Result<(RcDom, Vec<u8>), ()> {
-//     let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
-//     if page_dom.is_err() {
-//         return Err(());
-//     }
-
-//     // dom.document
-//     // match dom_serialize(page_dom.unwrap().document) {
-//     match source_from_dom(page_dom.unwrap().document) {
-//         Ok(v) => v,
-//         Err(e) => {
-//             error!("Failed to get source from json: {}", e);
-//             vec![]
-//         }
-//     }
-// }
-
-/// Create a page source from json value.
-pub fn source_from_json(page_path: &str, page_json: &json::JsonValue) -> Vec<u8> {
-    let page_dom = page_dom_from_json::page_dom_from_json(page_path, page_json);
-    if page_dom.is_err() {
-        return vec![];
-    }
-
-    // dom.document
-    // match dom_serialize(page_dom.unwrap().document) {
-    match source_from_dom(page_dom.unwrap().document) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("Failed to get source from json: {}", e);
-            vec![]
-        }
-    }
-}
-
-fn _dom_serialize(node: Rc<Node>) -> std::result::Result<Vec<u8>, std::io::Error> {
-    // let sh = SerializableHandle::from(dom.document);
-    let sh = SerializableHandle::from(node);
-    let mut page_bytes = vec![];
-
-    let _r = html5ever::serialize(&mut page_bytes, &sh, SerializeOpts::default())?;
-    Ok(page_bytes)
-}
-
-// /// Create `Page` from json.
-// pub fn page_from_json2(
-//     stor_root: &str,
-//     page_path: &str,
-//     page_json: &json::JsonValue,
-// ) -> Page {
-//     let source = source_from_json(page_path, page_json); // bytes
-
-//     let mut page = Page::new(stor_root, page_path);
-//     page.source.replace(Some(source));
-
-//     page
-// }
 
 pub fn json_rev_match(page: &mut Page, json_data2: &json::JsonValue) -> Result<(), String> {
     if page.json().is_none() {
@@ -581,44 +497,25 @@ fn href_on(base_url: &url::Url, org_href: &str) -> Option<(String, bool)> {
     Some((href, is_not_child))
 }
 
-fn page_mainte(
-    page: &mut Page,
-    recursive: bool,
-    log: Option<Rc<RefCell<page_mainte::page_form_update::Log>>>,
-) {
-    page_mainte::page_mainte(page, recursive, log)
-}
-
-/// Upgrade old page type.
-pub fn page_upgrade(page: &mut Page, upres: Option<Rc<RefCell<Upres>>>) {
-    return page_upgrade::page_upgrade(page, upres);
-}
-
-// upgrade_and_backup_delete
-
-pub fn page_upgrade_and_delete_children(
-    page: &mut Page,
-    recursive: bool,
-    upres: Option<Rc<RefCell<Upres>>>,
-) {
-    // info!("fn page_upgrade_children");
-
+/// Return a list of children url.
+/// You can create instances of children page from this.
+pub fn page_children_url(parent_page: &mut Page) -> Vec<url::Url> {
+    let mut url_s = vec![];
     // To avoid
     // error[E0499]: cannot borrow `*page` as mutable more than once at a time
     // get page_url at here previously
-    let Ok(page_url) = page_url(page) else {
-        return;
+    let Ok(parent_url) = page_url(parent_page) else {
+        return url_s;
     };
 
-    let stor_root = page.stor_root().to_string();
+    // let stor_root = parent_page.stor_root().to_string();
 
-    // let page_json = page.json();
-    let page_json = page.json_mut();
-    if page_json.is_none() {
-        return;
+    let parent_page_json = parent_page.json_mut();
+    if parent_page_json.is_none() {
+        return url_s;
     }
-    let Some(subsections_json) = page_json.unwrap().subsections() else {
-        return;
+    let Some(subsections_json) = parent_page_json.unwrap().subsections() else {
+        return url_s;
     };
 
     for (_, subsection_json) in subsections_json.iter() {
@@ -629,134 +526,36 @@ pub fn page_upgrade_and_delete_children(
             continue;
         };
 
-        // href is not to child of the page
-        let Some((_, is_child)) = href_on(&page_url, href) else {
+        // href is not to child of the parent_page
+        let Some((_, is_child)) = href_on(&parent_url, href) else {
             continue;
         };
         if !is_child {
             continue;
         }
 
-        let Ok(href_url) = page_url.join(href) else {
+        let Ok(href_url) = parent_url.join(href) else {
             continue;
         };
 
+        url_s.push(href_url);
         // info!("href_url: {}", href_url);
-
-        let mut child_page = Page::new(&stor_root, href_url.path());
-        let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
-        // child_page.upgrade(recursive, upres_child);
-        child_page.upgrade_and_backup_delete(recursive, upres_child);
     }
+
+    url_s
+
+    // useage
+    // let stor_root = page.stor_root().to_string();
+    // let child_url_s = page_children_url(page);
+    // for child_url in child_url_s {
+    //     let mut child_page = super::Page::new(&stor_root, child_url.path());
+    // }
 }
 
-// pub fn page_upgrade_children(
-//     page: &mut Page,
-//     recursive: bool,
-//     upres: Option<Rc<RefCell<Upres>>>,
-// ) {
-//     // info!("fn page_upgrade_children");
-
-//     // To avoid
-//     // error[E0499]: cannot borrow `*page` as mutable more than once at a time
-//     // get page_url at here previously
-//     let Ok(page_url) = page_url(page) else {
-//         return;
-//     };
-
-//     let stor_root = page.stor_root().to_string();
-
-//     // let page_json = page.json();
-//     let page_json = page.json_mut();
-//     if page_json.is_none() {
-//         return;
-//     }
-//     let Some(subsections_json) = page_json.unwrap().subsections() else {
-//         return;
-//     };
-
-//     for (_, subsection_json) in subsections_json.iter() {
-//         // subsection_json["href"]
-//         info!("href: {}", subsection_json["href"]);
-
-//         let Some(href) = subsection_json["href"].as_str() else {
-//             continue;
-//         };
-
-//         // href is not to child of the page
-//         let Some((_, is_child)) = href_on(&page_url, href) else {
-//             continue;
-//         };
-//         if !is_child {
-//             continue;
-//         }
-
-//         let Ok(href_url) = page_url.join(href) else {
-//             continue;
-//         };
-
-//         // info!("href_url: {}", href_url);
-
-//         let mut child_page = Page::new(&stor_root, href_url.path());
-//         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
-//         child_page.upgrade(recursive, upres_child);
-//     }
-// }
-
-// pub fn page_upgrade_children_(
-//     page: &mut Page,
-//     recursive: bool,
-//     upres: Option<Rc<RefCell<Upres>>>,
-// ) {
-//     // info!("fn page_upgrade_children");
-
-//     // To avoid
-//     // error[E0499]: cannot borrow `*page` as mutable more than once at a time
-//     // get page_url at here previously
-//     let Ok(page_url) = page_url(page) else {
-//         return;
-//     };
-
-//     let stor_root = page.stor_root().to_string();
-
-//     // let page_json = page.json();
-//     let page_json = page.json_mut();
-//     if page_json.is_none() {
-//         return;
-//     }
-//     let Some(subsections_json) = page_json.unwrap().subsections() else {
-//         return;
-//     };
-
-//     let subsection_top_json = &subsections_json["0"];
-//     if subsection_top_json.is_null() {
-//         return;
-//     }
-//     let children_id_json = match subsection_top_json["child"] {
-//         json::JsonValue::Array(ref v) => v,
-//         _ => return,
-//     };
-
-//     for id in children_id_json {
-//         let subsection_json = &subsections_json[id.to_string().as_str()];
-//         let Some(href) = subsection_json["href"].as_str() else {
-//             continue;
-//         };
-
-//         // href is not to child of the page
-//         let Some((_, is_child)) = href_on(&page_url, href) else {
-//             continue;
-//         };
-//         if !is_child {
-//             continue;
-//         }
-
-//         let Ok(href_url) = page_url.join(href) else {
-//             continue;
-//         };
-
-//         let mut child_page = Page::new(&stor_root, href_url.path());
-//         let upres_child = upres.as_ref().and_then(|ref v| Some(Rc::clone(v)));
-//         child_page.upgrade(recursive, upres_child);
-//     }
-// }
+pub fn page_mainte(
+    page: &mut Page,
+    recursive: bool,
+    log: Option<Rc<RefCell<page_mainte::page_form_update::Log>>>,
+) {
+    page_mainte::page_mainte(page, recursive, log)
+}
