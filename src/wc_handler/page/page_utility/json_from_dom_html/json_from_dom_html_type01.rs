@@ -49,6 +49,11 @@ fn json_html_navi(page_node: &Rc<Node>, page_json: &mut json::JsonValue) -> Opti
         navi_list.push((href, text));
     }
 
+    // Correct top page file name.
+    if 0 < navi_list.len() {
+        navi_list[0].0 = navi_list[0].0.replace("WC_top.html", "wc_top.html");
+    }
+
     for navi in navi_list {
         let mut navi_json = json::JsonValue::Array(vec![]);
         let _ = navi_json.push::<json::JsonValue>(navi.1.into());

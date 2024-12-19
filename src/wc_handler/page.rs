@@ -1,4 +1,3 @@
-use super::super::page_upgrade_handle::Upres;
 use html5ever::driver::parse_document; // , serialize
 use html5ever::tendril::TendrilSink; // parse_document(...).one() needs this
 use markup5ever_rcdom::RcDom;
@@ -7,7 +6,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tracing::{error, info}; //  error, event, info_span, instrument, span, Level debug , warn,// ;
-                            // pub mod page_backup_delete;
 pub mod page_json;
 pub mod page_utility;
 
@@ -42,6 +40,25 @@ impl Page {
         }
     }
 
+    pub fn from_json(
+        stor_root: &str,
+        page_path: &str,
+        page_json: &json::JsonValue,
+    ) -> Result<Page, String> {
+        // Page::from_json(stor_root, page_path, page_json)
+
+        let page_dom = page_utility::page_dom_from_json(page_path, page_json)?;
+        let node = Rc::clone(&page_dom.document);
+        let source = page_utility::source_from_dom(node).or_else(|e| Err(format!("{}", e)))?;
+
+        let mut page = Page::new(stor_root, page_path);
+        page.source.replace(Some(source));
+
+        page.dom.replace(Some(page_dom));
+
+        Ok(page)
+    }
+
     pub fn stor_root(&self) -> &str {
         self.stor_root.as_str()
     }
@@ -49,10 +66,6 @@ impl Page {
     pub fn page_path(&self) -> &str {
         self.page_path.as_str()
     }
-
-    // pub fn page_path2(&self) -> Option<&str> {
-    //     self.path.to_str()
-    // }
 
     pub fn path(&self) -> &Path {
         self.path.as_path()
@@ -67,11 +80,12 @@ impl Page {
         reg.is_match(&self.page_path)
     }
 
-    pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
+    // pub fn read(&mut self) -> Result<&Vec<u8>, ()> {
+    fn read(&mut self) -> Result<&Vec<u8>, ()> {
         let file_path = &self.file_path();
         match fs::read(&file_path) {
             Ok(s) => {
-                self.source_replace_some(s);
+                self.source.replace(Some(s));
                 return Ok(self.source.as_ref().unwrap().as_ref().unwrap());
             }
             // file not found
@@ -89,20 +103,16 @@ impl Page {
     pub fn dir_build(&self) -> Result<String, String> {
         let recursive = true;
         page_utility::dir_build(self.path.as_path(), recursive)
-        // return page_utility::dir_build(self.path.as_path(), recursive);
     }
 
     pub fn source(&mut self) -> Option<&Vec<u8>> {
+        page_utility::json_mut_borrowed_handle(self);
+
         if self.source.is_none() {
             let _ = self.read();
         }
 
         self.source.as_ref().unwrap().as_ref()
-    }
-
-    fn source_replace_some(&mut self, source: Vec<u8>) {
-        self.source.replace(Some(source));
-        self.source_origined_clear();
     }
 
     fn source_origined_clear(&mut self) {
@@ -128,6 +138,8 @@ impl Page {
     }
 
     pub fn dom(&mut self) -> Option<&RcDom> {
+        page_utility::json_mut_borrowed_handle(self);
+
         if self.dom.is_none() {
             let _ = self.dom_parse().ok()?;
         };
@@ -149,6 +161,10 @@ impl Page {
         }
     }
 
+    fn json_is_none(&self) -> bool {
+        self.json.is_none()
+    }
+
     fn json(&mut self) -> Option<&page_json::PageJson> {
         if self.json.is_none() {
             if let Err(_) = self.json_parse() {
@@ -159,11 +175,7 @@ impl Page {
     }
 
     fn json_mut(&mut self) -> Option<&mut page_json::PageJson> {
-        if self.json.is_none() {
-            if let Err(_) = self.json_parse() {
-                return None;
-            }
-        }
+        let _ = self.json()?;
         self.json.as_mut().unwrap().as_mut()
     }
 
@@ -174,29 +186,27 @@ impl Page {
 
     /// Updata the page with json_data2
     /// rev no (json_data2["data"]["page"]["rev"]) should match with the current no.
-    /// Return Ok(rev_uped), new rev number
-    pub fn json_replace_save(&mut self, mut json_data2: json::JsonValue) -> Result<usize, String> {
+    /// json_data2["data"]["page"]["rev"] will be replaced with page_json.rev_plus_one()
+    /// Return Ok(rev_plus_one), new rev number
+    pub fn json_replace_save(&mut self, json_data2: json::JsonValue) -> Result<usize, String> {
         page_utility::json_rev_match(self, &json_data2)?;
 
-        // Updata rev no.
-        let page_json = self.json().ok_or("Failed to get page_json.")?;
-        let rev_uped = page_json.rev_uped().ok_or("Failed to get rev_uped")?;
-        json_data2["data"]["page"]["rev"] = rev_uped.into();
+        let page_json = self.json_mut().ok_or("Failed to get page_json.")?;
+        page_json.value_replace(json_data2);
 
-        let mut page2 = page_utility::page_from_json(&self.stor_root, &self.page_path, &json_data2);
+        // rev no. one up
+        page_json
+            .rev_replace_one_up()
+            .or(Err("Failed to repace rev one up."))?;
 
-        page2
-            .file_save_and_rev()
-            .and(Ok(rev_uped))
-            .or(Err(format!("Failed to save json of  {}", &self.page_path)))
+        self.file_save_and_rev()
+            .or(Err("Failed to save_and_rev".to_string()))?;
+
+        self.rev().or(Err("Failed to get rev".to_string()))
     }
 
     /// Save self.source data to the file.
     pub fn file_save(&mut self) -> Result<String, String> {
-        // DBG
-        // warn!("pub fn file_save returning Err in DBG");
-        // return Err("".into());
-
         let file_path = &self.file_path();
         let source = match self.source() {
             Some(v) => v,
@@ -207,7 +217,6 @@ impl Page {
 
     pub fn rev(&mut self) -> Result<usize, ()> {
         let page_json = self.json().ok_or(())?;
-        // let rev = page_json.rev().ok_or(())?;
         let rev = match page_json.rev() {
             Some(v) => v,
             None => {
@@ -218,26 +227,27 @@ impl Page {
         Ok(rev)
     }
 
+    fn rev_replace_one_up(&mut self) -> Result<(), String> {
+        let page_json = self.json_mut().ok_or("Failed to get page_json.")?;
+        page_json
+            .rev_replace_one_up()
+            .or(Err("Failed to repace rev one up.".to_string()))
+    }
+
     fn path_rev(&mut self) -> Result<String, ()> {
         let page_json = self.json().ok_or(())?;
         let rev = page_json.rev().ok_or(())?;
-        // Ok(self.path_rev_form(rev))
 
         let path_rev = self.path_rev_form(rev);
         match path_rev.to_str() {
             Some(v) => Ok(v.to_string()),
             None => Err(()),
         }
-        // or(Some("")).unwrap().to_string();
-
-        //
-        // Ok(self.path_rev_form(rev))
     }
 
     /// This function takes rev in arguments, not consering with self.json.rev().
     /// This is only for a path format with rev numaber.
     /// ./stor_root/page_path.html + "." + rev_no
-    // pub fn path_rev_form(&self, rev: usize) -> String {
     pub fn path_rev_form(&self, rev: usize) -> PathBuf {
         // self.file_path() + "." + rev.to_string().as_str()
         let path = self.file_path() + "." + rev.to_string().as_str();
@@ -261,20 +271,8 @@ impl Page {
         page_utility::fs_write(&path_rev, source)
     }
 
-    pub fn file_backup_delete(&mut self) {
-        page_utility::page_backup_delete::backup_delete(self);
-    }
-
     /// Save the file and its backup file wit rev suffix.
     pub fn file_save_and_rev(&mut self) -> Result<(), ()> {
-        // DBG
-        // let dbg = true;
-        // // let dbg = false;
-        // if dbg {
-        //     warn!("DBG skipping file_save_and_rev");
-        //     return Ok(());
-        // }
-
         let mut saved = true;
 
         if let Err(emsg) = self.file_save() {
@@ -303,33 +301,15 @@ impl Page {
             .is_some_and(|page_json| page_json.subsections_data_exists())
     }
 
-    pub fn upgrade_and_backup_delete(
+    pub fn mainte(
         &mut self,
         recursive: bool,
-        upres: Option<Rc<RefCell<Upres>>>,
+        log: Option<Rc<RefCell<page_utility::page_mainte::page_form_update::Log>>>,
     ) {
-        let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
-        page_utility::page_upgrade(self, upres2);
-
-        self.file_backup_delete();
-
-        if recursive {
-            // page_utility::page_upgrade_children(self, recursive, upres);
-            page_utility::page_upgrade_and_delete_children(self, recursive, upres);
-        }
+        // page_utility::
+        // page_utility::page_mainte::page_mainte(self, recursive, log);
+        page_utility::page_mainte(self, recursive, log);
     }
-
-    /// Upgrade the page of url, not self.
-    // pub fn upgrade(&mut self, recursive: bool, upres: Option<Rc<RefCell<Upres>>>) {
-    //     let upres2 = upres.as_ref().and_then(|v| Some(Rc::clone(v)));
-    //     page_utility::page_upgrade(self, upres2);
-
-    //     // self.file_backup_delete();
-
-    //     if recursive {
-    //         page_utility::page_upgrade_children(self, recursive, upres);
-    //     }
-    // }
 
     /// Move this page to dest_url as a child of parent_url.
     /// parent_url is an optional. If it is None, this page is a top page.

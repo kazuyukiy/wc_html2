@@ -2,19 +2,25 @@ use std::str::FromStr;
 use tracing::error;
 // {error, event, info, instrument, span, Level, Node}
 
+/// If PageJson was borrowed as mutable, consider as the contents of PageJson.data is changed.
 pub struct PageJson {
     data: Option<json::JsonValue>,
+    may_changed: bool,
 }
 
 impl PageJson {
     pub fn new() -> PageJson {
         PageJson {
             data: Some(page_json_plain()),
+            may_changed: false,
         }
     }
 
     pub fn from(data: json::JsonValue) -> PageJson {
-        PageJson { data: Some(data) }
+        PageJson {
+            data: Some(data),
+            may_changed: false,
+        }
     }
 
     pub fn value(&self) -> Option<&json::JsonValue> {
@@ -23,7 +29,10 @@ impl PageJson {
 
     pub fn value_mut(&mut self) -> Option<&mut json::JsonValue> {
         match self.data.as_mut() {
-            Some(v) => Some(v),
+            Some(v) => {
+                self.may_changed = true;
+                Some(v)
+            }
             None => {
                 eprintln!("Failed to get data in json as mutable");
                 None
@@ -32,7 +41,21 @@ impl PageJson {
     }
 
     pub fn value_take(&mut self) -> Option<json::JsonValue> {
+        self.may_changed = true;
         self.data.take()
+    }
+
+    pub fn value_replace(&mut self, json_value: json::JsonValue) {
+        self.may_changed = true;
+        self.data.replace(json_value);
+    }
+
+    pub fn may_changed(&self) -> bool {
+        self.may_changed
+    }
+
+    pub fn may_changed_clear(&mut self) {
+        self.may_changed = false;
     }
 
     pub fn rev(&self) -> Option<usize> {
@@ -45,11 +68,20 @@ impl PageJson {
         }
     }
 
-    // rev counted up from current rev
-    pub fn rev_uped(&self) -> Option<usize> {
+    /// Return a value adding one to rev
+    pub fn rev_plus_one(&self) -> Option<usize> {
         let rev = self.rev()?;
         // Some(rev + 1)
         rev.checked_add(1)
+    }
+
+    /// Replace rev (json_value["data"]["page"]["rev"]) with fn rev_plus_one() (one up).
+    pub fn rev_replace_one_up(&mut self) -> Result<(), ()> {
+        self.may_changed = true;
+        let rev_one_up = self.rev_plus_one().ok_or(())?;
+        let json_value = self.value_mut().ok_or(())?;
+        json_value["data"]["page"]["rev"] = rev_one_up.into();
+        Ok(())
     }
 
     pub fn subsection_id_next(&self) -> Option<usize> {
@@ -59,6 +91,7 @@ impl PageJson {
     /// Return new subsection id getting from ["data"]["subsection"]["id"]["id_next"]
     /// and add one to id_next.
     pub fn subsection_id_new(&mut self) -> Option<usize> {
+        self.may_changed = true;
         let id = self.subsection_id_next()?;
         let id_next = id.checked_add(1)?;
 
@@ -68,6 +101,7 @@ impl PageJson {
     }
 
     pub fn subsection_new(&mut self, parent_id: &usize) -> Option<Subsection> {
+        self.may_changed = true;
         let parent_id_string = parent_id.to_string();
         let parent_id_str = parent_id_string.as_str();
 
@@ -127,21 +161,19 @@ impl PageJson {
 
         if let Some(id_str) = id_str_match {
             let id = usize::from_str_radix(id_str, 10).ok()?;
+            self.may_changed = true;
             return Some(Subsection {
                 page_json: self.data.as_mut().unwrap(),
+                // page_json: self.data.as_ref().unwrap(),
                 id,
             });
         }
         None
     }
 
-    pub fn subsections(&mut self) -> Option<&json::object::Object> {
-        // let value = self.value()?;
-        let value = self.value_mut()?;
-        if value["data"]["subsection"]["data"].is_empty() {
-            value["data"]["subsection"]["data"] = json::array! {};
-            // return None;
-        }
+    // pub fn subsections(&mut self) -> Option<&json::object::Object> {
+    pub fn subsections(&self) -> Option<&json::object::Object> {
+        let value = self.value()?;
         match value["data"]["subsection"]["data"] {
             json::JsonValue::Object(ref object) => Some(object),
             _ => None,
@@ -151,16 +183,30 @@ impl PageJson {
     pub fn subsections_mut(&mut self) -> Option<&mut json::object::Object> {
         let value = self.value_mut()?;
         if value["data"]["subsection"]["data"].is_empty() {
+            value["data"]["subsection"]["data"] = json::array! {};
+            // return None;
+        }
+
+        if let json::JsonValue::Object(_) = value["data"]["subsection"]["data"] {
+            // return None;
+        } else {
             return None;
         }
+
+        self.may_changed = true;
+
+        let value = self.value_mut()?;
         match value["data"]["subsection"]["data"] {
-            json::JsonValue::Object(ref mut object) => Some(object),
+            json::JsonValue::Object(ref mut object) => {
+                // self.may_changed = true;
+                Some(object)
+            }
             _ => None,
         }
     }
 
-    // pub fn subsections_data_exists(&self) -> bool {
-    pub fn subsections_data_exists(&mut self) -> bool {
+    pub fn subsections_data_exists(&self) -> bool {
+        // pub fn subsections_data_exists(&mut self) -> bool {
         self.subsections()
             .and_then(|subsections| {
                 // value["data"]["subsection"]["data"][0] is not real content.

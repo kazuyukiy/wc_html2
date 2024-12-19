@@ -35,7 +35,6 @@ pub fn handle_stream(stream: &mut TcpStream, stor_root: &str) -> Result<Vec<u8>,
 
     if method == "POST" {
         let _span_post = info_span!("POST").entered();
-        info!("{}", http_request.path());
         return handle_post(&http_request, stor_root);
     }
 
@@ -77,18 +76,21 @@ fn http_form(status: &str, contents: &Vec<u8>) -> Vec<u8> {
 
 fn handle_get(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, ()> {
     let mut page = page::Page::new(&stor_root, http_request.path());
-    page.read().map_or(Err(()), |v| Ok(http_ok(v)))
+    // page.read().map_or(Err(()), |v| Ok(http_ok(v)))
+    page.source().map_or(Err(()), |v| Ok(http_ok(v)))
 }
 
 fn handle_post(
     http_request: &http_request::HttpRequest,
     stor_root: &str,
 ) -> Result<Vec<u8>, String> {
-    let Some(wc_request) = http_request.wc_request() else {
-        return Err(format!("Failed to get wc_request: {}", http_request.path()));
+    let wc_request = match http_request.wc_request() {
+        Some(wc_request) => {
+            info!("req: {} on {}", wc_request, http_request.path());
+            wc_request
+        }
+        None => return Err(format!("Failed to get wc_request: {}", http_request.path())),
     };
-
-    // info!("wc_request: {}", wc_request);
 
     if wc_request == "json_save" {
         return json_save(http_request, stor_root);
@@ -104,6 +106,10 @@ fn handle_post(
 
     if wc_request == "page_move" {
         return handle_page_move(http_request, stor_root);
+    }
+
+    if wc_request == "page_mainte" {
+        return handle_page_mainte(http_request, stor_root);
     }
 
     // temp
@@ -166,12 +172,6 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
             format!("{{\"res\":\"{}\"}}", e).into()
         }
     };
-
-    if let Ok(v) = std::str::from_utf8(&res) {
-        info!("json_save: res: {}", v)
-    } else {
-        error!("Failed json_replace_save");
-    }
 
     Ok(http_ok(&res))
 }
@@ -291,6 +291,39 @@ fn handle_page_move(
         Err(e) => format!(r#"{{"Err":"{}"}}"#, &e),
     };
 
+    info!("{}", res);
+
+    Ok(http_ok(&res.as_bytes().to_vec()))
+}
+
+fn handle_page_mainte(
+    http_request: &http_request::HttpRequest,
+    stor_root: &str,
+) -> Result<Vec<u8>, String> {
+    //
+
+    let json_post = json_post(http_request)?;
+    let mainte_url = json_post["mainte_url"]
+        .as_str()
+        .ok_or(format!("Faild to get mainte_url: {}", http_request.path()))?
+        .trim();
+
+    let page_url = http_request
+        .url()
+        .ok_or(format!("Failed to get url: {}", http_request.path()))?;
+
+    let mainte_url = page_url.join(mainte_url).or(Err(format!(
+        "Failed to join maintePurl: {}",
+        http_request.path()
+    )))?;
+
+    let mut mainte_page = page::Page::new(stor_root, mainte_url.path());
+
+    let recursive = true;
+    let upres = None;
+    mainte_page.mainte(recursive, upres);
+
+    let res = format!(r#"{{"res":"maintained"}}"#);
     info!("{}", res);
 
     Ok(http_ok(&res.as_bytes().to_vec()))

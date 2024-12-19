@@ -1832,6 +1832,7 @@ class Menu extends Blox {
 
 (
 	  <input type="button" value="Page Move" class="{BXPF=menuPageMoveReq}">
+	  <input type="button" value="Page Minte" class="{BXPF=menuPageMainteReq}">
 	  <input type="button" value="href_reference" class="{BXPF=menuhref_reference}">
 	  <input type="button" value="page_json" class="{BXPF=menupage_json_open}">
 	  <span class="{BXPF=menuGroupTopTitle}"></span>
@@ -1850,6 +1851,7 @@ class Menu extends Blox {
 	"menuExit"
 	,"menuSave"
 	,"menuPageMoveReq"
+	,"menuPageMainteReq"
 	,"menuGroupTop"
 	// ,""
     ];
@@ -1924,6 +1926,17 @@ class Menu extends Blox {
 	alert("Close the current editor, then Page Move menu is comming up!");
 	
     } // end of class Menu menuPageMoveOpen
+
+    menuPageMainteReq() {
+	// this.log2("menuPageMainteReq()","");
+
+	// DBG
+	 console.log("menuPageMainteReq");
+
+	this.editor().currentStatus().editType = "pageMainte";
+	alert("Close the current editor, then Page Mainte menu is comming up!");
+	
+    } // end of class Menu menuPageMainteOpen
 
     // Flip group_top value.
     menuGroupTop() {
@@ -2088,6 +2101,11 @@ class Menu extends Blox {
 	this.currentBlox(undefined);
 
 	if(this.editor().currentStatus().editType == "pageMove"){
+	    this.editorOpen(this);
+	    return;
+	}
+
+	if(this.editor().currentStatus().editType == "pageMainte"){
 	    this.editorOpen(this);
 	    return;
 	}
@@ -2261,16 +2279,25 @@ class Menu extends Blox {
 class MenuEditor extends Editor {
 
     eleDrawInst() {
+
+	// DBG
+	console.log("eleDrawInst editType:" + this.currentStatus().editType);
+	
 	// this.log2("eleDrawInst()", "");
 	if(this.currentStatus().editType == "pageMove"){
 	    return this.eleDrawInstPageMove();
 	}
+
+	if(this.currentStatus().editType == "pageMainte"){
+	    return this.eleDrawInstPageMainte();
+	}
+	
     } // end of class MenuEditor eleDrawInst()
 
     eleDrawInstPageMove() {
 
 	let html = this.htmlEditorBox;
-	html = this.htmlPhReplace(html, this.htmlEditorURL);
+	html = this.htmlPhReplace(html, this.htmlEditorMoveURL);
 	html = this.htmlPhReplace(html, this.htmlEditorEnter);
 	
 	let ele = this.eleFromHtml(html);
@@ -2281,7 +2308,21 @@ class MenuEditor extends Editor {
 	
     } // end of eleDrawInstPageMove
 
-    htmlEditorURL = (`
+    eleDrawInstPageMainte() {
+
+	let html = this.htmlEditorBox;
+	html = this.htmlPhReplace(html, this.htmlEditorMainte);
+	html = this.htmlPhReplace(html, this.htmlEditorEnter);
+	
+	let ele = this.eleFromHtml(html);
+	
+	this.eleVisibleSet(ele, {"editorNewPage" : 0});
+	
+	this.ele(ele);
+	
+    } // end of eleDrawInstPageMainte
+
+    htmlEditorMoveURL = (`
       <tr>
       <td>Parent URL</td>
       <td><input class="{BXPF=parentUrl}"></td>	
@@ -2295,7 +2336,19 @@ class MenuEditor extends Editor {
 	<td></td>
       </tr>
 	<!--placeHolder-->
-`); // end of class MenuEditor htmlEditorURL
+`); // end of class MenuEditor htmlEditorMoveURL
+
+    htmlEditorMainte = (`
+      <tr>
+      <td>Page URL to maintain</td>
+      <td><input class="{BXPF=mainteUrl}"></td>	
+      </tr>
+      <tr>
+      <td></td>
+	<td></td>
+      </tr>
+	<!--placeHolder-->
+`); // end of class MenuEditor htmlEditorMainte
 
     editorClose() {
 	delete this.currentStatus().editType;
@@ -2306,6 +2359,18 @@ class MenuEditor extends Editor {
 	// this.log2("editorEnter()","");
 	if(this.currentStatus().editType == "pageMove"){
 	    return this.editorEnterPageMove();
+	}
+
+	if(this.currentStatus().editType == "pageMainte"){
+	    return this.editorEnterPageMainte();
+	}
+	
+    } // end of class MenuEditor editorEnter
+
+    editorEnter() {
+	// this.log2("editorEnter()","");
+	if(this.currentStatus().editType == "pageMainte"){
+	    return this.editorEnterPageMainte();
 	}
     } // end of class MenuEditor editorEnter
 
@@ -2338,7 +2403,34 @@ class MenuEditor extends Editor {
 	    console.error("Failed to move the pages.");
 	    alert("Failed to move the pages.");
 	}
-    } // end of class MenuEditor editorEnterPageMove 
+    } // end of class MenuEditor editorEnterPageMove
+
+    async editorEnterPageMainte() {
+	const mainteUrlEle = this.querySelectorBx(this.ele(), "mainteUrl");
+
+	const mainteUrl = mainteUrlEle.value;
+	if(mainteUrl.length == 0){
+	    this.result("err","URL to maintain is emply!");
+	}	
+	
+	if(0 < this.result().err.length){
+	    this.eleDraw();
+	    return;
+	}
+
+	let req = "page_mainte";
+	let data = {"mainte_url" : mainteUrl};
+	let res = await fetchPost(req, data);
+	if (res && res.res == "maintained") {
+	    delete this.currentStatus().editType;
+	    // super: class Editor this class extends on.
+	    super.editorEnter();
+	} else {
+	    console.error("Failed to mainte the pages.");
+	    alert("Failed to mainte the pages.");
+	}
+    } // end of class MenuEditor editorEnterPageMainte
+    
     
 } // end of class MenuEditor end  
 
@@ -3725,8 +3817,20 @@ class Contents extends Blox {
 
     contentsDraw() {
 	// this.log2("contentsDraw()");
+
+	// const dataContents = this.item().data().content;
+	let dataContents = this.item().data().content;
+	if(dataContents == undefined){ dataContents = []; }
+
+	// DBG
+	// if(dataContents == undefined){
+	//     console.log("data: " + this.item().data());
+	//     console.log("id: " + this.item().data().id);
+	//     console.log("title: " + this.item().data().title);
+	//     console.log("href" + this.item().data().href);
+	//     // console.log("" + this.item().data());
+	// }
 	
-	const dataContents = this.item().data().content;
 
 	for(let i=0; i<dataContents.length; i++){
 	    const content = this.content(i);
