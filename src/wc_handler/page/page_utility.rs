@@ -93,8 +93,9 @@ pub fn json_from_dom(page_node: &Handle) -> Option<json::JsonValue> {
     // <span id="page_json_str" style="display: none"></span>
     let mut json_value = json_from_dom_span(page_node);
 
-    // The script in below may not need since page_form_update is done in lib.rs.
+    // The script in below may not need since page_form_update is done by page_mainte.
     // All pages those page_form_update weren done should have json_value in span element.
+    // However page_form_update uses this function expecting script in blow.
 
     // old stype, json value is in scritp element.
     // <script type="text/javascript" class="page_json">let page_json = {}</script>

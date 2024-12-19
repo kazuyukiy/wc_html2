@@ -3817,8 +3817,20 @@ class Contents extends Blox {
 
     contentsDraw() {
 	// this.log2("contentsDraw()");
+
+	// const dataContents = this.item().data().content;
+	let dataContents = this.item().data().content;
+	if(dataContents == undefined){ dataContents = []; }
+
+	// DBG
+	// if(dataContents == undefined){
+	//     console.log("data: " + this.item().data());
+	//     console.log("id: " + this.item().data().id);
+	//     console.log("title: " + this.item().data().title);
+	//     console.log("href" + this.item().data().href);
+	//     // console.log("" + this.item().data());
+	// }
 	
-	const dataContents = this.item().data().content;
 
 	for(let i=0; i<dataContents.length; i++){
 	    const content = this.content(i);
