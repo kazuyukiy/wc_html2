@@ -2982,6 +2982,9 @@ class ItemsCenter extends Blox {
 	// this.log("itemChildDelete()");
 
 	const child = item.data().child;
+
+	if(child==undefined){ return; }
+	
 	for(let i=0; i<child.length; i++){
 	    const key = child[i];
 	    const itemChild = item.child(key);

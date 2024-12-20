@@ -147,6 +147,13 @@ fn json_post(http_request: &http_request::HttpRequest) -> Result<json::JsonValue
 }
 
 fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Result<Vec<u8>, String> {
+    // DBG
+    // match http_request.dbg_body() {
+    //     Some(v) => info!("body.len: {}", v.len()),
+    //     None => info!("Failed to get body"),
+    // }
+    // info!("body_string: {:?}", http_request.dbg_body());
+
     let mut page = page_post(http_request, stor_root)?;
 
     // The file not exist.
@@ -156,10 +163,18 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
 
     let json_post = match json_post(http_request) {
         Ok(v) => v,
-        Err(e) => {
-            return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
-        }
+        Err(e) => return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into())),
+        // Err(e) => {
+        //     // DBG
+        //     error!("Failed to get json_post");
+
+        //     return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
+        // }
     };
+
+    if json_post.is_empty() {
+        error!("json_post is empty");
+    }
 
     let res: Vec<u8> = match page.json_replace_save(json_post) {
         Ok(rev_uped) => format!(
