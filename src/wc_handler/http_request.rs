@@ -184,9 +184,9 @@ fn stream_read(stream: &mut TcpStream) -> Vec<u8> {
     // 1024 can not get body contents in most times, seldom cuccess.
     // 64 can get bodys almost all time.
     // I think reading loop should be slow enough to recieve much data for MESSAGE_SIZE full fill.
-    // const MESSAGE_SIZE: usize = 64;
+    const MESSAGE_SIZE: usize = 64;
     // const MESSAGE_SIZE: usize = 512;
-    const MESSAGE_SIZE: usize = 1024;
+    // const MESSAGE_SIZE: usize = 1024;
     let mut rx_bytes = [0u8; MESSAGE_SIZE];
     let mut stream_data: Vec<u8> = vec![];
 

@@ -163,13 +163,12 @@ fn json_save(http_request: &http_request::HttpRequest, stor_root: &str) -> Resul
 
     let json_post = match json_post(http_request) {
         Ok(v) => v,
-        Err(e) => return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into())),
-        // Err(e) => {
-        //     // DBG
-        //     error!("Failed to get json_post");
-
-        //     return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
-        // }
+        // Err(e) => return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into())),
+        Err(e) => {
+            // DBG
+            error!("Failed to get json_post");
+            return Ok(http_ok(&format!("{{\"res\":\"{}\"}}", e).into()));
+        }
     };
 
     if json_post.is_empty() {
