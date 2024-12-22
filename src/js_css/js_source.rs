@@ -2914,13 +2914,33 @@ class ItemsCenter extends Blox {
 
 	this.bxCenter().bxTop().menu().changed(true);
 	
-	if(0 < idData.id_notinuse.length){
-	    return idData.id_notinuse.shift();
+	// if(0 < idData.id_notinuse.length){
+	//     // return idData.id_notinuse.shift();
+	//     return idData.id_notinuse.shift();
+	// }
+	while(0 < idData.id_notinuse.length){
+	    // return idData.id_notinuse.shift();
+	    const idNew = idData.id_notinuse.shift();
+	    // if not undefined it is inconsistency. Let see next id.
+	    if(this.data().data[idNew] == undefined) {
+		return idNew;
+	    }
 	}
 
-	const idNew = idData.id_next;
-	idData.id_next = idNew + 1;
+	// const idNew = idData.id_next;
+	// idData.id_next = idNew + 1;
+	
+	let idNew = idData.id_next;
+	const loopEnd = idNew + 100;
+	while(idNew < loopEnd){
+	    // if not undefined it is inconsistency. Let see next id.
+	    if(this.data().data[idNew] == undefined) {
+		break;
+	    }
+	    idNew++;
+	}
 
+	idData.id_next = idNew + 1;
 	return idNew;
 	
     } // end of class ItemsCenter idNew 
@@ -3447,11 +3467,15 @@ class IndexItemEditor extends Editor {
     } // end of class IndexItemEditor editorEnter
 
     editorEnterTitle() {
+	// DBGn
 	// this.log2("editorEnterTitle()");
 
 	const titleEle = this.querySelectorBx(this.ele(), "inputTitle");
 	const titleNew = titleEle.value;
-	
+
+	// DBG
+	// this.log2("editorEnterTitle() titleNew: " + titleNew);
+
 	if(titleNew.length == 0){
 	    this.result("err", "no title");
 	} else {
@@ -4089,6 +4113,15 @@ class Content extends Blox {
 
     eleDrawInst() {
 	// this.log2("eleDrawInst()");
+
+	// DBG subsection insert
+	if(this.data() == undefined){
+
+	    // console.log("this.parentBx().data(): " + this.parentBx().data());
+	    // console.log("this.parentBx().constructor.name: " + this.parentBx().constructor.name);
+	    // console.log("this.parentBx().parentBx().constructor.name: " + this.parentBx().parentBx().constructor.name);
+	    // console.log("this.parentBx().parentBx().parentBx().constructor.name: " + this.parentBx().parentBx().parentBx().constructor.name);
+	}
 
 	const type = this.data().type;
 
