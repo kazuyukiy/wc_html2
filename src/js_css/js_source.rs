@@ -1931,7 +1931,7 @@ class Menu extends Blox {
 	// this.log2("menuPageMainteReq()","");
 
 	// DBG
-	 console.log("menuPageMainteReq");
+	// console.log("menuPageMainteReq");
 
 	this.editor().currentStatus().editType = "pageMainte";
 	alert("Close the current editor, then Page Mainte menu is comming up!");
@@ -2367,12 +2367,12 @@ class MenuEditor extends Editor {
 	
     } // end of class MenuEditor editorEnter
 
-    editorEnter() {
-	// this.log2("editorEnter()","");
-	if(this.currentStatus().editType == "pageMainte"){
-	    return this.editorEnterPageMainte();
-	}
-    } // end of class MenuEditor editorEnter
+    // editorEnter_() {
+    // 	// this.log2("editorEnter()","");
+    // 	if(this.currentStatus().editType == "pageMainte"){
+    // 	    return this.editorEnterPageMainte();
+    // 	}
+    // } // end of class MenuEditor editorEnter
 
     async editorEnterPageMove() {
 	const parentUrlEle = this.querySelectorBx(this.ele(), "parentUrl");
